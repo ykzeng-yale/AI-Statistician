@@ -33,9 +33,9 @@ def main(argv=None):
     config_path = args.config.resolve()
     raw = config_path.read_bytes()
     config = json.loads(raw)
-    if not isinstance(config, dict) or config.get("mode") not in {"free_planning", "same_workflow", "full_collaboration"}:
+    if not isinstance(config, dict) or config.get("mode") not in {"free_planning", "same_workflow", "full_collaboration", "no_cross_role_revision"}:
         raise ValueError("unsupported study draw mode")
-    collaborative = config["mode"] == "full_collaboration"
+    collaborative = config["mode"] in {"full_collaboration", "no_cross_role_revision"}
     allowed = {"question_ref", "question_id", "mode", "backend", "roles", "deployment_ref", "source_snapshot_ref", "source_discovery"}
     allowed |= {"runtime", "architect_context"} if collaborative else {"request", "workflow_instructions", "estimator_ids", "execution", "limits"}
     if not isinstance(config, dict) or set(config) - allowed:
@@ -124,7 +124,7 @@ def main(argv=None):
                   "source_discovery": {**discovery.descriptor(), "state_dir": str(state_dir)} if discovery else None}
     if collaborative:
         result, submission = run_collaborative_research_draw(question=matches[0], backend=backend, agents=agents,
-            config=runtime_config, out_dir=out_dir, architect_context=config.get("architect_context"), study_provenance=provenance)
+            config=runtime_config, out_dir=out_dir, architect_context=config.get("architect_context"), study_provenance=provenance, mode=mode)
     else:
         result, submission = run_single_context_research_draw(
             question=matches[0], request=request, backend=backend, out_dir=out_dir,

@@ -17,6 +17,7 @@ from .agent_runtime import (
     BlackboardState,
     EnvironmentObservation,
     EvidenceLedgerEntry,
+    HandoffPolicy,
     ToolCallRecord,
     agent_task_continuation_reference,
     agent_task_from_payload as _agent_task_from_runtime_payload,
@@ -19729,14 +19730,6 @@ def _runtime_task_payload_reference(payload: Mapping[str, Any]) -> dict[str, Any
     }
 
 
-def formalizer_workspace_runtime_bindings(
-    workspace: FormalizerWorkspaceRuntimeSubsystem,
-) -> dict[str, FormalizerWorkspaceRuntimeSubsystem]:
-    """Expose the single model-owned formalization workspace."""
-
-    return {"FormalizationEvaluator": workspace}
-
-
 def run_research_agent_runtime(
     questions: list[OpenResearchQuestion],
     out_dir: Path,
@@ -19760,6 +19753,7 @@ def run_research_agent_runtime(
     architect_context: Mapping[str, Any] | None = None,
     initial_task_overrides: Mapping[str, AgentTask] | None = None,
     initial_blackboard_artifacts: Mapping[str, Mapping[str, Any]] | None = None,
+    handoff_policy: HandoffPolicy | None = None,
 ) -> dict[str, Any]:
     config = _normalized_runtime_evaluation_model_config(config)
     if (
@@ -20082,7 +20076,7 @@ def run_research_agent_runtime(
                 research_sources=configured_research_sources,
                 research_source_discovery=configured_research_source_discovery,
             ),
-            **formalizer_workspace_runtime_bindings(formalizer_workspace),
+            "FormalizationEvaluator": formalizer_workspace,
             "CriticEvaluator": CriticEvaluatorRuntimeSubsystem(
                 proposal_agent=critic_evaluator,
                 runtime_config=config,
@@ -20124,7 +20118,7 @@ def run_research_agent_runtime(
         runtime = AgentRuntime(
             subsystems=subsystems,
             blackboard=blackboard,
-            handoff_policy=(
+            handoff_policy=handoff_policy if handoff_policy is not None else (
                 (
                     lambda **kwargs: _runtime_transition_policy(
                         **kwargs,

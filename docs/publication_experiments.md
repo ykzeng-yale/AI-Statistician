@@ -72,7 +72,7 @@ than declare a small convenience panel definitive.
 | Study | Arms | Attribution |
 | --- | --- | --- |
 | Portable H | Same host bare vs same host + package | Paired within host/model; separate installations across Codex, Claude Code and Kimi |
-| System S | Free-planning general agent; single-context workflow control; isolated roles without feedback; full collaboration | Same Qwen, tools and resource accounting; distinguish workflow support from context separation |
+| System S | Free-planning general agent; single-context workflow control; isolated roles without reverse author revision; full collaboration | Same Qwen, tools and resource accounting; distinguish workflow support from context separation |
 | External scaffold | Minimal ResearchHarness or compatible open implementation | Pin code and report every provider/tool adaptation; no comparison with published scores |
 | Lean | Zero-shot source; compiler feedback; compiler feedback + scoped RAG | Same statements, model, project and total resources |
 | Foundation reuse | Pinned standard foundation vs standard + curated StatInference | Hold out target proof and dependent aliases; separately measure semantic fidelity |
@@ -250,6 +250,38 @@ are fabricated or bypassed. Resolved runtime, role configs and context are froze
 before the first call. Actual prompts/tools remain in production session contracts
 and request records, not a purported byte-identical single-context prompt.
 
+`no_cross_role_revision` uses the same production preparation, seven roles and
+declared configuration, without silently reducing any local retry budget. Its
+versioned intervention first applies the canonical handoff/identity policy, then
+withholds another role's return to an already visited source owner or a typed
+Architect environment-feedback route before another invocation. Forward handoffs,
+independent reviews, same-owner iteration and local compiler/execution feedback
+remain available. An exact identity-checked accepted review can resume its own
+source's deferred phase, including frozen execution, without being counted as
+revision; a return to upstream Theory using exploratory results is still withheld.
+This phase-return exception does not accept a changed/unbound continuation.
+Retrieval is an environment tool: an author's own retrieval
+return is allowed, but it cannot launder another role's reverse revision. Current
+local `research_eval` uses source-first simulation-protocol authoring, not the
+legacy Anthropic inline metric-author loop. This is not literal removal of all
+communication, reviewer information or local feedback, and does not claim to
+cover arbitrary custom runtime profiles.
+
+The intervention ends `BLOCKED`, preserving original source, findings and evidence
+with a small reference-bound intervention observation; it creates no acceptance
+receipt or replacement report. An actual terminal Critic selection can still be
+collected unchanged. A stop before that selection has no final submission:
+unselected earlier work is not salvaged. Report arm-induced termination and
+missing required outcomes explicitly; do not condition comparisons on successful
+internal completion. Trusted benchmark code injects this policy through the
+existing sole runtime callback; no model action can replace authority checks.
+This is a role-level reverse-reentry intervention, not a per-file edit detector.
+It measures reverse graph work under the current submission contract; it does
+not isolate semantic feedback quality from extra author attempts or arm-induced
+termination. Report those differences rather than attribute every gain to better
+criticism. The same-source accepted phase return prevents mandatory review alone
+from mechanically excluding confirmation in this arm.
+
 Optional `source_snapshot_ref` uses the existing hash-bound source loader;
 optional `source_discovery` declares the existing public discovery configuration
 and a fresh `state_dir` outside the exclusive draw directory. The command does
@@ -323,7 +355,11 @@ allowed call, exhaustion, transport/model-identity failures, immutable draw
 directories and caller mutation, without inference or scientific adjudication.
 Production-mode tests exercise actual runtime composition and transport failures;
 scripted sole-runtime/persistence fixtures separately test terminal collection.
-Neither is live scientific evidence. Declared confirmation/resource envelopes and
+Opaque transition and actual composition tests additionally verify the declared
+ablation, unchanged observations/source, retained forward/tool paths, canonical
+lineage rejection and unchanged Critic assessment collection. These invoke no
+research model and establish neither scientific efficacy nor resource parity.
+Declared confirmation/resource envelopes and
 tool access still need matching across arms; one command does not establish parity.
 
 Configured code-review file/probe tools keep a stable contract before and after
@@ -337,9 +373,9 @@ and graph request budget; no review model is invoked separately.
 
 Formalizer exposes prepared actions, but dynamic Lean binding is not part of this entry.
 It rejects required-formal tasks rather than weakening them. Complete matched
-arm configurations, the no-cross-role-feedback intervention, confirmation/resource
+arm configurations, confirmation/resource
 envelopes, independent full-task gold and complete multi-arm study orchestration
-remain unfinished. Empty
+remain unfinished. The four draw modes do not activate either study. Empty
 selections cannot pass missing required dimensions. Do not label arbitrary
 workflow text as matching the full product, compare this control to an
 unrestricted system, or manufacture finalized role packets to fit a score adapter.

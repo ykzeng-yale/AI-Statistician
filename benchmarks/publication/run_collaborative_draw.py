@@ -10,10 +10,13 @@ from ai_statistician.fingerprint import stable_hash
 from ai_statistician.research_agent_runtime import run_research_agent_runtime, _normalized_runtime_evaluation_model_config
 from ai_statistician.research_evaluation import load_runtime_research_submission
 from ai_statistician.research_schema import research_question_payload
+from benchmarks.publication.feedback_ablation import NO_CROSS_ROLE_REVISION, no_cross_role_revision_policy
 
 
 def run_collaborative_research_draw(*, question, backend, agents, config, out_dir: Path,
-                                    architect_context=None, study_provenance=None):
+                                    architect_context=None, study_provenance=None, mode="full_collaboration"):
+    if mode not in {"full_collaboration", "no_cross_role_revision"}:
+        raise ValueError("unsupported production study arm")
     if (getattr(backend, "provider_name", None) != "local"
         or any(agent.provider is not backend for agent in agents.values())):
         raise ValueError("publication production draw requires one shared local backend")
@@ -30,7 +33,8 @@ def run_collaborative_research_draw(*, question, backend, agents, config, out_di
     out_dir = out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=False)
     public = research_question_payload(question, include_task_intent=True)
-    frozen = {"question": public, "question_hash": stable_hash(public), "mode": "full_collaboration",
+    frozen = {"question": public, "question_hash": stable_hash(public), "mode": mode,
+              "intervention": NO_CROSS_ROLE_REVISION if mode == "no_cross_role_revision" else None,
               "runtime_config": asdict(config), "architect_context": context,
               "role_configs": {role: asdict(agent.config) for role, agent in agents.items()},
               "provider": backend.provider_name, "backend_class": type(backend).__qualname__,
@@ -44,6 +48,7 @@ def run_collaborative_research_draw(*, question, backend, agents, config, out_di
         architect_coordinator=agents["architect"], algorithm_engineer=agents["algorithm"],
         simulation_engineer=agents["simulation"], critic_evaluator=agents["critic"],
         generated_code_semantic_reviewer=agents["code_reviewer"], config=config, architect_context=context,
+        handoff_policy=no_cross_role_revision_policy(config) if mode == "no_cross_role_revision" else None,
     )
     paths = manifest["artifacts"]["per_question_results"]
     if len(paths) != 1:

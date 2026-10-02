@@ -306,9 +306,11 @@ def collaborative_configuration(tmp_path, monkeypatch):
     return config
 
 
+@pytest.mark.parametrize("mode", ["full_collaboration", "no_cross_role_revision"])
 @pytest.mark.parametrize("failure", ["budget", "http", "model"])
-def test_full_cli_runs_actual_production_graph_with_one_shared_local_budget(tmp_path, monkeypatch, capsys, failure):
+def test_full_cli_runs_actual_production_graph_with_one_shared_local_budget(tmp_path, monkeypatch, capsys, failure, mode):
     config = collaborative_configuration(tmp_path, monkeypatch)
+    config["mode"] = mode
     requests, freezes = wire(monkeypatch, tmp_path, [("write_theory_document", {
         "path": "claim.md", "content": "# Incomplete production work\n"})], failure=failure)
     assert invoke(tmp_path, config) == 1
@@ -319,7 +321,8 @@ def test_full_cli_runs_actual_production_graph_with_one_shared_local_budget(tmp_
     if failure == "budget":
         assert summary["local_model_usage"]["denied_requests"] == 1
     frozen = freezes[0]
-    assert frozen["mode"] == "full_collaboration"
+    assert frozen["mode"] == mode
+    assert frozen["intervention"] == ("no_cross_role_revision_v1" if mode == "no_cross_role_revision" else None)
     assert frozen["runtime_config"]["local_model_call_limit"] == 1
     assert frozen["architect_context"] == config["architect_context"]
     assert set(frozen["role_configs"]) == set(config["roles"])
@@ -372,7 +375,7 @@ def test_full_cli_rejects_invalid_composition_before_inference(tmp_path, monkeyp
     assert calls == [] and not (tmp_path / "draw").exists()
 
 
-def scripted_terminal(monkeypatch, *, status, defect=""):
+def scripted_terminal(monkeypatch, *, status, defect="", request_replan=False):
     """Scripted sole-runtime/persistence fixture, never a model or acceptance claim."""
     from ai_statistician.agent_runtime import AgentRuntime, AgentStepResult, AgentTask, BlackboardState, runtime_artifact_reference
     from ai_statistician.research_agent_runtime import _persist_runtime_artifact_store
@@ -398,9 +401,12 @@ def scripted_terminal(monkeypatch, *, status, defect=""):
                 if defect == "selection":
                     manifest["submission_artifact_refs"]["assessment"]["content_hash"] = "different"
                 return AgentStepResult(status=status, rationale="Scripted terminal, no scientific adjudication.",
+                    next_task=AgentTask("replan", "ArchitectCoordinator", "Choose a revision.",
+                        inputs={"runtime_architect_operation": "environment_feedback_route"}) if request_replan else None,
                     produced_artifacts={"assessment": assessment, **({} if defect == "no_submission" else {"critic": manifest})})
 
-        result = AgentRuntime(subsystems={"CriticEvaluator": FinalCritic()}, blackboard=board).run(
+        result = AgentRuntime(subsystems={"CriticEvaluator": FinalCritic()}, blackboard=board,
+            handoff_policy=kwargs.get("handoff_policy")).run(
             AgentTask("final", "CriticEvaluator", "Collect an unresolved fixture."), max_iterations=1,
             local_model_call_limit=kwargs["config"].local_model_call_limit)
         persisted = result.to_json()
@@ -448,3 +454,70 @@ def test_full_cli_does_not_salvage_absent_or_changed_terminal_material(tmp_path,
         with pytest.raises(ValueError):
             invoke(tmp_path, config)
     assert not (tmp_path / "draw" / "final_material.json").exists()
+
+
+@pytest.mark.parametrize("mode", ["full_collaboration", "no_cross_role_revision"])
+def test_cli_actual_runtime_uses_declared_revision_policy_before_a_second_author_invocation(tmp_path, monkeypatch, capsys, mode):
+    from dataclasses import replace
+    from ai_statistician.agent_runtime import AgentStepResult, AgentTask, agent_task_reference, load_persisted_runtime_result, materialize_agent_task_continuation
+    from ai_statistician import research_agent_runtime as runtime
+
+    config = collaborative_configuration(tmp_path, monkeypatch)
+    config["mode"] = mode
+    calls, producer = [], []
+
+    def theory(self, task, board):
+        calls.append("theory")
+        return AgentStepResult(status="REROUTE", rationale="Opaque forward source handoff.",
+            next_task=AgentTask("algorithm", "AlgorithmEngineer", "Opaque source.", inputs={"question": task.inputs["question"]}))
+
+    def algorithm(self, task, board):
+        calls.append("algorithm")
+        if producer:
+            return AgentStepResult(status="BLOCKED", rationale="Opaque revised source, no scientific acceptance.",
+                produced_artifacts={"revised": {"source": "MODEL-AUTHORED-OPAQUE-REVISION"}})
+        producer.append(task)
+        cid, continuation, artifacts = materialize_agent_task_continuation(task)
+        work_order = {"artifact_kind": "RuntimeGeneratedCodeSemanticReviewWorkOrder", "source_subsystem": task.owner_subsystem,
+            "source_task_id": task.task_id, "source_task_ref": agent_task_reference(task),
+            "source_task_continuation_id": cid, "source_task_continuation_hash": stable_hash(continuation)}
+        return AgentStepResult(status="REROUTE", rationale="Opaque source requires independent review.",
+            produced_artifacts={**artifacts, "work-order": work_order, "source": {"source": "UNCHANGED ORIGINAL"}},
+            next_task=AgentTask("review", "GeneratedCodeSemanticReviewer", "Opaque review.",
+                inputs={"work_order_id": "work-order", "work_order_hash": stable_hash(work_order)}))
+
+    def reviewer(self, task, board):
+        calls.append("reviewer")
+        source = producer[0]
+        return AgentStepResult(status="REVISE", rationale="Opaque source-bound critique.", next_task=replace(source,
+            task_id="algorithm-revision", inputs={**source.inputs, "generated_code_semantic_review_revision_count": 1,
+                "environment_feedback": {"feedback_type": "generated_code_semantic_review_feedback", "source_subsystem": source.owner_subsystem,
+                    "semantic_review_execution_id": "execution", "semantic_review_packet_id": "review",
+                    "semantic_review_packet_hash": "opaque-review-hash"}}))
+
+    monkeypatch.setattr(runtime.TheoryDeveloperRuntimeSubsystem, "run", theory)
+    monkeypatch.setattr(runtime.AlgorithmEngineerRuntimeSubsystem, "run", algorithm)
+    monkeypatch.setattr(runtime.GeneratedCodeSemanticReviewerRuntimeSubsystem, "run", reviewer)
+    assert invoke(tmp_path, config) == 1
+    assert json.loads(capsys.readouterr().out)["final_material_ref"] is None
+    assert calls == ["theory", "algorithm", "reviewer"] + (["algorithm"] if mode == "full_collaboration" else [])
+    path = next((tmp_path / "draw" / "author").glob("*_runtime_result.json"))
+    result = load_persisted_runtime_result(path)
+    assert result["blackboard"]["artifacts"]["source"] == {"source": "UNCHANGED ORIGINAL"}
+    assert ("revised" in result["blackboard"]["artifacts"]) is (mode == "full_collaboration")
+    assert result["local_model_usage"]["attempted_requests"] == 0
+    assert result["blackboard"]["evidence_ledger"] == []
+    if mode == "no_cross_role_revision":
+        assert result["traces"][-1]["failure_classification"] == "publication_cross_role_revision_disabled"
+
+
+def test_ablated_critic_replan_keeps_exact_final_assessment_not_an_accepted_replacement(tmp_path, monkeypatch, capsys):
+    config = collaborative_configuration(tmp_path, monkeypatch)
+    config["mode"] = "no_cross_role_revision"
+    assessment = scripted_terminal(monkeypatch, status="REROUTE", request_replan=True)
+    assert invoke(tmp_path, config) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["status"] == "BLOCKED" and summary["scientific_evaluation_performed"] is False
+    final = json.loads(Path(summary["final_material_ref"]["path"]).read_text())
+    assert final["assessment"] == assessment and final["submission_identity"]["internal_status"] == "BLOCKED"
+    assert final["material"] == {"theory_documents": [], "estimator_bindings": [], "empirical_artifact": None}

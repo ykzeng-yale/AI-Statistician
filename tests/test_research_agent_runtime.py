@@ -46,7 +46,6 @@ from ai_statistician.research_agent_runtime import (
     _normalized_runtime_evaluation_model_config,
     _runtime_generated_code_semantic_review_dispatch,
     _runtime_transition_policy,
-    formalizer_workspace_runtime_bindings,
 )
 from ai_statistician.research_agent_runtime_audit import (
     _formalizer_revision_summary,
@@ -101,13 +100,25 @@ class StaticReviewClientToolBackend:
         )
 
 
-def test_formalization_has_one_model_owned_runtime_role() -> None:
-    workspace = object()
+def test_formalization_has_one_model_owned_runtime_role(tmp_path, monkeypatch) -> None:
+    from ai_statistician.agent_runtime import AgentRuntime
+    from ai_statistician.research_architect import LLMTheoryDeveloperAgent
 
-    bindings = formalizer_workspace_runtime_bindings(workspace)  # type: ignore[arg-type]
+    def capture(**kwargs):
+        bindings = kwargs["subsystems"]
+        assert [key for key, value in bindings.items()
+                if isinstance(value, runtime_module.FormalizerWorkspaceRuntimeSubsystem)] == ["FormalizationEvaluator"]
+        return AgentRuntime(**kwargs)
 
-    assert set(bindings) == {"FormalizationEvaluator"}
-    assert bindings["FormalizationEvaluator"] is workspace
+    monkeypatch.setattr(runtime_module, "AgentRuntime", capture)
+    runtime_module.run_research_agent_runtime(
+        [OpenResearchQuestion("opaque-binding", "Opaque binding", "No model invocation.", task_intent={
+            "theory": "required", "scientific_code": "not_applicable", "empirical": "not_applicable", "formal": "not_applicable"})],
+        tmp_path, theory_developer=LLMTheoryDeveloperAgent(provider=SimpleNamespace(provider_name="local"),
+            config=ResearchArchitectConfig(provider_name="local", model_tier="local", model="Qwen3-4B-Instruct-2507",
+                serious_model="Qwen3-4B-Instruct-2507", serious_model_tier="local")),
+        config=ResearchAgentRuntimeConfig(max_iterations=0, evaluation_mode="research_eval"),
+    )
 
 
 def test_architect_runtime_binds_shared_metric_review_scratchpad() -> None:
