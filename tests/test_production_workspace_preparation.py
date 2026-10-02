@@ -276,6 +276,11 @@ def test_selected_upstream_context_reaches_the_actual_owner_before_source_author
         session_dir=tmp_path / "joint", session_id="selected-inputs", max_turns=30, max_tool_calls=30,
         max_no_progress_turns=30,
     )
+    initial = json.loads(joint.request.messages[-1]["content"])["initial_workspace_contexts"]
+    assert initial["source"] == {"input_selection_tool": RESEARCH_CONTROL_INPUTS_TOOL,
+                                 "context_hash": stable_hash(prepared_contexts[0])}
+    assert initial["theory"] == theory.initial_context
+    assert "opaque-input" not in joint.request.messages[-1]["content"]
     handoffs = {"problem_card": {"claim_ids": ["opaque_claim"]},
                 "theory_derivation_packet": {"claim_index": [{"id": "opaque_claim", "kind": "definition",
                     "document_path": "claim.md", "anchor": "opaque_claim", "depends_on": [], "status": "OPEN"}]}}
@@ -322,6 +327,7 @@ def test_selected_upstream_context_reaches_the_actual_owner_before_source_author
     assert executions[0][0]["source_code"] == executions[1][0]["source_code"] == draft["code"]
     assert all(row["metrics"] == {"opaque": 10} and record.exit_status == "0" for row, record, _ in executions)
     assert "exact inputs before using its actions" in str(backend.requests[1].messages)
+    assert "select_workspace_inputs with scope='source'" in str(backend.requests[1].messages)
     assert "First unresolved input." in str(backend.requests[8].messages[-1])
     assert "Different unresolved input." in str(backend.requests[15].messages[-1])
     assert "selected checkpoint inputs do not match" in str(backend.requests[13].messages[-1])

@@ -216,11 +216,13 @@ def prepare_research_control_workspace(
 
     def execute_component(scope, call, context):
         if scope in preparers and scope not in input_selections:
-            raise ClientToolInputError("select this workspace's exact inputs before using its actions")
+            raise ClientToolInputError("select this workspace's exact inputs before using its actions; "
+                                       f"use {RESEARCH_CONTROL_INPUTS_TOOL} with scope={scope!r}")
         return active_workspaces[scope].execute_tool(call, context)
 
     bound_workspaces = {
-        scope: replace(workspace, execute_tool=lambda call, context, scope=scope: execute_component(scope, call, context))
+        scope: replace(workspace, initial_context={"input_selection_tool": RESEARCH_CONTROL_INPUTS_TOOL, "context_hash": stable_hash(workspace.initial_context)},
+                       execute_tool=lambda call, context, scope=scope: execute_component(scope, call, context))
         if scope in preparers else workspace
         for scope, workspace in workspaces.items()
     }
