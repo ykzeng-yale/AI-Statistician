@@ -138,8 +138,10 @@ installed local Claude Code host for portable compatibility/user-workflow tests,
 reported separately; direct Anthropic API experiments remain excluded.
 
 Paper S compares a free-planning general agent with identical tools, a
-single-context same-workflow control, role-separated agents without cross-role
-feedback, and the complete collaborative system. The single-context arm exposes
+single-context same-workflow control, role-separated agents without reverse
+author revision, and the complete collaborative system. This operational ablation
+retains forward review and local tool feedback; its precise scope and attribution
+limits are in the experiment specification. The single-context arm exposes
 shared history and does not receive independent-review credit for self-review.
 Use the same Qwen weights, endpoint, task access and global resource envelopes.
 An additional minimal external research harness can be run where its backend and
