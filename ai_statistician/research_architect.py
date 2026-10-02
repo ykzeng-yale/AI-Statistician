@@ -2038,7 +2038,7 @@ def _normalize_theory_packet(
     theory_prompt_mode: str = THEORY_PROMPT_MODE_COMPACT,
     formalization_authoring_required: bool = True,
 ) -> dict[str, Any]:
-    body = dict(payload)
+    body = deepcopy(dict(payload))
     serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
     body["theory_prompt_mode"] = theory_prompt_mode
     body["serious_theory_mode"] = serious_theory_mode
@@ -2049,20 +2049,6 @@ def _normalize_theory_packet(
         question,
         formalization_authoring_required=formalization_authoring_required,
     )
-    derivation_packet = body.get("theory_derivation_packet")
-    document_index_handoff = bool(
-        isinstance(derivation_packet, Mapping)
-        and "claim_index" in derivation_packet
-    )
-    if isinstance(derivation_packet, Mapping):
-        body["theory_derivation_packet"] = (
-            deepcopy(dict(derivation_packet))
-            if document_index_handoff
-            else _canonicalize_theory_derivation_packet(
-                derivation_packet,
-                formalization_requests=body.get("formalization_requests", []),
-            )
-        )
     normalize_theory_estimator_interface_contracts(body)
     body["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
     body["proof_evidence_boundary"] = KERNEL_PROOF_BOUNDARY
@@ -2073,37 +2059,12 @@ def _normalize_theory_packet(
         if isinstance(body.get("theory_derivation_packet", {}), Mapping)
         else {}
     )
-    derivation_counts = (
-        {
-            "n_claim_index_rows": _safe_len(derivation.get("claim_index", [])),
-        }
-        if document_index_handoff
-        else {
-            "n_derivation_steps": _safe_len(
-                derivation.get("derivation_steps", [])
-            ),
-            "n_equation_chain_steps": _safe_len(
-                derivation.get("equation_chain", [])
-            ),
-            "n_assumption_ledger_rows": _safe_len(
-                derivation.get("assumption_ledger", [])
-            ),
-            "n_sanity_checks": _safe_len(derivation.get("sanity_checks", [])),
-        }
-    )
     body["theory_derivation_contract"] = {
         "row_count_policy": "model_selected_nonempty_required_structures",
         "quality_authority": "independent_theory_preflight_and_critic",
         "theory_prompt_mode": theory_prompt_mode,
-        **derivation_counts,
-        "has_formalization_handoff": bool(
-            body.get("formalization_requests")
-            if document_index_handoff
-            else (
-                isinstance(derivation.get("formalization_handoff", {}), Mapping)
-                and derivation.get("formalization_handoff")
-            )
-        ),
+        "n_claim_index_rows": _safe_len(derivation.get("claim_index", [])),
+        "has_formalization_handoff": bool(body.get("formalization_requests")),
         "formalization_authoring_required": bool(
             formalization_authoring_required
         ),
@@ -2111,9 +2072,6 @@ def _normalize_theory_packet(
         "boundary": (
             "The mathematical documents are authoritative and this structured "
             "claim index is only a cross-agent handoff, not proof evidence."
-            if document_index_handoff
-            else "Theory derivation traces are structured LLM reasoning proposals "
-            "for simulation/formalization handoff, not proof evidence."
         ),
     }
     packet_id = stable_hash(
@@ -3669,148 +3627,6 @@ def _refresh_theory_packet_id(
         }
     )[:24]
     packet["packet_id"] = f"theory_derivation:{packet_id}"
-
-
-def _canonicalize_theory_derivation_packet(
-    derivation: Mapping[str, Any],
-    *,
-    formalization_requests: Any,
-) -> dict[str, Any]:
-    packet = dict(derivation)
-    packet["derivation_steps"] = [
-        _canonicalize_derivation_step(row, index)
-        for index, row in enumerate(packet.get("derivation_steps", []) or [], start=1)
-        if isinstance(row, Mapping)
-    ]
-    packet["equation_chain"] = [
-        _canonicalize_equation_row(row, index)
-        for index, row in enumerate(packet.get("equation_chain", []) or [], start=1)
-        if isinstance(row, Mapping)
-    ]
-    derivation_step_ids = [
-        str(row.get("id", "") or "").strip()
-        for row in packet["derivation_steps"]
-        if str(row.get("id", "") or "").strip()
-    ]
-    packet["assumption_ledger"] = [
-        _canonicalize_assumption_row(row, derivation_step_ids)
-        for row in packet.get("assumption_ledger", []) or []
-        if isinstance(row, Mapping)
-    ]
-    packet["sanity_checks"] = [
-        dict(row)
-        for row in packet.get("sanity_checks", []) or []
-        if isinstance(row, Mapping)
-    ]
-    handoff = packet.get("formalization_handoff", {})
-    if not isinstance(handoff, Mapping) or not handoff:
-        handoff = _formalization_handoff_from_requests(formalization_requests)
-    packet["formalization_handoff"] = dict(handoff) if isinstance(handoff, Mapping) else {}
-    return packet
-
-
-def _canonicalize_derivation_step(row: Mapping[str, Any], index: int) -> dict[str, Any]:
-    canonical = dict(row)
-    canonical["id"] = _first_nonempty(row, "id", "step_id", "name") or f"D{index}"
-    canonical["claim"] = _first_nonempty(
-        row,
-        "claim",
-        "statement",
-        "result",
-        "goal",
-        "description",
-        "summary",
-    )
-    canonical["equation_or_argument"] = _first_nonempty(
-        row,
-        "equation_or_argument",
-        "argument",
-        "equation",
-        "justification",
-        "reasoning",
-        "derivation",
-        "proof_idea",
-    )
-    return canonical
-
-
-def _canonicalize_equation_row(row: Mapping[str, Any], index: int) -> dict[str, Any]:
-    canonical = dict(row)
-    canonical["step_id"] = _first_nonempty(row, "step_id", "id", "name") or f"E{index}"
-    canonical["lhs"] = _first_nonempty(row, "lhs", "left", "from", "start")
-    canonical["rhs"] = _first_nonempty(row, "rhs", "right", "to", "end")
-    canonical["justification"] = _first_nonempty(
-        row,
-        "justification",
-        "reason",
-        "argument",
-        "because",
-        "explanation",
-    )
-    return canonical
-
-
-def _canonicalize_assumption_row(
-    row: Mapping[str, Any],
-    derivation_step_ids: list[str],
-) -> dict[str, Any]:
-    canonical = dict(row)
-    canonical["assumption"] = _first_nonempty(
-        row,
-        "assumption",
-        "name",
-        "label",
-        "condition",
-        "statement",
-        "description",
-    )
-    used_in = row.get("used_in")
-    if not used_in:
-        used_in = row.get("used_by") or row.get("supports") or row.get("depends_on")
-    if not used_in and derivation_step_ids:
-        used_in = derivation_step_ids[:2]
-        canonical["used_in_inferred_by_runtime"] = True
-    canonical["used_in"] = used_in
-    return canonical
-
-
-def _formalization_handoff_from_requests(requests: Any) -> dict[str, Any]:
-    request_rows = [row for row in (requests or []) if isinstance(row, Mapping)]
-    if not request_rows:
-        return {}
-    first = request_rows[0] if request_rows else {}
-    target = _first_nonempty(first, "target_theorem_card", "id", "target", "name")
-    lean_target = _first_nonempty(
-        first,
-        "lean_statement_sketch",
-        "lean_statement",
-        "statement",
-        "target",
-    )
-    constraints = first.get("semantic_alignment_constraints", [])
-    if isinstance(constraints, str):
-        constraints = [constraints]
-    if not constraints:
-        constraints = [
-            "preserve the informal theorem semantics; local Lean kernel evidence is required before proof claims"
-        ]
-    return {
-        "source_theorem_target": target,
-        "candidate_lean_targets": [lean_target] if lean_target else [],
-        "required_definitions": [],
-        "lemma_dependencies": [],
-        "semantic_alignment_constraints": list(constraints),
-        "runtime_inferred_from_formalization_requests": True,
-    }
-
-
-def _first_nonempty(row: Mapping[str, Any], *keys: str) -> Any:
-    for key in keys:
-        value = row.get(key)
-        if value not in (None, "", [], {}):
-            return value
-    return ""
-
 
 
 def _ledger_row_for_packet(packet: Mapping[str, Any], question: OpenResearchQuestion) -> EvidenceLedgerRow:

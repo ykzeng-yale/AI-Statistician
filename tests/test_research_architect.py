@@ -12,7 +12,7 @@ import pytest
 
 import ai_statistician.cli as cli_module
 import ai_statistician.research_architect as research_architect_module
-from ai_statistician.client_tool_loop import PreparedClientToolWorkspace
+from ai_statistician.client_tool_loop import ClientToolExecutionContext, PreparedClientToolWorkspace
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.cli import (
     _apply_research_agent_runtime_evaluation_model_policy,
@@ -1153,6 +1153,52 @@ def test_nonformal_document_theory_uses_claim_index_without_theorem_abi(
     assert validate_theory_packet(packet) == []
 
 
+@pytest.mark.parametrize("derivation", [{}, {"claim_index": []}, {
+    "derivation_steps": [{"step_id": "opaque-step", "argument": "owner's exact text"}],
+    "equation_chain": [{"from": "opaque-left", "to": "opaque-right"}],
+    "assumption_ledger": [{"condition": "opaque-premise"}],
+    "formalization_handoff": {},
+}])
+def test_theory_packet_record_preserves_owner_data_without_content_completion(derivation):
+    payload = {"theory_derivation_packet": deepcopy(derivation), "formalization_requests": [
+        {"target_theorem_card": "opaque-target", "lean_statement_sketch": "opaque-statement"},
+    ]}
+    before = deepcopy(payload)
+    packet = research_architect_module._normalize_theory_packet(
+        payload, question=OpenResearchQuestion("opaque", "Opaque", "Unresolved record."),
+        model=DEFAULT_LOCAL_GENERATOR_MODEL, model_tier="local", provider_name="local",
+        raw_response="opaque-response", theory_prompt_mode=THEORY_PROMPT_MODE_COMPACT,
+        formalization_authoring_required=False,
+    )
+    assert packet["theory_derivation_packet"] == derivation
+    assert packet["formalization_requests"] == before["formalization_requests"]
+    assert payload == before
+    packet["theory_derivation_packet"]["opaque_later_change"] = True
+    assert payload == before
+
+
+def test_initial_document_feedback_does_not_invent_retired_derivation_fields(tmp_path):
+    backend = ScriptedTheoryToolBackend(tool_responses=[], generator_responses=[])
+    agent = LLMTheoryDeveloperAgent(provider=backend, config=ResearchArchitectConfig(
+        provider_name="local", model=DEFAULT_LOCAL_GENERATOR_MODEL, model_tier="local",
+        serious_model=DEFAULT_LOCAL_GENERATOR_MODEL, serious_model_tier="local",
+    ))
+    workspace = agent.prepare_workspace(OpenResearchQuestion(
+        "opaque-doc", "Opaque draft", "Maintain an unresolved working document.",
+        task_intent={"theory": "required", "scientific_code": "not_applicable",
+                     "empirical": "not_applicable", "formal": "not_applicable"},
+    ), theory_workspace_root=tmp_path)
+    observation = workspace.execute_tool(ClientToolCall(
+        "opaque-write", THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+        {"path": "notes.md", "content": "# Unresolved opaque claim\n"},
+    ), ClientToolExecutionContext(0, 0, 1, 0))
+    assert backend.tool_requests == [] and backend.generator_requests == []
+    assert observation.state_changed is True
+    assert observation.content["workspace_valid"] is False
+    assert "theory_derivation_packet.claim_index must be non-empty" in observation.content["validation_errors"]
+    assert not any("non-reference fields" in error for error in observation.content["validation_errors"])
+
+
 def _metric_theory_revision_context(
     *,
     question: OpenResearchQuestion,
@@ -1307,9 +1353,9 @@ def test_research_architect_records_packet_in_document_workspace() -> None:
     ledger = json.loads(ledger_path.read_text(encoding="utf-8").splitlines()[0])
     assert packet["source_agent"] == "LLMTheoryDeveloperAgent"
     assert packet["theory_derivation_packet"]["derivation_steps"]
-    assert packet["theory_derivation_contract"]["n_derivation_steps"] == 3
-    assert packet["theory_derivation_contract"]["n_equation_chain_steps"] == 2
-    assert packet["theory_derivation_contract"]["n_assumption_ledger_rows"] == 3
+    assert len(packet["theory_derivation_packet"]["derivation_steps"]) == 3
+    assert len(packet["theory_derivation_packet"]["equation_chain"]) == 2
+    assert len(packet["theory_derivation_packet"]["assumption_ledger"]) == 3
     assert packet["theory_derivation_contract"]["has_formalization_handoff"] is True
     assert packet["kernel_verified"] is False
     assert ledger["evidence_status"] == "PROPOSAL_RECORDED_REQUIRES_GATES"
@@ -3747,7 +3793,7 @@ def test_serious_theory_truncation_recovery_does_not_resample_json() -> None:
     assert provider.requests == []
 
 
-def test_llm_theory_developer_canonicalizes_common_schema_variants() -> None:
+def test_llm_theory_developer_returns_unrecognized_fields_for_owner_revision() -> None:
     response = _sample_response()
     derivation = dict(response["theory_derivation_packet"])
     derivation["derivation_steps"] = [
@@ -3807,20 +3853,10 @@ def test_llm_theory_developer_canonicalizes_common_schema_variants() -> None:
     )
 
     theory = packet["theory_derivation_packet"]
-    assert packet["ok"] is True
-    assert theory["derivation_steps"][0]["claim"] == (
-        "Exchangeability makes the test rank uniform."
-    )
-    assert theory["derivation_steps"][0]["equation_or_argument"] == (
-        "Permutation symmetry over calibration plus test scores."
-    )
-    assert theory["equation_chain"][0]["lhs"] == "P(covered)"
-    assert theory["equation_chain"][0]["justification"] == "rank uniformity"
-    assert theory["assumption_ledger"][0]["assumption"] == "exchangeable scores"
-    assert theory["assumption_ledger"][0]["used_in_inferred_by_runtime"] is True
-    assert theory["formalization_handoff"][
-        "runtime_inferred_from_formalization_requests"
-    ] is True
+    assert packet["ok"] is False
+    assert packet["validation_errors"]
+    assert theory == derivation
+    assert "formalization_handoff" not in theory
     assert packet["theory_derivation_contract"]["has_formalization_handoff"] is True
     assert packet["proof_evidence_status"] == THEORY_DERIVATION_NOT_PROOF_EVIDENCE
 

@@ -327,7 +327,8 @@ def test_selected_upstream_context_reaches_the_actual_owner_before_source_author
     assert executions[0][0]["source_code"] == executions[1][0]["source_code"] == draft["code"]
     assert all(row["metrics"] == {"opaque": 10} and record.exit_status == "0" for row, record, _ in executions)
     assert "exact inputs before using its actions" in str(backend.requests[1].messages)
-    assert "select_workspace_inputs with scope='source'" in str(backend.requests[1].messages)
+    unbound = json.loads(backend.requests[1].messages[-1]["content"][0]["content"])
+    assert "select_workspace_inputs with scope='source'" in unbound["detail"]
     assert "First unresolved input." in str(backend.requests[8].messages[-1])
     assert "Different unresolved input." in str(backend.requests[15].messages[-1])
     assert "selected checkpoint inputs do not match" in str(backend.requests[13].messages[-1])
@@ -580,7 +581,10 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
         if extra_estimator is True:
             assert selected["simulation"]["inputs"]["algorithm_2"]["resources"] == selected["algorithm_2"]["resources"]
         assert simulation_result["prototype"]["available_upstream_estimator_ids"] == ["opaque", *(("opaque_alt",) if extra_estimator is True else ())]
-        assert '"estimator_id": "opaque_alt"' in str(backend.requests)
+        public_mapping = next(json.loads(row["content"])["estimator_workspace_ids"]
+                              for row in backend.requests[0].messages
+                              if isinstance(row["content"], str) and "estimator_workspace_ids" in row["content"])
+        assert public_mapping == {"algorithm": "opaque", "algorithm_2": "opaque_alt"}
     assert "estimator_interface_contract" in str(backend.requests)
     assert all(row["independent_role_review"] is False and row["empirical_evidence_status"] == "EXPLORATORY_NOT_CONFIRMATORY"
                for row in (algorithm_result, simulation_result))
@@ -883,8 +887,10 @@ def test_control_freezes_exact_source_before_fresh_execution_without_review(tmp_
     rows = (material["empirical_artifact"] or {}).get("generated_simulation_rows", [])
     assert len(diagnostics) == (2 if disposition in {"second_source", "exhausted_schedule"} else 1)
     simulation_request = backend.requests[5]
-    assert '"runtime_replicates": ' + str(n_runs) in str(simulation_request.messages)
-    assert '"authoring_diagnostic_max_replicates": ' + str(min(n_runs, 128)) in str(simulation_request.messages)
+    selected_context = json.loads(simulation_request.messages[-1]["content"][0]["content"])["initial_workspace_context"]
+    execution_contract = selected_context["workspace_context"]["runtime_execution_contract"]
+    assert execution_contract["runtime_replicates"] == n_runs
+    assert execution_contract["authoring_diagnostic_max_replicates"] == min(n_runs, 128)
     assert "not an enforced confirmation ceiling" in str(simulation_request.messages)
     if disposition == "missing_count":
         assert not confirmations and not rows and "simulation" not in submission["checkpoint_payloads"]

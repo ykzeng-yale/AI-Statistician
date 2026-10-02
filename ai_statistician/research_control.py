@@ -719,7 +719,9 @@ def prepare_single_context_research_workspace(
         preparers["code_review"] = prepare_code_review
 
     return prepare_research_control_workspace(
-        question=question, request=request,
+        question=question, request=replace(request, messages=(*request.messages, {
+            "role": "user", "content": json.dumps({"estimator_workspace_ids": algorithm_scopes}, sort_keys=True),
+        })),
         workspaces=workspaces, input_workspace_preparers=preparers,
         checkpoint_bindings=bindings, session_dir=session_dir, session_id=session_id,
         max_turns=max_turns, max_tool_calls=max_tool_calls, max_no_progress_turns=max_no_progress_turns,
