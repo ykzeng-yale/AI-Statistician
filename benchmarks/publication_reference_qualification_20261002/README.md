@@ -166,7 +166,69 @@ scientific discrepancies, but its target and authority must be frozen before any
 candidate call. A completed operator reference run is neither product autonomy
 nor an official open-weight publication result.
 
-## Other Observations
+## ebnm Published R Reference
+
+The [ebnm paper](https://www.jstatsoft.org/article/view/v114i03) supplies a
+GPL-3-or-later package and an explicitly MIT-licensed replication archive.
+The [plan](ebnm_plan.json) was committed at `aa3981fb`; the adapted native
+R 4.4.2 environment and 131 owned package identities were frozen at `46c9c476`
+before science ran. The journal package is 1.1-38; cached author output records
+R 4.3.2 and package 1.1-25. Neither current GitHub HEAD nor a patched author
+script was substituted. Dependencies were installed only into the owned
+reference library; the product environment and R global library were unchanged.
+Preparation installed successfully but its evaluator version-string assertion
+failed (`1.1.38` versus `1.1-38`). A separate readiness check used R's version
+type without reinstalling or executing the science. The failed log is preserved.
+
+The unchanged default `code.R` completed once with exit zero in 280.69 seconds.
+It generated 900 timing rows and 300 simulation rows: three DGPs, ten prior
+families and ten trials per cell. All 870 finite likelihood/RMSE/coverage cells
+match the cached author run exactly; both retain the same 30 missing likelihoods.
+The introductory displayed RMSE values also match. Five PDFs were rendered and
+inspected; HTML numerical material was read but browser layout was not checked.
+No cached output was copied into the fresh execution directory. The
+[result](ebnm_results.json) records output, environment, script and log identities.
+
+This is a runnable **numerical reproduction reference**, not independent theory
+gold, full-paper replication, product autonomy or official agent efficacy.
+The default excludes the author's two-day full timing option; the appendix
+requires MOSEK and was not run. R summarized 46 deferred warnings without their
+bodies, which were not serialized; this observation loss is disclosed, not
+recovered by a rerun. The initial data inspection also emitted three namespace
+warnings when loading saved closures without the owned library; only numeric
+fields were inspected, and its original script/logs remain available. Future
+inspector startup now binds that library; no existing inspection was overwritten.
+Author code, numerical results and previously consumed evaluations were not fixed.
+
+The particular paper is not in the inspected task records, but earlier
+normal-means/conjugacy/Tweedie/James-Stein/SURE questions overlap its background.
+It is not automatically an independent fresh theory family. Prospective task
+grouping, concealed candidate checks and their scientific authority still need
+to be fixed; published and cached values cannot alone certify fresh computation.
+
+## TSCI Discovery Boundary
+
+The [TSCI JSS paper](https://www.jstatsoft.org/article/view/v114i07) is a second
+candidate, in invalid-instrument causal inference. Its journal package is 3.0.5,
+GPL-3-or-later, archive SHA-256
+`ba3e44efb4db449f6d7b6c26897d77d442a0c96a72d36e3dc32fe0e983b65b2b`.
+The separate replication attachment is plain R source, not a ZIP; its SHA-256 is
+`d3777089b2b947020e75ae185e8a47b43ca72d35770a074e2e46badb30e87113`.
+It includes a seeded five-split boosting example and a user-supplied hat-matrix
+example on the Card dataset. Methods Sections 2.1--2.4 and the package selection
+implementation were inspected, but the source was not executed or vendored.
+The script does not contain an asset-level license notice; journal policy alone
+has not qualified redistribution of that separate attachment.
+
+The [underlying theory record](https://arxiv.org/abs/2203.12808v4) changed title
+and authors between versions. Match exact statement/assumption editions before
+creating theory gold; invalid instruments do not mean identification without
+restrictions. In particular, this is not just ordinary valid-IV GMM under a new
+name. No TSCI environment, independent theory rubric, numerical reference or
+study split has been qualified. Both sources remain preparation, not a new
+sampling frame selected on observed agent outcomes.
+
+## RepliSims Probes
 
 Unchanged RepliSims Austin code was probed under native R 4.4.2 with a fixed seed. Its
 continuous-outcome branch failed on undefined `lin_pred`; a mixed-covariate binary

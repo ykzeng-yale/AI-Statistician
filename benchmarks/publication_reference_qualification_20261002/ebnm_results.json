@@ -1,0 +1,62 @@
+{
+  "scope": "operator_reference_execution_not_agent_or_publication_efficacy",
+  "plan_commit": "aa3981fb",
+  "readiness_commit": "46c9c476",
+  "script_execution_count": 1,
+  "author_source_modified": false,
+  "model_calls": 0,
+  "official_studies_activated": false,
+  "run": {
+    "root": "runs/publication_reference_qualification_20261002/ebnm",
+    "exit_code": 0,
+    "elapsed_seconds": 280.69,
+    "user_seconds": 263.96,
+    "system_seconds": 13.71,
+    "maximum_resident_set_bytes": 1186185216,
+    "script_sha256_after_execution": "f5d07d90231534c62aadf996751b5a348410c7b1e03a7a3618d7bf30a02a2e7c",
+    "stdout_sha256": "93eef93b052c65d9324252d490f82dc8018a0228aeca66c110df3958ee0e3af0",
+    "stderr_sha256": "45ec4fe57db71d1dc8c8b4e403a5139793c369caa0e9834be98a68f0fcef9b0a",
+    "warning_boundary": "R reported 46 deferred warnings but did not emit their individual bodies. last.warning was not serialized. Count and this observation loss are retained; no source rerun or post-result options change was made."
+  },
+  "numerical_inspection": {
+    "reference_comparison": "Fresh simstudy.rds versus evaluator-only cached author simstudy.rds, joined by SimFn, Function and SimNumber. No cached output was copied into execution.",
+    "fresh_rows": 300,
+    "cached_author_rows": 300,
+    "outer_join_rows": 300,
+    "duplicate_keys": 0,
+    "dgps": 3,
+    "prior_families": 10,
+    "trials_per_cell": 10,
+    "log_likelihood": {"finite_pairs": 270, "maximum_absolute_difference": 0, "fresh_na": 30, "author_na": 30, "infinite_values": 0},
+    "rmse": {"finite_pairs": 300, "maximum_absolute_difference": 0, "missing_or_infinite_values": 0},
+    "coverage": {"finite_pairs": 300, "maximum_absolute_difference": 0, "missing_or_infinite_values": 0},
+    "fresh_and_author_csv_sha256": "37dad9782c5dbb69b497f16db97179723f5d7bd289706dd98b53847064788707",
+    "comparison_csv_sha256": "2a84ea6118bfc8692a67af1d226c54451f6de676ba3bd49c74954a4a8094cb9f",
+    "timing_rows": 900,
+    "timing_scope": "Five sample sizes, nine prior families, twenty timings per cell. Hardware-specific timings are not required to equal the author archive and are not agent costs.",
+    "introductory_displayed_rmse": [0.360, 0.287, 0.210],
+    "inspection_log_sha256": "a1cec0ded257b40784184cc2ec1e3ab0d64c96e2c341152dff7dca183a8c23f3",
+    "inspector_used_sha256": "e59d108a9dbcdb19dd2baf9f1555f1c76f64c0ef287d0d74caa5c12104b39672",
+    "inspector_snapshot": "inspection/inspection_source.R",
+    "inspection_warning_boundary": "Loading the saved workspace without its package library produced three namespace-replacement warnings; only already-stored numeric fields were read, not the replaced closures. Those logs remain unchanged. Future inspector startup now binds the owned library; the inspection was not rerun."
+  },
+  "output_sha256": {
+    "reference_default/output/simstudy.rds": "d5a1aa0baf8e1f74c3c86927a0f8bea283b522b5885e021265ba36035dec562e",
+    "reference_default/output/timecomps.rds": "9e92f79c9cbeb2d8545eba283d8d8c7af9f964ecafe469ea35aa454d17f0fcce",
+    "reference_default/output/fresh_workspace.RData": "f9b733b57fd8f1089163e059771d617403dccfbfb288eb79a8e149845a19c9be",
+    "reference_default/figs/shrink_intro.pdf": "fa8a3f9543319ff3d240023165c84fa1b91294c0e1a82f3a1cc201d787d74139",
+    "reference_default/figs/timecomps.pdf": "5048554c69bccc892706f35384c2dda1cf8609ed2fe0b3118e6910858246378c",
+    "reference_default/figs/simres.htm": "e007588a366bb89139d3387f9b59a06a6f52f42c938bb036ec88060ebf23aa64",
+    "reference_default/figs/wOBA_normal_custom.pdf": "d7f8719e4347c38e243f293e684314e627ca679e0589e43a2cc9490a4273ca17",
+    "reference_default/figs/wOBA_npmle_cdf.pdf": "131ff8c1fb938008fe2f3ee600392865fdc6cc6c32ff033915eadfedde07df81",
+    "reference_default/figs/wOBA_npmle_pm.pdf": "1d37a7e7ee5cc81b54a5b61b2d0412a3eaa74d10f6222dd72ad34f7bbfcaf8a9"
+  },
+  "visual_inspection": "All five single-page PDFs rendered and were inspected as nonblank labelled plots. Poppler emitted a Fontconfig configuration warning but rendered readable labels. The HTML has ten result rows and its numerical source was inspected; browser layout was not verified.",
+  "authority": {
+    "numerical_reproduction_reference_ready_for_inspected_scope": true,
+    "independent_mathematical_gold_qualified": false,
+    "independent_full_task_gold_qualified": false,
+    "historical_environment_recovered": false,
+    "remaining_scope": "Appendix, full million-observation timing study, full warning bodies, hidden evaluation tasks and tolerances, fresh-family assignment and independent mathematical authority are not established. The reference cannot by itself accept a future candidate or justify an efficacy claim."
+  }
+}

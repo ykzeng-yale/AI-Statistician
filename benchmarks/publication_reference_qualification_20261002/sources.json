@@ -215,6 +215,47 @@
       "qualification": "One limited numerical reference and an explicit unqualified older source, with independent mathematics notes but no external full-task theory authority. No author code repair, benchmark activation, cloud call or Qwen efficacy claim. Future family/split/source-horizon and hidden-authority qualification remain necessary."
     },
     {
+      "id": "jss_ebnm_2025",
+      "source_role": "journal_package_and_author_replication_archive",
+      "domain": "empirical_bayes_normal_means",
+      "language": "r",
+      "paper_doi": "10.18637/jss.v114.i03",
+      "paper": "https://www.jstatsoft.org/article/view/v114i03",
+      "plan": "ebnm_plan.json",
+      "environment": "ebnm_ready.json",
+      "observed_results": "ebnm_results.json",
+      "code_executed": true,
+      "author_code_modified": false,
+      "numerical_reference_qualified_for_inspected_scope": true,
+      "independent_full_task_gold_qualified": false,
+      "fresh_family_assignment_qualified": false,
+      "qualification": "One unchanged default main-text execution and exact finite numerical agreement with the author archive; not full-paper replication, mathematical gold, fresh theory-family eligibility or agent capability."
+    },
+    {
+      "id": "jss_tsci_2025",
+      "source_role": "journal_package_and_plain_r_replication_attachment",
+      "domain": "causal_inference_invalid_instruments",
+      "language": "r",
+      "paper_doi": "10.18637/jss.v114.i07",
+      "paper": "https://www.jstatsoft.org/article/view/v114i07",
+      "repository": "https://github.com/dlcarl/TSCI",
+      "observed_github_head_discovery_only": "bd894dc62e28ed28a8cb6b683fcd6584b8a7d733",
+      "journal_package": {
+        "url": "https://www.jstatsoft.org/index.php/jss/article/download/v114i07/4743",
+        "version": "3.0.5",
+        "license": "GPL (>= 3)",
+        "sha256": "ba3e44efb4db449f6d7b6c26897d77d442a0c96a72d36e3dc32fe0e983b65b2b"
+      },
+      "replication": {
+        "url": "https://www.jstatsoft.org/index.php/jss/article/download/v114i07/4744",
+        "format": "plain R source",
+        "sha256": "d3777089b2b947020e75ae185e8a47b43ca72d35770a074e2e46badb30e87113",
+        "asset_level_license_verified": false
+      },
+      "code_executed": false,
+      "qualification": "Discovery and method/source inspection only. The underlying theory has multiple versions; independent statement fidelity, execution environment, numerical gold, rights and family grouping remain unqualified."
+    },
+    {
       "id": "replisims_peters_2006",
       "source_role": "human_replication_code_not_original_study_code",
       "domain": "meta_analysis_publication_bias",
@@ -253,6 +294,21 @@
       "reason": "Already consumed by historical Haiku L1 development; changing software version cannot make the revealed paper family a fresh test.",
       "historical_record": "benchmarks/research_l1_doubleml_replication_questions_20260814.json",
       "historical_evaluation_rerun": false
+    },
+    {
+      "family": "CORE Type-M/Type-S design analysis",
+      "reason": "Consumed by the separate fresh-Qwen portable-host development pilot; do not turn those draws into main-study tests.",
+      "development_record": "benchmarks/publication_development/kimi_type_ms_20261001/protocol.json"
+    },
+    {
+      "family": "scikit-fda JSS 2024",
+      "reason": "Consumed by the fresh-Qwen paper-to-code development pilot; reference execution remains preparation, not a new test-family draw.",
+      "development_record": "benchmarks/publication_development/kimi_fda_20261002/protocol.json"
+    },
+    {
+      "family": "Fixed-K additive-L2 segmentation",
+      "reason": "Consumed by all four fresh-Qwen standalone development arms; do not resume, rescore or reassign them to the main test pool.",
+      "development_record": "benchmarks/publication_development/fixed_k_l2_20261002/README.md"
     }
   ],
   "interpretation": "Human replication references do not establish original-method correctness. No reference here has qualified independent full-task gold. These are not agent runs, mathematical verdicts, a representative sample or an activated study. Failed preparation is retained rather than silently replaced by an easier candidate. Keep this evaluator record outside blinded author access."
