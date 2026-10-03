@@ -1,0 +1,21 @@
+{
+  "purpose": "First full-root source build following separately preserved cache-preparation failure",
+  "parent_source_commit": "12435f08d9b4f97a8cfa8b14b5f6367d2a65d5d2",
+  "preparation_protocol_sha256": "060bd4c73827851ba72e754e13de19a4e22341edb61545ce1f02292a4cc707d0",
+  "source_commit": "db6c7718349f3c14a7e37905f3529675f1ebaa52",
+  "checkout": "/Volumes/T7 Shield/AI-Statistician-publication-verification/lean430-db6c7718-20261003",
+  "toolchain": "leanprover/lean4:v4.30.0",
+  "command": ["lake", "build", "StatInference"],
+  "timeout_seconds": 3600,
+  "third_party_cache_reused": true,
+  "local_library_build_artifacts_reused": false,
+  "tracked_source_toolchain_lake_configuration_or_manifest_edits": false,
+  "temporary_git_metadata_adaptation": "Set copied dependency core.filemode=false, matching the native fresh clone on ExFAT. First verify every manifest revision and empty Git diff with permission bits ignored. Symlink/type/content differences remain disallowed.",
+  "permission_preservation_claim": false,
+  "shared_verifier_guard": "Existing active-project repository_verifier_lock and active_statinference_verifiers",
+  "active_project_and_rag_unchanged": true,
+  "model_calls": 0,
+  "clean_machine_or_cold_dependency_claim": false,
+  "axiom_hygiene_source_fidelity_or_agent_proof_credit": false,
+  "failure_policy": "Preserve the first root-build terminal result and log. Do not patch Lean, alter dependency pins, retry the build or revise its outcome. The preceding preparation failure remains a separate failed record."
+}

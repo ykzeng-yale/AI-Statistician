@@ -17,3 +17,20 @@ environment. It does not establish all declarations' axiom hygiene, source-book
 fidelity, coverage, mathematical novelty, model performance or release rights.
 The active project and RAG are unchanged. No model calls or consumed scientific
 evaluations are involved.
+
+## Preparation Outcome
+
+The [original preparation](preparation_result.json) exited 1 before invoking Lake.
+Copying dependency Git metadata retained `core.filemode=true`, whereas the native
+fresh clone on this ExFAT volume sets it to false. Statlib's 22 reported changes
+were executable bits only; its content diff with permission bits ignored was empty.
+All 11 copied dependency revisions subsequently matched the manifest, with no
+content/type/symlink diff under the same check. No root build directory existed.
+This is not a successful reconstruction or a failed Lean proof.
+
+The separate [first-build protocol](build_protocol.json), fixed before compilation,
+permits only matching the copied repositories' Git file-mode setting to the native
+clone. It does not change tracked files, toolchain, Lake configuration or dependency
+pins, and makes no permission-preservation claim. The original failed preparation
+is retained; no scientific evaluation is retried or rescored. The first root-build
+terminal result will be reported separately.

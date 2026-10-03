@@ -1,0 +1,19 @@
+{
+  "protocol_sha256": "060bd4c73827851ba72e754e13de19a4e22341edb61545ce1f02292a4cc707d0",
+  "runner_sha256": "a23ed253af5ddb7b98f8e09302ae17a0144e36fe77b5cf31af4b129c834c8d01",
+  "initial_state_sha256": "60fbc88f10d21908f08ce152ad751f89f5bc642532add948e3f3a8a0ff0447b8",
+  "returncode": 1,
+  "stage": "post-copy dependency checkout validation",
+  "failure": "AssertionError: Statlib",
+  "filesystem": "ExFAT",
+  "root_checkout_core_filemode": false,
+  "copied_dependency_core_filemode": true,
+  "first_rejected_dependency_permission_changes": 22,
+  "statlib_content_diff_with_filemode_ignored": "empty",
+  "root_build_directory_present": false,
+  "root_build_started": false,
+  "root_build_invocations": 0,
+  "model_calls": 0,
+  "scientific_or_proof_credit": false,
+  "scope": "Preparation failed before Lake was invoked; this is not a failed Lean proof or a completed root build. Original protocol and runner remain unchanged."
+}
