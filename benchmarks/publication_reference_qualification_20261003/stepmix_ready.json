@@ -1,0 +1,143 @@
+{
+  "scope": "environment_readiness_before_reference_execution",
+  "plan_commit": "1fe75176",
+  "plan_sha256": "7779f644a250c9e8acf4e7ef32278dec2ff1fbb1ce3f100e875ea24f35134e45",
+  "ready": true,
+  "scientific_executions": 0,
+  "model_calls": 0,
+  "study_activated": false,
+  "python": "/Users/yukangzengcmac/AI-Statistician/runs/publication_reference_qualification_20261003/stepmix/environment/bin/python",
+  "python_version": "3.11.15",
+  "python_sha256": "68100c5188b837802c7ae52398389d121b1c063ed244dec11649775b539c3a30",
+  "platform": "macOS-26.5.2-arm64-arm-64bit",
+  "machine": "arm64",
+  "installed": [
+    {
+      "name": "flit_core",
+      "version": "3.9.0"
+    },
+    {
+      "name": "joblib",
+      "version": "1.4.2"
+    },
+    {
+      "name": "numpy",
+      "version": "1.26.4"
+    },
+    {
+      "name": "pandas",
+      "version": "1.5.3"
+    },
+    {
+      "name": "python-dateutil",
+      "version": "2.9.0.post0"
+    },
+    {
+      "name": "pytz",
+      "version": "2024.1"
+    },
+    {
+      "name": "scikit-learn",
+      "version": "1.5.0"
+    },
+    {
+      "name": "scipy",
+      "version": "1.13.1"
+    },
+    {
+      "name": "six",
+      "version": "1.16.0"
+    },
+    {
+      "name": "stepmix",
+      "version": "2.2.3"
+    },
+    {
+      "name": "threadpoolctl",
+      "version": "3.5.0"
+    },
+    {
+      "name": "tqdm",
+      "version": "4.66.4"
+    }
+  ],
+  "installed_inventory": "runs/publication_reference_qualification_20261003/stepmix/installed_file_hashes.json",
+  "installed_inventory_sha256": "82bfe49a97505669b7f05cbd784619671644a52f588c58061c4568b09d02418e",
+  "installed_file_count": 5638,
+  "inputs": [
+    {
+      "path": "README.md",
+      "sha256": "b6d0c3c1cbcde843c9f7b10676ddc697a3f88f17ab949271d817bdd578ed878c",
+      "bytes": 2886
+    },
+    {
+      "path": "data/StepMix_Real_Data_GSS.csv",
+      "sha256": "40ebab9dc1bff7430c2a898dcc96676e83867f5d05b739d4574b339055af5704",
+      "bytes": 39162
+    },
+    {
+      "path": "data/banknote.csv",
+      "sha256": "a33ec6661829c71f3e6614b504dda860a73e596eb0d730873820092d33a96c29",
+      "bytes": 9921
+    },
+    {
+      "path": "data/carcinoma.csv",
+      "sha256": "fae8077ad7a04a637391efee36df9b3fd3035e7c908460cb0ca041f23a970a8d",
+      "bytes": 2283
+    },
+    {
+      "path": "data/datasim_Dist.csv",
+      "sha256": "71a1fd7f2963d7a3ed9f65c56c194f0f938968c25038de7d80765a916b51e1df",
+      "bytes": 76992
+    },
+    {
+      "path": "data/datasim_cov.csv",
+      "sha256": "b6705affd0c8a9803f7d676d0940e6e283d1fab271289591d2f01d2fdc52ac58",
+      "bytes": 44939
+    },
+    {
+      "path": "data/diabetes.csv",
+      "sha256": "f360cf71461cd44de8779e63de1d0d0db1fabc86efa08e7730a897fcb744992a",
+      "bytes": 3792
+    },
+    {
+      "path": "data/iris.csv",
+      "sha256": "396c921bc9cf625a4ab755540084aa3d0d941c4ffed8681299689b1f502c3ac2",
+      "bytes": 4821
+    },
+    {
+      "path": "paper_examples.py",
+      "sha256": "bf09ac6d24d4675a68ee5c19ae0491f57c4f1a8ea57dce1131df4ea012b0b698",
+      "bytes": 4228
+    },
+    {
+      "path": "run_all.sh",
+      "sha256": "570d42ec99502e7a782c62f945dd165364766597dbdfb174df6277f0eadd2635",
+      "bytes": 965
+    },
+    {
+      "path": "run_bakk_simulation.py",
+      "sha256": "e2297a31958b52802a3992069c154d73867cc583e5fd43bf0556219faf32d6b4",
+      "bytes": 5999
+    },
+    {
+      "path": "run_bakk_simulation_complete.py",
+      "sha256": "f73276c5f1576e1b6da8c9b9432cb4db34aff824704241ad9e8252804b9249c0",
+      "bytes": 5425
+    },
+    {
+      "path": "run_package_comparison.py",
+      "sha256": "68b5c2547cf0f0ae4788fdf6d73b5fa5542263c06ec5f284532b9684c86b1b79",
+      "bytes": 4111
+    },
+    {
+      "path": "run_real_example.py",
+      "sha256": "b9a6b84c8c12396091e9f4cc26d35eac4370d59d44902894fb47742776a2aeea",
+      "bytes": 7487
+    }
+  ],
+  "script_license_correspondence": "All five unique Python scripts and run_all.sh are byte-identical to scripts in the downloaded MIT-licensed StepMix 2.2.3 package. The seven datasets have no separate licence in the replication archive.",
+  "preparation": "Managed Python 3.11.15; uv venv followed by fixed requirements then journal source archive with --no-build-isolation, using flit_core 3.9.0; pip check passed. No scientific script or model invoked. uv logs are in tool transcript, not separate captured raw installation files.",
+  "preparation_metadata_failure": "First metadata inventory included a current-working-directory project distribution outside the reference environment and failed at relative_to before writing readiness or running science. The follow-up enumerates only the reference purelib path. Original failure remains in tool transcript; no environment/source change or reference invocation.",
+  "historical_author_environment_recovered": false
+}
