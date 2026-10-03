@@ -1,10 +1,10 @@
 {
   "schema_version": 506,
-  "updated_at": "2026-10-02",
+  "updated_at": "2026-10-03",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "On 2026-10-01 the native goal API returned no current goal. The operator-requested two-publication objective was then created and remains active. This replaces the obsolete Task114/one-result working objective without claiming that old objective was achieved. The subsequent operator revision requires local Qwen for all future model testing and evaluation.",
-  "execution_status": "Benchmark commit b2602bf2 adds a one-shot POSIX launcher around the existing four-mode draw CLI, recording input/entry identities, full child elapsed time, raw stdout/stderr and process termination. It never scores, selects artifacts, retries or changes the research graph. No default wall cap or model/resource escalation. The parent owns only its process group: separate scientific sessions and the model server can outlive it, so complete shutdown, cost and parity remain caller obligations. Full suite: 2024 passed, 18 skipped and one existing xfail in 789.00 seconds; compileall and 119 focused tests passed. No model invocation or consumed evaluation change. Haiku remains archival, scientific tests use local Qwen, Claude Code is separately authorized for native compatibility, official studies remain unactivated and the two-publication goal active.",
+  "execution_status": "Code commit 9bafb9cf reuses the existing evaluator-metadata projection at Theory feedback files, scientific-owner context/observation views and model-visible history reads. Raw stored observations, checkpoint payloads, source and diagnostic strings stay unchanged; raw and projected history have separate hashes. The older blanket runtime_seed rule now requires explicit evaluator ownership outside existing private contexts, preserving public exploratory implementation evidence. No research recipe, source correction, scheduler, repair agent, runtime mode or resource controller was added. Final full suite: 2095 passed, 18 skipped and one existing xfail in 2719.31 seconds; compileall, diff checks and 289 focused tests passed. Earlier interrupted or failed suites are not passing gates: an archive-field deletion caused checkpoint/final-selection regressions and was withdrawn, and the previous full suite's exploratory-handoff failure led to the ownership correction rather than a relaxed assertion. No product-model invocation, scientific draw, proof credit or consumed-evaluation change. These opaque tests establish mechanism conformance, not full-system secrecy, matched study arms or mathematical acceptance. Official studies remain unactivated; complete actual tools/data/exposure/resources and independent mathematical authority qualification before fresh open-weight experiments. The two-publication goal remains active.",
   "historical_evidence_scope": "Haiku capability_facts and latest_independent_qualification below are archived development facts only, not official publication results, model baselines or gates on the new studies. Do not continue following their scores or resume consumed draws. Keep useful regression mechanisms and source-faithful, independently verified mathematical artifacts without attributing them to autonomous research success.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Prepare AI-Statistician and EmpericalProcessLEAN for two distinct, legitimate arXiv-first publications: (1) a portable statistical-research harness usable by researchers with Codex, Claude Code and an open-source coding agent, supporting reviewable theory, Python/R simulation and intent-selected Lean; (2) a complete multi-agent AI-Statistician driven through a single LLM API. Systematically audit both repositories and current primary literature/code, establish defensible contributions and scientific baselines, consolidate reusable architecture and the Statlib-aligned Lean foundation, implement reproducible installation and evaluation protocols, run prospectively frozen independent experiments without reusing consumed evaluations, and produce evidence-backed manuscripts and public release artifacts. Completion requires working, tested releases and reproducible comparative evidence for each paper; documentation, tests, model agreement and preliminary proofs alone do not count as publication readiness.",
@@ -31,7 +31,7 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "b2602bf27eff733c9dd9820712d6b5747c569264",
+  "validated_code_head": "9bafb9cfc39c6a3e8a5457dcd2368b3a9ae886e1",
   "open_weight_system_development": {
     "study_id": "fixed_k_l2_20261002",
     "record": "benchmarks/publication_development/fixed_k_l2_20261002/observed_results.json",
@@ -47,8 +47,8 @@
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "0d540fb54888f8a033636c2b4ee6a62c9e8a2981",
-    "working_tree_before_current_change": "Began clean at 0d540fb5 with matching AI main/canonical refs and clean Lean pin db6c7718. Benchmark-only process accounting committed at b2602bf2; full suite passed before delivery. Product research execution, the failed isolated migration, consumed model records and source-map bytes remain unchanged. Deliver reviewed paths directly and atomically to AI main/canonical; no PR or force push."
+    "remote_before_current_change": "5739085094b693cf96978ab60f7485cae950c9da",
+    "working_tree_before_current_change": "Began at 57390850 with matching AI main/canonical refs and clean Lean pin db6c7718. Shared metadata-view and ownership corrections committed at 9bafb9cf after the final full suite passed. No model/scientific draw or Lean source edit; checked historical evidence state and source-map hashes remain unchanged. Deliver reviewed paths directly and atomically to AI main/canonical; no PR or force push."
   },
   "publication_development": {
     "study_id": "kimi_type_ms_20261001",
