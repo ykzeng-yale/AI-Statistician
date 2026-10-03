@@ -22,8 +22,8 @@ agent's Markdown/LaTeX files. No production prompt or runtime changes are needed
   not runtime branches, estimator formulas or reference values.
 - Card: the four alternative-basis analyses in Appendix E.1, not automatically
   the main Figure 4 multi-split result.
-- Source family stays together in any development/test split. Assignment is
-  pending; do not count this inspected candidate as a sealed, untouched test.
+- Source family stays together in any development/test split. TSCI is assigned
+  to exposed case preparation/illustration, not an untouched main-study test.
 - This integrated task is a candidate for Paper S or a substantive illustration.
   A separate source-only task could support Paper H, but its outcome cannot be
   relabelled collaboration evidence or counted twice as independent evidence.
@@ -59,7 +59,7 @@ The lock records the R engine hash; the execution candidate additionally binds
 Rscript and its launcher chain. Its machine-specific paths still need release
 reconstruction instructions.
 
-## Inputs Still Required Before A Draw
+## Inputs Still Required Before A Publication Draw
 
 1. Freeze a complete public input capsule with the exact final paper, the official
    code pin, permitted application data and their licenses/identities. The new
@@ -76,6 +76,24 @@ reconstruction instructions.
 4. Freeze roster/split, endpoint, all arm configurations, model/runtime/template,
    source/tool/data access, confirmation exposure, resources, repetition schedule
    and analysis. Do not infer readiness from the JSON loader or a prepared config.
+
+## Preparatory Theory Work
+
+The [prospective preparation plan](theory_preparation_plan.json) uses the unchanged
+case question and existing 76-file capsule to obtain a candidate TheoryDeveloper
+argument through its current Markdown/LaTeX, source and scratch tools. Missing
+replication inputs do not prohibit this preparatory research; they still prevent
+complete replication and qualified publication comparisons. The stage exposes no
+operator proof findings, repaired comparator or hidden numerical results. It does
+not rerun the fixed environment probe or invoke Lean.
+
+`prepare_theory.py` is experiment assembly over the existing AgentRuntime and
+retained Theory loop, not a new product agent or controller. It saves actual
+initial input/permission/request identities before research, current model props,
+progress/cost accounting and the exact checkpoint or failure. Only an explicit
+checkpoint is a selected draft; partial files are retained but not salvaged.
+The preparation is consumed once, without resume, retries or mathematical scores.
+Independent assessment and all publication-draw prerequisites remain separate.
 
 ## Existing Four-Arm Configuration Assembly
 
