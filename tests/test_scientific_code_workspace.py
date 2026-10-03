@@ -454,17 +454,18 @@ def test_public_source_file_batch_is_atomic_when_one_exact_read_drifts() -> None
     )
 
 
+@pytest.mark.parametrize("line_ending", ["\n", "\r\n"])
 def test_model_imports_observed_frozen_project_files_and_executes_them(
-    tmp_path,
+    tmp_path, line_ending,
 ) -> None:
     source_root = tmp_path / "frozen-project"
     package_root = source_root / "package"
     package_root.mkdir(parents=True)
     init_source = ""
-    method_source = "def total(values):\n    return sum(values)\n"
+    method_source = f"def total(values):{line_ending}    return sum(values){line_ending}"
     config_source = '{"offset": 7}\n'
     (package_root / "__init__.py").write_text(init_source, encoding="utf-8")
-    (package_root / "method.py").write_text(method_source, encoding="utf-8")
+    (package_root / "method.py").write_bytes(method_source.encode("utf-8"))
     (package_root / "config.json").write_text(config_source, encoding="utf-8")
     init_sha256 = hashlib.sha256(init_source.encode()).hexdigest()
     method_sha256 = hashlib.sha256(method_source.encode()).hexdigest()

@@ -2421,7 +2421,7 @@ def prepare_scientific_code_workspace(
                     try:
                         content = research_sources.document_path(
                             document.document_id
-                        ).read_text(encoding="utf-8")
+                        ).read_bytes().decode("utf-8")
                     except (OSError, UnicodeDecodeError, ValueError) as exc:
                         raise ClientToolInputError(
                             f"frozen source import index {index} is unreadable: {exc}"
