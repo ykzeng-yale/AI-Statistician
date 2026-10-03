@@ -1,0 +1,19 @@
+{
+  "model": "Qwen3-4B-Instruct-2507",
+  "scope": "offline_assets_checked_proposed_condition_not_live_attestation",
+  "assets_checked_at": "2026-10-03",
+  "weights_revision": "a06e946bb6b655725eafa393f4a9745d460374c9",
+  "weights_sha256": "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
+  "quantization": "Q4_K_M",
+  "server_sha256": "f124807ba31de5a65ea22fd624f33fd4dfe3c837d1c014dcf4a516b66812ffd7",
+  "server_version_observed": "0.4.1-dev, build 1, commit 4fea119, Darwin arm64",
+  "expected_chat_template_sha256_from_prior_same_asset_check": "c979e0e71a3e21b8f208e6ab120d5cb29327885f29d2a8b18fda67a723798e18",
+  "proposed_context_tokens": 131072,
+  "proposed_request_sampling": {"temperature": 0.7, "max_tokens": 16384, "parallel_tool_calls": false},
+  "proposed_server_sampling": {"top_k": 20, "top_p": 0.8, "min_p": 0.0},
+  "sampling_reference": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507#best-practices",
+  "actual_proposed_server_started": false,
+  "active_props_checked": false,
+  "model_calls": 0,
+  "remaining": "Verify actual startup, memory/context availability, model/template/sampling, hardware, cold-start/RNG policy and every observed request before activating fresh draws. This does not change consumed development conditions or qualify scientific capacity."
+}

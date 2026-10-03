@@ -31,7 +31,7 @@ contract without falsely completing or replacing that goal.
 | Product | One outer AgentRuntime and retained tool loop; Markdown/LaTeX Theory; source-owner Python/R/Lean feedback; separate role review | Correct scientific research or useful collaboration |
 | Portable package | One skill and two references; host discovery; Kimi/local-Qwen body uptake and file access; separately labelled Claude Code compatibility | Scientific efficacy, broad clean-machine installation or researcher time savings |
 | Manuscripts | [Harness draft](../manuscripts/portable_harness.md) and [system draft](../manuscripts/collaborative_system.md), with distinct methods arguments | Submission-ready papers; official comparative results do not exist |
-| Case inputs | Official TSCI commit frozen as 66 exact files; integrated B1/Card E.1 candidate loads through the existing task/ABI interfaces | Activated study, complete input/environment package or mathematical gold; missing B1 helper remains unresolved after official package-history checks |
+| Case inputs | Official TSCI commit frozen as 66 exact files; integrated B1/Card E.1 v2 distinguishes seven methods; explicit four-arm configuration assembly tested through existing draw entries | Activated study, complete input/environment package, verified scientific R execution or mathematical gold; missing B1 helper remains unresolved after official package-history checks |
 | Qwen development | Four standalone known-result draws had no final selection; both native FDA draws failed; earlier native R draws failed without demonstrated skill uptake | A publication baseline, reliable theory development or a measured harness benefit |
 | Lean foundation | Active Lean 4.30.0 Mathlib/Statlib/StatInference pin; selected kernel checks and source-mapped retrieval | Complete textbook coverage, clean reconstruction or source-faithful public API |
 | Verification | Final full suite passed 2103 tests, with 18 skips and one existing xfail; earlier storage failure and fixture follow-ups retained separately | Mathematical correctness, matched experimental arms or publication readiness |
@@ -46,6 +46,15 @@ The shared controls now receive the same research-evaluation Theory policy as
 production, through its existing task/evidence constructor. Actual-request tests
 cover the initial policy, scratch tools and effective output limits. This closes
 one comparison confound, not complete study qualification or scientific efficacy.
+
+The TSCI configuration follow-up changes no product mechanism. Its 116 focused
+deterministic tests include all four existing draw entries with mocked transport;
+no scientific call or result was produced. It rejects a missing source-execution
+input before writing arm files. Local Qwen weights and server binary were checked
+offline, but the proposed longer-context/decoding condition is not live-verified.
+The default generated R environment is WebR, distinct from the native source
+replication environment; native package installation alone cannot qualify the
+Algorithm/Simulation R path. No actual TSCI draw configurations were materialized.
 
 The previous workflow over-prioritized conformance audits and local fixes while
 official studies stayed unactivated. Stop that pattern. Do not manufacture success
@@ -72,6 +81,11 @@ Do not open another design framework or benchmark service.
   hints. Its intent exercises theory, code and empirical work, rather than the
   single-role source-only path. Source completeness, authority and arm conditions
   still precede activation; loading the task is not a capability result.
+  Complete the public paper/code/data/environment capsule and its approved
+  source-execution manifest next. Verify the selected scientific Python/R path
+  can execute the declared methods without assuming native R packages exist in
+  WebR. The four-arm assembler is now available; do not replace these missing
+  inputs with more configuration layers or a VM/networking campaign.
   Do not silently repair sources, substitute an example for the published study,
   or replace this work with another easy panel.
 - Qualify common final-artifact assessment. Executable references can assess
