@@ -65,6 +65,18 @@ confirmation-exposure, attempt and model-resource differences. These mechanism
 changes do not establish matched arms, fresh independent data or mathematical
 acceptance. Complete that existing qualification before activating the study;
 do not respond with another scientific case or additional control framework.
+The 2026-10-03 inspection additionally demonstrated evaluator-metadata leaks
+in Theory's feedback files and shared scientific-owner views. Both now reuse the
+existing cohort projection before externalization. Model-visible history reads
+also reuse that projection; full stored observations and terminal payloads remain
+unchanged for checkpoint recovery and final selection. The operator's originals,
+committed checks, mathematical
+documents and raw diagnostic strings are unchanged. Opaque regression tests do
+not establish full-system seed secrecy or qualify scientific outcomes.
+Ordinary `runtime_seed` fields now stay visible outside explicit evaluator-owned
+records/contexts rather than receive blanket masking. Complete
+the actual cohort/exposure and resource matching through the existing configuration;
+do not add another scheduler or hard-coded source correction.
 
 The unconsumed curvature-IV development panel added on 2026-10-02 was withdrawn
 before any model call or protocol activation. Its finite reference checks were

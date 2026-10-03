@@ -3344,6 +3344,60 @@ def test_source_owner_reads_complete_blinded_feedback_and_authors_its_revision(t
     assert all(withheld not in path.read_text() for path in archived)
 
 
+@pytest.mark.parametrize("owner", ["algorithm", "simulation"])
+@pytest.mark.parametrize("private_seed", [918007, 918011])
+def test_scientific_views_withhold_evaluator_metadata_without_changing_bound_checks(tmp_path, monkeypatch, owner, private_seed):
+    from copy import deepcopy
+    from ai_statistician.algorithm_engineer_llm import LLMAlgorithmEngineerAgent
+    from ai_statistician.client_tool_loop import ClientToolExecutionContext
+    from ai_statistician.cross_family_eval_protocol import CONFIRMATORY_EVALUATION_COHORT_KIND
+    from ai_statistician.model_backend import DEFAULT_LOCAL_GENERATOR_MODEL
+    from ai_statistician.research_schema import OpenResearchQuestion
+    from ai_statistician.simulation_engineer_llm import LLMSimulationEngineerAgent
+
+    monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
+    feedback = {
+        "cohort": {"artifact_kind": CONFIRMATORY_EVALUATION_COHORT_KIND, "cohort_id": "opaque",
+                   "seed": private_seed, "base_seed": private_seed},
+        "research_data": {"seed": private_seed, "base_seed": 37, "from_seed": private_seed, "to_seed": 83},
+        "stderr": f"Opaque raw diagnostic with literal {private_seed}.\n",
+    }
+    context = {"opaque_feedback": deepcopy(feedback)}
+    original_context = deepcopy(context)
+    draft = {"language": "python", "entrypoint": "run_sandbox", "dependencies": [], "execution_profile": "stdlib",
+             "code": "def run_sandbox(seed, replicates): return {'opaque': 7}\n"}
+    initial = {**deepcopy(feedback), "code_draft_hash": stable_hash(draft), "accepted": False}
+    original_initial = deepcopy(initial)
+    checked = {**deepcopy(initial), "accepted": True, "source_iteration_disposition": "accepted"}
+    original_checked = deepcopy(checked)
+    executions = []
+
+    def execute(candidate):
+        executions.append(candidate)
+        return checked
+
+    cls, config_cls = ((LLMAlgorithmEngineerAgent, AlgorithmEngineerConfig) if owner == "algorithm"
+                       else (LLMSimulationEngineerAgent, SimulationEngineerConfig))
+    workspace = cls(provider=object(), config=config_cls(provider_name="local", model=DEFAULT_LOCAL_GENERATOR_MODEL,
+        model_tier="local")).prepare_code_workspace(
+            question=OpenResearchQuestion("opaque", "Opaque", "No scientific claim."), artifact_id="opaque",
+            code_draft=draft, initial_observation=initial, workspace_context=context, check_candidate=execute,
+            allow_current_source_run=True, session_dir=tmp_path)
+    observation = workspace.execute_tool(ClientToolCall("run", SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, {
+        "reason": "Inspect the same source without a content correction."}), ClientToolExecutionContext(0, 0, 1, 0))
+    views = [workspace.initial_context["workspace_context"]["opaque_feedback"],
+             workspace.initial_context["initial_observation"], observation.content]
+    for view in views:
+        assert view["cohort"] == {**feedback["cohort"], "seed": "EVALUATOR_WITHHELD", "base_seed": "EVALUATOR_WITHHELD"}
+        assert view["research_data"] == feedback["research_data"] and view["stderr"] == feedback["stderr"]
+    assert not observation.is_error
+    commit = workspace.execute_tool(ClientToolCall("commit", SCIENTIFIC_SOURCE_COMMIT_TOOL, {}),
+                                    ClientToolExecutionContext(1, 0, 1, 1))
+    assert commit.terminal and commit.terminal_payload["check_result"] == original_checked
+    assert commit.terminal_payload["code_draft"] == draft and executions == [draft]
+    assert initial == original_initial and checked == original_checked and context == original_context
+
+
 def test_persistent_scientific_observations_survive_resume_and_reject_tampering(tmp_path) -> None:
     drafts = [
         {"language": "python", "execution_profile": "stdlib", "dependencies": [],

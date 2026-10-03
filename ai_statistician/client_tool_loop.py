@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Generic, Mapping, Sequence, TypeVar
 
 from .agent_runtime import agent_runtime_substage
+from .cross_family_eval_protocol import withhold_confirmatory_evaluation_seed
 from .fingerprint import stable_hash
 from .model_backend import (
     ClientToolCall,
@@ -513,12 +514,14 @@ def workspace_history_tool() -> ClientToolDefinition:
     return ClientToolDefinition(
         name=WORKSPACE_HISTORY_TOOL_NAME,
         description=(
-            "Read exact tool observations from this workspace, not private model reasoning. "
+            "Read tool observations from this workspace, not private model reasoning. "
             "Omit session_sha256 for the current window; an older window must belong to "
             "its validated parent chain. Omit observation_sha256 to read the observation "
             "catalog and parent window hash; otherwise select an exact observation hash. "
             "Without a window selector, that hash is found in the current or authorized older windows. "
-            "Read up to 20000 characters of the exact serialized observation or catalog; "
+            "Evaluator-owned metadata is withheld from this view; the audit record remains unchanged. "
+            "observation_sha256 selects the stored record; sha256 identifies the returned view. "
+            "Read up to 20000 characters of the serialized observation view or catalog; "
             "character_end is exclusive. "
             "Historical results are working context, not current scientific acceptance."
         ),
@@ -622,6 +625,11 @@ def _read_workspace_history(
             raise ClientToolInputError("observation_sha256 is outside this window's catalog")
         text = read_client_tool_observation(ref, session_dir=session_dir)
         sha = ref["sha256"]
+        original = json.loads(text)
+        projected = withhold_confirmatory_evaluation_seed(original)
+        if projected != original:
+            text = json.dumps(projected, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+            sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
     start = tool_input.get("character_start", 0)
     end = tool_input.get("character_end", min(len(text), start + 20000) if type(start) is int else 0)
     if (type(start) is not int or type(end) is not int

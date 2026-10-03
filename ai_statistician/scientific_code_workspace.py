@@ -39,6 +39,7 @@ from .client_tool_loop import (
     run_client_tool_workspace,
     workspace_history_tool,
 )
+from .cross_family_eval_protocol import withhold_confirmatory_evaluation_seed
 from .fingerprint import stable_hash
 from .generated_metric_contract import GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES, generated_sandbox_runtime_replicates
 from .model_backend import (
@@ -294,7 +295,7 @@ def externalize_scientific_workspace_documents(
     workspace_context: Mapping[str, Any],
 ) -> tuple[dict[str, Any], dict[str, str]]:
     """Move exact upstream documents out of the prompt and into read tools."""
-    projected = deepcopy(dict(workspace_context))
+    projected = withhold_confirmatory_evaluation_seed(workspace_context)
     theory = projected.get("theory_context", {})
     documents: dict[str, str] = {}
     if isinstance(theory, Mapping):
@@ -1938,7 +1939,7 @@ def prepare_scientific_code_workspace(
 
     def model_observation(value: Mapping[str, Any], *, retain_document: bool = False) -> dict[str, Any]:
         projected, documents, _ = externalize_client_tool_text_documents(
-            value, min_characters=1024, path_prefix="observations/text",
+            withhold_confirmatory_evaluation_seed(value), min_characters=1024, path_prefix="observations/text",
         )
         if retain_document or len(_compact_json(projected)) > CLIENT_TOOL_RESULT_MAX_CHARS:
             path = f"observations/{stable_hash(dict(value))}.md"

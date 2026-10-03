@@ -1,6 +1,6 @@
 # Publication Experiment Design
 
-2026-10-02 design and implementation status. NOT ACTIVATED: no task list, gold authority, sampling
+2026-10-03 design and implementation status. NOT ACTIVATED: no task list, gold authority, sampling
 schedule or resource envelope has been frozen. No result is claimed here.
 
 ## Questions And Units
@@ -143,6 +143,14 @@ draw implementations; they must be resolved or declared before the study starts.
 | Role and source opportunities | One retained context; optional self-review uses the same model context | Isolated product reviewers; ordinary graph transitions and reverse revision depend on arm | Freeze available tools, allowed sources, candidate/revision opportunities, local/outer stopping and final-selection rules; equal calls do not equal equal opportunities |
 | Model resources | Shared request/role configuration and one global request meter | Seven declared role configurations and the same global meter | Match the actual checkpoint, decoding and request/output limits; record context lengths, usage, cache and hardware conditions rather than infer parity from a cap |
 
+Output matching must use effective requests, not merely the role dictionaries.
+Production research-evaluation Theory uses `roles.theory.serious_max_tokens`,
+whereas the shared conversation uses `request.max_tokens`. Match those and every
+other role's output ceiling explicitly through the existing configuration; setting
+only `roles.theory.max_tokens` does not do so. Freeze temperatures and the actual
+server sampling/RNG configuration as well. No new resource controller is needed,
+and a configuration declaration still needs checking against observed requests.
+
 The control scratch addition reuses production tool schemas and raw execution
 observations; it does not add a research recipe or evidence credit. Opaque
 transport tests cover Python/R success and failure, source preservation and
@@ -157,9 +165,38 @@ that all model-visible paths are blinded.
 
 The existing model-visible cohort projection now also withholds `base_seed` and
 typed transition `from_seed`/`to_seed`, including in Architect feedback routing.
+The 2026-10-03 arm inspection found that Theory's initial and revision feedback
+files, and the shared scientific owner's context/observation views, had not applied
+that existing projection. They now apply it before making model material,
+including before serializing a Theory source-manifest view.
+Ten opaque regression cases cover the two initial feedback channels, revision
+feedback, transport observations and source-manifest material. Initial cases
+also read the actual public Theory tool. Four additional cases exercise both
+Algorithm and Simulation owners' initial context, initial observation, current
+source run and commit. Committed raw checks retain their original identity and
+source. Evaluator cohort/transition metadata is
+withheld while unfamiliar observations, ordinary research fields and raw text
+remain exact; caller records are unchanged. This reuses the current projection,
+not a new blinding service, scientific-content filter or repair layer.
+The same inspection found that history reads exposed evaluator metadata in the
+stored terminal payload. History now applies the existing projection at the
+model-read boundary, preserving substantive checkpoint material. The complete
+stored record remains unchanged for recovery and final-selection verification.
+Two opaque tests bind the raw record and projected view to their respective
+hashes, verify complete reads and preserve ordinary research fields and diagnostic
+text. `observation_sha256` selects the stored record; `sha256` identifies the
+returned view. A proposed archive-field deletion was rejected by the full-suite
+regressions and is not retained. Existing records and consumed draws are not
+rewritten; earlier exposure has no retroactive secrecy guarantee.
 Outside evaluator records/contexts it leaves researcher `seed`, `base_seed`,
-`from_seed` and `to_seed` fields unchanged; it does not edit source or diagnostic
+`from_seed`, `to_seed` and `runtime_seed` fields unchanged; it does not edit source or diagnostic
 strings.
+The full-suite exploratory handoff test caught the older blanket `runtime_seed`
+rule hiding public implementation evidence. The helper now requires explicit
+evaluator ownership for that field outside its existing private runtime contexts;
+the confirmatory semantic-review caller supplies that authority. Unknown research
+observations are not classified as private by a field name alone. This is a
+projection argument, not a new runtime mode, resource limit or research rule.
 This is a bounded metadata projection, not full-system secrecy or statistical
 independence: executed source can print its seed, future arithmetic cohorts can
 be predictable, and an unchanged default exploratory/confirmatory root is still

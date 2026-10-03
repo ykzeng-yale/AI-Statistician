@@ -150,6 +150,51 @@ def _history_checkpoint(tmp_path, request, content):
     return ref, result, backend
 
 
+@pytest.mark.parametrize("private_seed", [918007, 918011])
+def test_history_projects_evaluator_metadata_without_changing_stored_checkpoints(tmp_path, private_seed):
+    from ai_statistician.cross_family_eval_protocol import CONFIRMATORY_EVALUATION_COHORT_KIND
+
+    internal_payload = {
+        "cohort": {"artifact_kind": CONFIRMATORY_EVALUATION_COHORT_KIND,
+                   "seed": private_seed, "base_seed": private_seed},
+        "research_data": {"seed": private_seed, "base_seed": 37},
+        "unfamiliar_engine_state": {"opaque_key": "runtime-only-value"},
+    }
+    request = _history_request()
+    observation = {"saved": True, "research_seed": 918007,
+                   "stderr": "Opaque raw diagnostic with literal 918007.\n"}
+    backend = ScriptedToolTurnBackend([
+        _response(ClientToolCall(call_id="save", name="submit", input={})),
+    ])
+    execution = ClientToolExecutionResult(
+        content=observation, terminal=True, terminal_payload=internal_payload,
+    )
+    result = run_bounded_client_tool_loop(
+        backend=backend, request=request, execute_tool=lambda *_: execution,
+        max_turns=1, max_tool_calls=1, max_no_progress_turns=1,
+        session_dir=tmp_path, session_id="history-owner",
+    )
+    reference = result.observation_refs[0]
+    record_path = tmp_path / reference["relative_path"]
+    original_bytes = record_path.read_bytes()
+    assert json.loads(original_bytes)["terminal_payload"] == internal_payload
+    view = client_tool_loop._read_workspace_history(
+        {"observation_sha256": reference["sha256"]}, session_dir=tmp_path,
+        session_id="history-owner", request=request, observation_refs=result.observation_refs,
+    )
+    recovered = json.loads(view.content["text"])
+    assert recovered["content"] == observation
+    assert recovered["terminal_payload"] == {
+        **internal_payload,
+        "cohort": {**internal_payload["cohort"], "seed": "EVALUATOR_WITHHELD", "base_seed": "EVALUATOR_WITHHELD"},
+    }
+    assert result.terminal_payload == internal_payload and execution.terminal_payload == internal_payload
+    assert view.content["observation_sha256"] == reference["sha256"] and view.content["complete"]
+    assert view.content["sha256"] == hashlib.sha256(view.content["text"].encode()).hexdigest()
+    assert view.content["sha256"] != reference["sha256"]
+    assert record_path.read_bytes() == original_bytes
+
+
 @pytest.mark.parametrize("opaque_content", [
     "opaque prefix\n" + "unresolved\n" * 10000 + "original-tail-37",
     "\u03b1 = \u03b2 + \u03b3\n" * 10000 + "original-tail-61",

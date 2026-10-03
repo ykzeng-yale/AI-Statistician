@@ -194,6 +194,22 @@ computation. Resource curves require frozen global conditions and complete
 measurement, including failed and usage-unknown requests. No cap or stronger
 model is added after seeing a draw's outcome.
 
+Evaluator-owned cohort and transition metadata have a separate model-visible
+projection, used by the Architect, code reviewer and Theory feedback files.
+The same projection is applied to scientific-owner context and observation views.
+The stored originals remain available for audit. This does not sanitize raw
+source output: executed code or a referee document can disclose a seed in text,
+and later data streams can remain predictable. Metadata withholding therefore
+does not by itself establish blinded, outcome-independent confirmation. The
+study must qualify its actual source and feedback exposure rather than treat
+this projection as a scientific guarantee.
+Model-visible history reads use the same metadata projection while leaving the
+full stored observations and checkpoint payloads unchanged. The selected raw
+record and returned view have separate hashes. This does not confer retrospective
+blinding on older sessions or sanitise author-visible text.
+Runtime-seed projection requires explicit evaluator ownership; an ordinary
+research observation is not private merely because it has that field name.
+
 ### 3.2. Common External Outcome
 
 Trusted final readers collect only the terminated run's selected artifacts.

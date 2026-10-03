@@ -15,6 +15,7 @@ from .client_tool_loop import (
     read_hash_bound_utf8_file,
     run_client_tool_workspace,
 )
+from .cross_family_eval_protocol import withhold_confirmatory_evaluation_seed
 from .fingerprint import stable_hash
 from .estimator_interface_contract import (
     ESTIMATOR_REQUEST_BINDINGS,
@@ -2332,7 +2333,7 @@ def _theory_workspace_read_only_observations(
     }
     if "exploratory_source_manifest" in revision_inputs:
         observations["exploratory_source_manifest"] = json.dumps(
-            revision_inputs["exploratory_source_manifest"], ensure_ascii=False,
+            withhold_confirmatory_evaluation_seed(revision_inputs["exploratory_source_manifest"]), ensure_ascii=False,
             sort_keys=True, indent=2,
         )
     transport_feedback = revision_inputs.get("transport_feedback", {})
@@ -2341,7 +2342,7 @@ def _theory_workspace_read_only_observations(
             dict(transport_feedback)
         )
     observations, documents, _ = externalize_client_tool_text_documents(
-        observations, min_characters=1024, path_prefix="feedback/revision",
+        withhold_confirmatory_evaluation_seed(observations), min_characters=1024, path_prefix="feedback/revision",
     )
     if report_content:
         documents[report_document_path] = report_content
@@ -2429,7 +2430,7 @@ def _initial_theory_workspace_read_only_artifacts(
         if isinstance(feedback, Mapping) and feedback:
             path = f"feedback/{key}-{stable_hash(dict(feedback))[:20]}.md"
             observation, documents, _ = externalize_client_tool_text_documents(
-                dict(feedback), min_characters=1024, path_prefix=f"feedback/{key}",
+                withhold_confirmatory_evaluation_seed(feedback), min_characters=1024, path_prefix=f"feedback/{key}",
             )
             read_only_documents.update(documents)
             read_only_documents[path] = json.dumps(

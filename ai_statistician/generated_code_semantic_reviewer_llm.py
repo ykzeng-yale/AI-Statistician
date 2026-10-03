@@ -572,7 +572,7 @@ def generated_code_semantic_review_prompt_projection(
         _semantic_review_model_input(review_material)
     )
     if review_material.get("confirmatory_empirical_evidence_eligible") is True:
-        return withhold_confirmatory_evaluation_seed(projected)
+        return withhold_confirmatory_evaluation_seed(projected, evaluator_owned=True)
     return projected
 
 

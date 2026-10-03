@@ -486,6 +486,7 @@ def withhold_confirmatory_evaluation_seed(
     value: Any,
     *,
     parent_key: str = "",
+    evaluator_owned: bool = False,
 ) -> Any:
     """Project evaluator-owned seeds out of model-visible material."""
 
@@ -498,9 +499,9 @@ def withhold_confirmatory_evaluation_seed(
         return {
             str(key): (
                 "EVALUATOR_WITHHELD"
-                if str(key) in private_fields or str(key) == "runtime_seed"
+                if str(key) in private_fields or (evaluator_owned and str(key) == "runtime_seed")
                 or (
-                    str(key) in {"seed", "base_seed"}
+                    str(key) in {"seed", "base_seed", "runtime_seed"}
                     and parent_key
                     in {
                         "actual_runtime_arguments",
@@ -514,13 +515,14 @@ def withhold_confirmatory_evaluation_seed(
                 else withhold_confirmatory_evaluation_seed(
                     child,
                     parent_key=str(key),
+                    evaluator_owned=evaluator_owned,
                 )
             )
             for key, child in value.items()
         }
     if isinstance(value, (list, tuple)):
         return [
-            withhold_confirmatory_evaluation_seed(child, parent_key=parent_key)
+            withhold_confirmatory_evaluation_seed(child, parent_key=parent_key, evaluator_owned=evaluator_owned)
             for child in value
         ]
     return deepcopy(value)

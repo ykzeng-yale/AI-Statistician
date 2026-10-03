@@ -36,7 +36,7 @@ def test_model_seed_projection_recognizes_owned_cohorts_and_transitions_not_rese
     next_cohort, transition, errors = advance_confirmatory_evaluation_cohort(context, question_id="opaque",
         confirmatory_outcome={"question_id": "opaque", "feedback_id": "opaque-outcome", "confirmatory_evaluation_cohort": cohort})
     assert errors == []
-    public_research = {"seed": 31, "base_seed": 37, "from_seed": 41, "to_seed": 43,
+    public_research = {"seed": 31, "runtime_seed": 47, "base_seed": 37, "from_seed": 41, "to_seed": 43,
                        "code": "print('unmodified opaque source')", "stderr": "opaque raw observation"}
     original = copy.deepcopy((cohort, next_cohort, transition, public_research))
     for value in (cohort, next_cohort, transition, {"opaque_container": [cohort, next_cohort, transition]}):
@@ -49,6 +49,23 @@ def test_model_seed_projection_recognizes_owned_cohorts_and_transitions_not_rese
     assert view["opaque_cohort"]["cohort_id"] == cohort["cohort_id"]
     assert view["opaque_cohort"]["cohort_index"] == cohort["cohort_index"]
     assert (cohort, next_cohort, transition, public_research) == original
+
+
+def test_runtime_seed_projection_requires_explicit_evaluator_ownership() -> None:
+    value = {
+        "unfamiliar_observations": [{"runtime_seed": 918007, "seed": 31,
+                                   "stderr": "Raw observation with literal 918007.\n"}],
+        "runtime_config": {"runtime_seed": 918011, "seed": 918011},
+    }
+    original = copy.deepcopy(value)
+    public_view = withhold_confirmatory_evaluation_seed(value)
+    assert public_view["unfamiliar_observations"] == original["unfamiliar_observations"]
+    assert public_view["runtime_config"] == {"runtime_seed": "EVALUATOR_WITHHELD", "seed": "EVALUATOR_WITHHELD"}
+    private_view = withhold_confirmatory_evaluation_seed(value, evaluator_owned=True)
+    assert private_view["unfamiliar_observations"] == [
+        {**original["unfamiliar_observations"][0], "runtime_seed": "EVALUATOR_WITHHELD"},
+    ]
+    assert value == original
 
 
 def test_frozen_cross_family_protocol_resolves_disjoint_panels() -> None:

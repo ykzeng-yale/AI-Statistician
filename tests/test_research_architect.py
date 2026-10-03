@@ -1544,6 +1544,62 @@ def test_initial_theory_can_read_late_feedback_without_rewriting_it(tmp_path) ->
     assert "replacement observation" not in json.dumps(feedback)
 
 
+@pytest.mark.parametrize("stage", ["environment_feedback", "theory_developer_source_environment_feedback", "feedback", "transport_feedback", "exploratory_source_manifest"])
+@pytest.mark.parametrize("private_seed", [918007, 918011])
+def test_theory_feedback_views_withhold_evaluator_metadata_not_research_or_raw_text(tmp_path, stage, private_seed):
+    from ai_statistician.cross_family_eval_protocol import (
+        CONFIRMATORY_EVALUATION_COHORT_KIND,
+        CONFIRMATORY_EVALUATION_COHORT_TRANSITION_KIND,
+    )
+
+    raw_text = (f"Opaque raw observation with literal {private_seed}; do not rewrite.\n" * 40)
+    feedback = {
+        "cohort": {"artifact_kind": CONFIRMATORY_EVALUATION_COHORT_KIND,
+                   "cohort_id": "opaque-cohort", "seed": private_seed, "base_seed": private_seed},
+        "transition": {"artifact_kind": CONFIRMATORY_EVALUATION_COHORT_TRANSITION_KIND,
+                       "transition_id": "opaque-transition", "from_seed": private_seed, "to_seed": private_seed + 1},
+        "research_data": {"seed": private_seed, "base_seed": 37, "from_seed": private_seed, "to_seed": 83},
+        "unfamiliar_tool_observations": {"stderr": raw_text, "status": "opaque native failure"},
+    }
+    original = deepcopy(feedback)
+    inputs = {stage: feedback}
+    original_inputs = deepcopy(inputs)
+    if stage in {"environment_feedback", "theory_developer_source_environment_feedback"}:
+        question = OpenResearchQuestion(id="opaque-privacy", title="Opaque", description="No scientific claim.")
+        artifacts = research_architect_module._initial_theory_workspace_read_only_artifacts(
+            question=question,
+            architect_context=inputs, theory_prompt_mode=THEORY_PROMPT_MODE_COMPACT,
+            max_tool_calls=48, formalization_authoring_required=False,
+        )
+        context = artifacts["initial_authoring_context"]["architect_context"][stage]
+        backend = ScriptedTheoryToolBackend(tool_responses=[], generator_responses=[])
+        workspace = LLMTheoryDeveloperAgent(provider=backend, config=ResearchArchitectConfig(
+            provider_name="local", model=DEFAULT_LOCAL_GENERATOR_MODEL, model_tier="local",
+            serious_model=DEFAULT_LOCAL_GENERATOR_MODEL, serious_model_tier="local",
+        )).prepare_workspace(question, architect_context=inputs, theory_workspace_root=tmp_path)
+        result = workspace.execute_tool(ClientToolCall("read", "read_theory_workspace", {
+            "document_paths": [context["workspace_document_path"]],
+        }), ClientToolExecutionContext(0, 0, 1, 0))
+        assert not result.is_error and backend.tool_requests == [] and backend.generator_requests == []
+        view = json.loads(result.content["documents"][context["workspace_document_path"]])
+    else:
+        artifacts = research_architect_module._theory_workspace_read_only_observations(inputs)
+        if stage == "exploratory_source_manifest":
+            reference = artifacts[stage]
+            view = json.loads(artifacts["read_only_documents"][reference["client_tool_evidence_document_ref"]])
+        else:
+            view = artifacts["reviewer_observations" if stage == "feedback" else "transport_observations"]
+    assert view["cohort"] == {**original["cohort"], "seed": "EVALUATOR_WITHHELD", "base_seed": "EVALUATOR_WITHHELD"}
+    assert view["transition"] == {**original["transition"], "from_seed": "EVALUATOR_WITHHELD", "to_seed": "EVALUATOR_WITHHELD"}
+    assert view["research_data"] == original["research_data"]
+    assert view["unfamiliar_tool_observations"]["status"] == "opaque native failure"
+    if stage == "exploratory_source_manifest":
+        assert view["unfamiliar_tool_observations"]["stderr"] == raw_text
+    else:
+        assert raw_text in artifacts["read_only_documents"].values()
+    assert feedback == original and inputs == original_inputs
+
+
 def test_optional_theory_prompt_does_not_invent_formalization_work() -> None:
     question = OpenResearchQuestion(
         id="optional_formalization",
