@@ -7689,6 +7689,116 @@ def test_semantic_review_resumes_exact_simulation_source_without_planning(
     )
 
 
+@pytest.mark.parametrize("public_seed", [37, 83])
+@pytest.mark.parametrize("private_seed", [918007, 918011])
+@pytest.mark.parametrize("authoring", [False, True])
+def test_simulation_author_diagnostic_uses_public_seed_not_private_cohort(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    public_seed: int,
+    private_seed: int,
+    authoring: bool,
+) -> None:
+    from ai_statistician.cross_family_eval_protocol import resolve_confirmatory_evaluation_cohort
+
+    question = OpenResearchQuestion(
+        id="opaque-data-routing",
+        title="Opaque tool routing",
+        description="Check execution configuration, not a statistical result.",
+    )
+    context = _full_evidence_context(question.id)
+    context["empirical_evaluation_phase"] = "confirmatory"
+    context["cross_family_evaluation_protocol"] = {
+        "protocol_fingerprint": "opaque-protocol",
+        "candidate_gate_independence_required": True,
+        "post_outcome_fresh_cohort_required": True,
+        "confirmatory_candidate_seed_blinding_required": True,
+    }
+    cohort, errors = resolve_confirmatory_evaluation_cohort(
+        context, question_id=question.id, execution_seed=private_seed,
+    )
+    assert not errors
+    context[runtime_module.CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY] = cohort
+    packet_id = context["theory_packet_id"]
+    packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": packet_id,
+        "problem_card": {"estimand": "opaque"},
+        "estimator_specs": [],
+        "theorem_cards": [],
+    }
+    proposal_calls, executions = [], []
+    candidate = {"code": "OPAQUE UNCHANGED SOURCE"}
+    raw_observation = {"stdout": "OPAQUE RAW OBSERVATION", "runtime_seed": public_seed}
+    tool_call = ToolCallRecord(tool_name="opaque.executor", exit_status="0")
+
+    class SourceAgent:
+        provider = SimpleNamespace(generate_client_tool_turn=lambda *_a, **_k: pytest.fail("no model call"))
+
+        @staticmethod
+        def iterate_code_with_tools(**_kwargs):
+            pytest.fail("only the execution callbacks are under test")
+
+        @staticmethod
+        def create_source_workspace_intent(**kwargs):
+            proposal_calls.append(kwargs)
+            return {
+                "artifact_kind": "SimulationSourceWorkspaceIntent",
+                "packet_id": "opaque-intent",
+                "scientific_source_transport": "native_client_tools",
+                "simulation_code_drafts": [{"simulation_id": "opaque-source"}],
+            }
+
+    class CallbacksChecked(Exception):
+        pass
+
+    def execute(**kwargs):
+        executions.append(kwargs)
+        assert kwargs["code_draft"] is candidate
+        return raw_observation, tool_call
+
+    def workspace(**kwargs):
+        assert kwargs["defer_confirmatory_execution"] is authoring
+        assert kwargs["confirmatory_result_blind"] is True
+        assert kwargs["execute_authoring_diagnostic"](candidate) == (raw_observation, tool_call)
+        assert executions[-1]["seed"] == public_seed
+        assert executions[-1]["validation_context"]["source_authoring_diagnostic"] is True
+        assert runtime_module.CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY not in (
+            executions[-1]["validation_context"]["architect_context"]
+        )
+        # Inspect the private executor without fabricating a scientific verdict.
+        assert kwargs["execute_candidate"](candidate) == (raw_observation, tool_call)
+        assert executions[-1]["seed"] == private_seed
+        raise CallbacksChecked
+
+    monkeypatch.setattr(runtime_module, "_runtime_simulation_metric_protocol_guard", lambda **_k: None)
+    monkeypatch.setattr(runtime_module, "_runtime_requires_typed_metric_contracts", lambda *_a, **_k: False)
+    monkeypatch.setattr(runtime_module, "_runtime_requires_generated_algorithm_code", lambda *_a, **_k: False)
+    monkeypatch.setattr(runtime_module, "_run_generated_simulation_sandbox", execute)
+    monkeypatch.setattr(runtime_module, "_run_source_owner_scientific_workspace", workspace)
+    subsystem = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        source_agent=SourceAgent(), sandbox_root=tmp_path, seed=public_seed,
+    )
+    task = AgentTask(
+        task_id="opaque-task", owner_subsystem="SimulationEvaluator", objective="Opaque routing.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": packet_id,
+            "architect_context": context,
+            "evaluator_source_authoring": authoring,
+            "seed": private_seed,
+            "n_runs": 3,
+        },
+    )
+    with pytest.raises(CallbacksChecked):
+        subsystem.run(task, BlackboardState(project_id=question.id, artifacts={packet_id: packet}))
+    assert len(proposal_calls) == 1
+    assert proposal_calls[0]["seed"] == (public_seed if authoring else private_seed)
+    assert proposal_calls[0]["withhold_seed_from_model"] is (not authoring)
+    assert [row["seed"] for row in executions] == [public_seed, private_seed]
+    assert candidate == {"code": "OPAQUE UNCHANGED SOURCE"}
+
+
 def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_release(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

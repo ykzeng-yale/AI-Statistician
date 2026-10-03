@@ -9120,6 +9120,7 @@ class SimulationEvaluatorRuntimeSubsystem:
         semantic_reviewer_available: bool = False,
         consumer_revision_max_revisions: int = 1,
         timeout_s: int = 60,
+        seed: int = 20260528,
         research_sources: ResearchSourceSnapshot | None = None,
         research_source_discovery: ResearchSourceDiscovery | None = None,
     ) -> None:
@@ -9130,6 +9131,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             0, int(consumer_revision_max_revisions or 0)
         )
         self.timeout_s = max(1, int(timeout_s or 60))
+        self.seed = seed
         self.research_sources = research_sources
         self.research_source_discovery = research_source_discovery
 
@@ -9952,7 +9954,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                             packet if isinstance(packet, Mapping) else {}
                         ),
                         n_runs=n_runs,
-                        seed=seed,
+                        seed=self.seed if evaluator_source_authoring else seed,
                         withhold_seed_from_model=confirmatory_seed_blind,
                         environment_feedback=(
                             _runtime_environment_feedback_with_architect_directive(
@@ -10279,10 +10281,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 "source_authoring_diagnostic"
             ] = True
             authoring_diagnostic_kwargs["n_runs"] = min(n_runs, SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS)
-            authoring_diagnostic_kwargs["seed"] = (
-                seed + 1 + int(stable_hash([question.id, task.task_id, simulation_id])[:8], 16)
-                % 2_147_483_646
-            ) % 2_147_483_647
+            authoring_diagnostic_kwargs["seed"] = self.seed
 
             parent_source_hash = confirmatory_source_parent_hashes.get(
                 simulation_id, ""
@@ -20035,6 +20034,7 @@ def run_research_agent_runtime(
                 source_agent=simulation_engineer,
                 sandbox_root=out_dir / "generated_simulation_sandbox",
                 timeout_s=config.generated_simulation_timeout_seconds,
+                seed=config.seed,
                 semantic_reviewer_available=(
                     generated_code_semantic_reviewer is not None
                 ),

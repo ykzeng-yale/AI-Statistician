@@ -622,6 +622,12 @@ def test_cli_actual_runtime_uses_declared_revision_policy_before_a_second_author
     config["mode"] = mode
     config["runtime"]["generated_simulation_timeout_seconds"] = timeout_s
     calls, producer = [], []
+    simulation_seeds = []
+    original_simulation_init = runtime.SimulationEvaluatorRuntimeSubsystem.__init__
+
+    def simulation_init(self, **kwargs):
+        original_simulation_init(self, **kwargs)
+        simulation_seeds.append(self.seed)
 
     def theory(self, task, board):
         calls.append("theory")
@@ -656,7 +662,9 @@ def test_cli_actual_runtime_uses_declared_revision_policy_before_a_second_author
     monkeypatch.setattr(runtime.TheoryDeveloperRuntimeSubsystem, "run", theory)
     monkeypatch.setattr(runtime.AlgorithmEngineerRuntimeSubsystem, "run", algorithm)
     monkeypatch.setattr(runtime.GeneratedCodeSemanticReviewerRuntimeSubsystem, "run", reviewer)
+    monkeypatch.setattr(runtime.SimulationEvaluatorRuntimeSubsystem, "__init__", simulation_init)
     assert invoke(tmp_path, config) == 1
+    assert simulation_seeds == [config["runtime"]["seed"]]
     assert json.loads(capsys.readouterr().out)["final_material_ref"] is None
     assert calls == ["theory", "algorithm", "reviewer"] + (["algorithm"] if mode == "full_collaboration" else [])
     path = next((tmp_path / "draw" / "author").glob("*_runtime_result.json"))
