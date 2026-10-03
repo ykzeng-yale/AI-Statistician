@@ -308,6 +308,51 @@ def collaborative_configuration(tmp_path, monkeypatch):
     return config
 
 
+@pytest.mark.parametrize("mode", ["free_planning", "same_workflow", "full_collaboration", "no_cross_role_revision"])
+@pytest.mark.parametrize("matched_output", [False, True])
+def test_actual_arm_requests_share_research_theory_context_and_use_effective_output_limits(
+    tmp_path, monkeypatch, capsys, mode, matched_output,
+):
+    from ai_statistician.research_architect import THEORY_PROMPT_MODE_SERIOUS_CAPABILITY
+    from ai_statistician.theory_workspace import theory_scratchpad_client_tool
+
+    collaborative = mode in {"full_collaboration", "no_cross_role_revision"}
+    config = (collaborative_configuration(tmp_path, monkeypatch) if collaborative else configuration(
+        tmp_path, monkeypatch, workflow="Declared workflow." if mode == "same_workflow" else "", reviewers=True))
+    config["mode"] = mode
+    shared_output, serious_output = 1711, 1711 if matched_output else 1843
+    config["roles"]["theory"]["serious_max_tokens"] = serious_output
+    for role in config["roles"].values():
+        role["temperature"] = 0.23
+    if collaborative:
+        config["runtime"].update(local_model_call_limit=2, theory_scratch_enabled=True,
+                                 theory_scratch_timeout_seconds=31, generated_simulation_timeout_seconds=31)
+    else:
+        config["request"].update(max_tokens=shared_output, temperature=0.23)
+        config["execution"]["timeout_s"] = 31
+        config["limits"]["local_model_call_limit"] = 2
+    prefix = "" if collaborative else "theory__"
+    requests, freezes = wire(monkeypatch, tmp_path, [
+        (prefix + "read_theory_workspace", {"artifact_names": ["initial_authoring_context"]}),
+        (prefix + "write_theory_document", {"path": "claim.md", "content": "# Unresolved opaque work\n"}),
+    ])
+    assert invoke(tmp_path, config) == 1
+    summary = json.loads(capsys.readouterr().out)
+    assert len(requests) == summary["local_model_usage"]["attempted_requests"] == 2
+    assert summary["final_material_ref"] is None and summary["scientific_evaluation_performed"] is False
+    assert all(row["model"] == MODEL and row["temperature"] == 0.23 for row in requests)
+    assert all(row["max_tokens"] == (serious_output if collaborative else shared_output) for row in requests)
+    assert freezes[0]["role_configs"]["theory"]["max_tokens"] == 1024
+    assert freezes[0]["role_configs"]["theory"]["serious_max_tokens"] == serious_output
+    observation = json.loads(next(row["content"] for row in requests[-1]["messages"] if row["role"] == "tool"))
+    policy = json.loads(observation["content"])["artifacts"]["initial_authoring_context"]["authoring_policy"]
+    assert policy["theory_prompt_mode"] == THEORY_PROMPT_MODE_SERIOUS_CAPABILITY
+    assert policy["serious_theory_mode"] is True and policy["formalization_authoring_required"] is False
+    scratch = theory_scratchpad_client_tool()
+    actual = next(row["function"] for row in requests[0]["tools"] if row["function"]["name"] == prefix + scratch.name)
+    assert actual["description"] == scratch.description and actual["parameters"] == scratch.input_schema
+
+
 def replication_configuration(tmp_path, monkeypatch, mode, *, model_selected=False):
     from ai_statistician.research_source_library import load_research_source_snapshot
 

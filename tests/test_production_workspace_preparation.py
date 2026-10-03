@@ -763,7 +763,20 @@ def test_control_freezes_exact_source_before_fresh_execution_without_review(tmp_
         pytest.skip("scientific runtime is not prepared")
     question = OpenResearchQuestion("opaque-confirmation", "Opaque confirmation", "Mechanism only, not scientific gold.",
                                     task_intent={"theory": "not_applicable", "scientific_code": "required",
-                                                 "empirical": "required", "formal": "not_applicable"})
+                                                 "empirical": "required", "formal": "not_applicable"},
+                                    estimator_execution_contract={
+                                        "schema_version": 1, "estimator_id": "opaque", "entrypoint": "run_estimator",
+                                        "request_fields": [{"clause_id": "request.value", "name": "value",
+                                            "meaning": "Opaque finite test value.", "json_type": "number", "shape": "scalar",
+                                            "units": "not_applicable", "indexing": "not_applicable", "edge_cases": "Finite values only.",
+                                            "binding": "per_replicate_data"}],
+                                        "response_fields": [{"clause_id": "response.echo", "name": "echo",
+                                            "meaning": "Unchanged input value.", "json_type": "number", "shape": "scalar",
+                                            "units": "not_applicable", "indexing": "not_applicable", "edge_cases": "Finite values only.",
+                                            "normalization": "No transformation."}],
+                                        "empirical_claims": [{"clause_id": "claim.confirmation",
+                                            "meaning": "Inspect exact source consumption, frozen count and fresh seed; not scientific efficacy."}],
+                                    })
     backend = Scripted([])
     agents = [LLMTheoryDeveloperAgent(provider=backend, config=ResearchArchitectConfig(
         provider_name="local", model=MODEL, model_tier="local", serious_model=MODEL, serious_model_tier="local",

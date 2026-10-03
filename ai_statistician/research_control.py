@@ -442,6 +442,7 @@ def prepare_single_context_research_workspace(
     from .research_agent_runtime import (
         _estimator_spec, _executable_evaluator_interface_errors,
         _run_generated_code_sandbox, _run_generated_simulation_sandbox,
+        _runtime_architect_context_with_requested_evidence_contract,
     )
     from .scientific_sandbox import scientific_project_hash
     from .theory_derivation_trace import document_authoritative_theory_context
@@ -469,7 +470,10 @@ def prepare_single_context_research_workspace(
     sources = theory_agent.research_sources
     discovery = theory_agent.research_source_discovery
     theory = theory_agent.prepare_workspace(
-        question, theory_workspace_root=session_dir / "theory",
+        question, architect_context=_runtime_architect_context_with_requested_evidence_contract(
+            {}, formal_verification_policy="optional", evaluation_mode="research_eval",
+            task_intent=question.task_intent, estimator_execution_contract=question.estimator_execution_contract,
+        ), theory_workspace_root=session_dir / "theory",
         theory_scratchpad=TheoryScratchpadConfig(session_dir / "theory_scratch_sandbox", seed, n_runs, timeout_s),
     )
 
