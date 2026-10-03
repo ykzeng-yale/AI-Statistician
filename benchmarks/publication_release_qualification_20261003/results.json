@@ -1,0 +1,143 @@
+{
+  "scope": "Same-host fresh Python-environment installation and synthetic local-tool conformance; not scientific research, model iteration, public release or an official study.",
+  "model_calls": 0,
+  "study_activated": false,
+  "consumed_evaluations_changed": false,
+  "raw_root": "runs/publication_release_qualification_20261003",
+  "base_commit": "33bbcc81a81cd0fe705550d2e6c1283df01baff8",
+  "first_source_commit": "71205913607a8621b6d4c71c76587a5b799baeed",
+  "tested_source_commit": "53839f1d640f45ec9b11fe2a35ecd18f1decee6f",
+  "lean_pin_unchanged": "db6c7718349f3c14a7e37905f3529675f1ebaa52",
+  "plan_sha256": "dd21d7a731735b34c130bce26babe38508cfaddc64bc0fb357ca82ce05b29ef0",
+  "probe_sha256": "5dd76f03947917c1346ba6fd7be52ba7b26b3094d3bdf09d48876fb0c91065cd",
+  "source_capsules": {
+    "selected_tracked_paths": ["ai_statistician", "pyproject.toml", "package.json", "package-lock.json", "README.md", "skills/statistical-research", "benchmarks/publication_release_qualification_20261003"],
+    "source.tar": "25c01d18391a14c05865478473c2cc56dbb701f61f7057dbd2e7c8fcd0394a65",
+    "source_2.tar": "5d04f385d732fcd6663ba8a428a28fec1a0025cd7e0553ae7c7d44e2e6c1a8af",
+    "excluded": "No operator .env, existing Python/npm environments, runs or Lean artifacts were copied."
+  },
+  "wheels": {
+    "dist/ai_statistician-0.1.0-py3-none-any.whl": "8ab1bd7ce393f70786734f184527e4d23c18964c038a8f7b0d1b8610a16a4a01",
+    "dist_2/ai_statistician-0.1.0-py3-none-any.whl": "cbca00ac9165e2e6cd0c3eab7f2784ab4f7b80455bcbf850a3b60ab000f63296",
+    "build_exit_codes": [0, 0],
+    "install_exit_codes": [0, 0],
+    "extras": [],
+    "public_release_qualified": false
+  },
+  "environment": {
+    "host": "macOS-26.5.2-arm64-arm-64bit",
+    "python": "3.12.13",
+    "base_interpreter": "/Users/yukangzengcmac/.local/share/uv/python/cpython-3.12-macos-aarch64-none/bin/python3.12",
+    "base_interpreter_sha256": "a395f264e5612a2819662ed3e37fd30d39ed61179b98e5f86c3c783a008d8623",
+    "fresh_venvs": ["environment_2", "environment_3"],
+    "final_venv": "environment_3",
+    "caller_workspace": "researcher_workspace",
+    "empty_home": "home",
+    "process_environment": "env -i; explicit PATH, HOME and LANG, plus UV_CACHE_DIR for preparation or the existing runtime-path setting for the tool probe; no inherited credential variables.",
+    "resolved_python_packages": {
+      "ai-statistician": "0.1.0", "attrs": "26.1.0", "jsonschema": "4.26.0",
+      "jsonschema-specifications": "2025.9.1", "numpy": "2.5.3",
+      "referencing": "0.37.0", "rpds-py": "2026.6.3", "typing_extensions": "4.16.0"
+    },
+    "installed_file_count": 1234,
+    "installed_inventory_sha256": "98cdb15abd747264040ff29235e7dcca6f8d85309e864ee38a7a7e4f55d9e392",
+    "inventory_encoding": "SHA-256 of ASCII compact JSON sorted [relative path, file SHA-256] rows under final purelib, excluding __pycache__ and .pyc. This is a local observation, not a distributed environment lock."
+  },
+  "node_runtime": {
+    "node": "v24.16.0",
+    "node_binary_sha256": "1ee75375e33b94fc34b3b19aede049e11dae90efb63b374dc96d6bdace70c4b8",
+    "npm": "11.13.0",
+    "npm_entry_sha256": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+    "uv": "0.11.17 (a33a629d6 2026-05-28 aarch64-apple-darwin)",
+    "uv_binary_sha256": "94fee727893cd7a6020fb9167c859f4ac6d8efa03c711dd2cd3b604984c577d7",
+    "prepared_path": "source/node_modules",
+    "commands": ["npm ci --omit=dev", "npm run prepare:scientific-sandbox"],
+    "exit_codes": [0, 0],
+    "reused_for_corrected_wheel": "Only this newly prepared runtime, with explicit AI_STATISTICIAN_SCIENTIFIC_SANDBOX_NODE_MODULES. No second npm reconstruction or previous operator node_modules was used.",
+    "package_json_sha256": "4beb04cb33352b192cc6e5bbd079fe90da4f812dfc2ef0c598266356f2480836",
+    "package_lock_sha256": "1665b50c81137dc5efa7cfbbf8de9a6a616f9090f2cdb23db3d54dd062f28d10",
+    "runner_sha256": "5044ba22c5730ebc0c82e2754f05be9c9633f559804bf04d2192504646f80670",
+    "preparation_adapter_sha256": "d6a9d7c92ea5ae5273b4536ea8867951d8e4e886ea1ad1f039af822cccc1f497",
+    "runtime_and_lock_bytes_unchanged_between_source_commits": true,
+    "pyodide": "314.0.2",
+    "webr": "0.6.0",
+    "regular_file_count": 1370,
+    "inventory_sha256": "553c5b2755748298a62fffda891c87d317376baceef553aff0c26e7744c29d6b",
+    "inventory_encoding": "SHA-256 of ASCII compact JSON sorted [relative path, file SHA-256] rows for regular non-symlink node_modules files, including newly prepared wheels/cache."
+  },
+  "installed_observations": {
+    "cli_help_list_doctor_exit_codes": [0, 0, 0],
+    "package_loaded_from": "environment_3/lib/python3.12/site-packages/ai_statistician/__init__.py",
+    "doctor_required_ok": true,
+    "doctor_local_configuration_blockers": [],
+    "doctor_model_availability_attested": false,
+    "fixture_process_exit_code": 0,
+    "fixture_execution_statuses": ["EXECUTED", "FAILED", "EXECUTED", "FAILED"],
+    "fixture_subprocess_exit_codes": [0, 1, 0, 1],
+    "fixture_order": ["python", "python-failure", "r", "r-failure"],
+    "execution_profile": "scientific_wasm",
+    "isolation_provider": "macos_sandbox_exec+wasm",
+    "complete_source_and_helper_bytes_preserved": true,
+    "raw_failure_observations_returned": true,
+    "statistical_or_model_revision_credit": false
+  },
+  "portable_skill": {
+    "file_sha256": {
+      "skills/statistical-research/SKILL.md": "d714fdbfc0eafca079924e8d40d0219e19fabaf66baa79b99d8f737fb623ab33",
+      "skills/statistical-research/references/tooling.md": "5b44304bba245d187dd5ecc6f577138e6d072b5e52b627b6296856b1af8cc7fe",
+      "skills/statistical-research/references/workspaces.md": "c4020bf8c6d0de53ded42281ebf97c897929e8bdb89e58ce6abdaa30f46441c7"
+    },
+    "relative_reference_files_exist": true,
+    "host_activation_attempted": false
+  },
+  "retained_failures": [
+    {"stage": "first venv preparation", "exit_code": 2, "reason": "Selected nonexistent versioned cpython-3.12.11 path before observing the available managed interpreter; no environment was created by this attempt.", "logs": ["venv.stdout.log", "venv.stderr.log"]},
+    {"stage": "first full regression at 71205913", "exit_code": 2, "disposition": "Interrupted after diagnosing the product-size failure, not a completed/passing suite.", "tests_recorded": 687, "passed": 686, "failed": 1, "failure": "tests/test_core.py::test_canonical_control_plane_has_a_regression_budget: 150001 < 150000", "record": "full-regression.xml", "sha256": "9ed2a94ec4099d634f6735c281b393c78b8f489fdc4a7c2af7e4f6e67fae0cb9"}
+  ],
+  "verification": {
+    "focused": "67 passed, 1 skipped; core/doctor/local-backend/environment-loading deterministic tests, no model calls.",
+    "compileall_exit_code": 0,
+    "product_line_count": 149991,
+    "unchanged_product_line_limit": 150000,
+    "full_regression": {
+      "command": ".venv/bin/pytest -q --junitxml=runs/publication_release_qualification_20261003/full-regression_2.xml",
+      "exit_code": 0,
+      "passed": 2139,
+      "skipped": 30,
+      "xfailed": 1,
+      "terminal_seconds": 1443.32,
+      "record": "full-regression_2.xml",
+      "sha256": "94a6724209438addeb42cb8a6659b7dbad77783a00ab5c4b3b2b3e7225eff55d",
+      "scope": "Default deterministic suite. Opt-in checks were not activated and are not credited as execution.",
+      "ordinary_skips": {
+        "local model transport": 1, "Apple container environment": 13,
+        "explicit native R environment": 12, "Codex skill discovery": 1,
+        "Kimi discovery/activation": 2, "pinned Qwen control conformance": 1
+      },
+      "existing_xfail": "Detached macOS child can mutate workspace after receipt; not admitted to product."
+    }
+  },
+  "raw_sha256": {
+    "venv.stderr.log": "6a88f864e5ca8e4eae6a72129d5c1b7356445b5d5d69e58796f860782c2ac013",
+    "venv_2.stderr.log": "ab6136c9c8825b111037b4f2d0dc17180bd502bc102ca3ce30eb9c237ee8abd1",
+    "venv_3.stderr.log": "5787ef279527127768ddc08718d5904c4fd939a57f2d76fbf2f9869b7f08b181",
+    "build.stderr.log": "0e94a4874a9f66738a981be09cc9c0f3abfe3ce1f73170c259b1f1f89a6e9d7e",
+    "build_2.stderr.log": "7acf93c61d2c0a4c5764470aebbdbf84915a1f371492399f7f2325dc4c13ee61",
+    "install.stderr.log": "902951050baa4f3d9bbfdc345eb8a863402344c7e0356a8b0f22763706bdea1b",
+    "install_2.stderr.log": "373c03cee049bfc9bf25755b51516cfa47638fe998edd5a8d9173e6c2a453f99",
+    "npm-ci.stdout.log": "8f67678b5d8b8435425fcff7d61548498e1a5422858935dd74c8053269a7ddae",
+    "npm-ci.stderr.log": "1793da9a6fd2e752b2cb686796d2e46ef8f3d3caa98256a9da1ba77341e38001",
+    "prepare.stdout.log": "ace31cc47c59cdc28ebe23b70feda72f3e96ff1e73b4a0970ceebc98a5e692b6",
+    "help.stdout.log": "ec1784d95a76e5cc0720362b925439c4939067b88d6dbcb44ac50b9c4c591ba0",
+    "list.stdout.log": "f9392b35dcf34579a529d7aa7d9726eec58a82d91789c62445dc584938dc8a79",
+    "doctor.stdout.json": "012998f989cb04f17e17271558cb2acf9a73186bd648a41dd662e39240f5142e",
+    "doctor_2.stdout.json": "d8b74ae5905f4191e8b01a89e9544f39de96cce03ae624458cbe3d7dcae771a9",
+    "tool-probe.stdout.json": "74fe39e77f29e4256d4ec2a6d4f7937876a614cc1b29ac950eb95dec363cfea3",
+    "full-regression_2.xml": "94a6724209438addeb42cb8a6659b7dbad77783a00ab5c4b3b2b3e7225eff55d"
+  },
+  "empty_raw_logs": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "paths": ["venv.stdout.log", "venv_2.stdout.log", "venv_3.stdout.log", "build.stdout.log", "build_2.stdout.log", "install.stdout.log", "install_2.stdout.log", "prepare.stderr.log", "help.stderr.log", "list.stderr.log", "doctor.stderr.log", "doctor_2.stderr.log", "tool-probe.stderr.log"]
+  },
+  "limits": "Fresh virtual environments and newly prepared npm dependencies on the same host, not a fresh machine or public release. No native-R, Lean, model endpoint, host activation, statistical task, comparative efficacy or mathematical assessment was qualified. Rights, official studies and full researcher workflows remain open."
+}

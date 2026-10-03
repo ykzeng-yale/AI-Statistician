@@ -88,9 +88,17 @@ model context, one actual file read and a correct receipt. It used two local
 Qwen requests; neither the installed skill nor product source was changed.
 This is body-uptake/tool conformance, not a scientific task or an efficacy comparison.
 Scientific efficacy and researcher usability are not established by discovery.
-The application wheel also built and installed into a clean Python 3.12 venv;
-its CLI and native local-backend factory loaded outside the source checkout.
-That does not establish complete Python/R/Lean research on a clean machine.
+The [2026-10-03 installed-tool record](../benchmarks/publication_release_qualification_20261003/README.md)
+adds a fresh Python 3.12 environment, new HOME, committed wheel and newly prepared
+locked npm runtime. From a separate workspace, installed CLI help/list/doctor and
+two-file Python/R execution passed. Deliberate source failures returned raw errors
+without rewriting source. The wheel needs the separately prepared npm runtime;
+set `AI_STATISTICIAN_SCIENTIFIC_SANDBOX_NODE_MODULES` as in the main setup instructions.
+No cloud extras, model request, host activation or scientific task was involved.
+The shared local-provider and installed-package diagnosis defects were corrected;
+doctor's readiness fields describe configuration, not an attested running model.
+The same host's Python/Node binaries and macOS isolation were reused. This is not
+complete Python/R/Lean research on a clean machine or broad portability evidence.
 
 The fresh local-Qwen [development replication pilot](../benchmarks/publication_development/kimi_type_ms_20261001/README.md)
 ended with two failed R reproductions and no demonstrated skill-body uptake.

@@ -32,18 +32,28 @@ contract without falsely completing or replacing that goal.
 | Work | What exists | What it does not establish |
 | --- | --- | --- |
 | Product | One outer AgentRuntime and retained tool loop; Markdown/LaTeX Theory; source-owner Python/R/Lean feedback; separate role review; explicit native R executor validated with package/project/bound-estimator fixtures | Correct scientific research, autonomous native R use or useful collaboration |
-| Portable package | One skill and two references; host discovery; Kimi/local-Qwen body uptake and file access; separately labelled Claude Code compatibility | Scientific efficacy, broad clean-machine installation or researcher time savings |
+| Portable package | One skill and two references; host discovery; Kimi/local-Qwen body uptake and file access; separately labelled Claude Code compatibility; committed application wheel in a fresh same-host venv with installed Python/R project/error fixtures | Scientific efficacy, clean-machine full researcher workflow, cross-platform execution or researcher time savings |
 | Manuscripts | [Harness draft](../manuscripts/portable_harness.md), [system draft](../manuscripts/collaborative_system.md), and [shared methods appendix](../manuscripts/supplementary_methods.md), with distinct contrasts and explicit mathematical/Monte Carlo definitions | Independently reviewed mathematics, complete case arguments or submission-ready papers; official comparative results do not exist |
 | Case inputs | Integrated B1/Card E.1 v2 distinguishes seven methods; explicit four-arm assembly; 76-file available-input capsule and native source-environment probe | Activated study, complete author replication, release reconstruction or mathematical gold; B1 helper and original data rights remain unresolved |
 | Qwen development | Four standalone known-result draws had no final selection; both native FDA draws failed; earlier native R draws failed without demonstrated skill uptake | A publication baseline, reliable theory development or a measured harness benefit |
 | Lean foundation | Active Lean 4.30.0 Mathlib/Statlib/StatInference pin; selected kernel checks and source-mapped retrieval | Complete textbook coverage, clean reconstruction or source-faithful public API |
-| Verification | Full suite passed 2136 tests, with 18 skips and one existing xfail; earlier failed/interrupted attempts retained separately | Mathematical correctness, matched experimental arms or publication readiness |
+| Verification | Latest default full suite: 2139 passed, 30 skipped and one existing xfail; installed Python/R WASM fixtures executed separately; earlier failed/interrupted attempts retained | Mathematical correctness, skipped opt-in checks, matched experimental arms or publication readiness |
 
-AI code checkpoint and tested code: 8aabc10c.
+AI code checkpoint and tested code: 53839f1d.
 Lean pin: db6c7718349f3c14a7e37905f3529675f1ebaa52.
 The [status record](main_worker_status.json) links detailed immutable evidence.
 Historical mixed-scope Haiku credits are archived, not forward baselines.
 Historical strict-development exact-theorem closure remains 0/2.
+
+The latest [installation record](../benchmarks/publication_release_qualification_20261003/results.json)
+binds the committed wheel and source to fresh-environment CLI/Python/R observations.
+Its complete default regression records 2139 passed, 30 skipped and one existing
+xfail in 1443.32 seconds, exit zero. JUnit:
+`runs/publication_release_qualification_20261003/full-regression_2.xml`, SHA-256
+`94a6724209438addeb42cb8a6659b7dbad77783a00ab5c4b3b2b3e7225eff55d`.
+Twelve explicit native-R checks were not configured for this run; earlier native-R
+execution retains the separate source/environment/verification record below.
+No model call, new scientific result, official draw or proof credit was produced.
 
 The shared controls now receive the same research-evaluation Theory policy as
 production, through its existing task/evidence constructor. Actual-request tests
@@ -202,6 +212,17 @@ Resolve both root licenses and third-party/source-text/data redistribution right
 Establish actual public repository access. Package minimal installation and test
 Python/R workflows on a clean researcher environment; a wheel import or prepared
 operator environment alone is not a clean release.
+
+The [installed-tool qualification](../benchmarks/publication_release_qualification_20261003/README.md)
+now advances the installation prerequisite using a committed wheel, fresh CPython
+environment/new HOME and newly prepared locked npm runtime. Installed CLI and
+synthetic two-file Python/R success/raw-failure checks passed outside the checkout.
+The shared doctor defects were fixed without new tools, source repairs or model
+calls. Same-host binaries and macOS isolation were reused; actual host activation,
+full scientific workflow, cross-platform reconstruction and rights remain separate.
+R02 stays open. Do not turn this completed bounded check into another installation
+campaign or call it a scientific result; next advance the qualified study/case
+decisions in Section 1.
 
 Curate a compact source-faithful Lean API atop the active Mathlib/Statlib pin:
 definitions, statement correspondence, imports, proof/axiom status, dependencies,

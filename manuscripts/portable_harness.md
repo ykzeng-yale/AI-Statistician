@@ -329,6 +329,11 @@ narrative. Both successful and unsuccessful prespecified cases are retained.
 The [installation record](../docs/portable_harness_installation.md) separates
 native Codex discovery, Qwen/Kimi activation observations and Claude Code body
 uptake. These establish different compatibility scopes, not cross-host efficacy.
+The [installed-tool record](../benchmarks/publication_release_qualification_20261003/README.md)
+separately tests the standalone package in a fresh Python environment and new HOME
+on the existing macOS host. CLI configuration and synthetic two-file Python/R
+execution, including raw failure observations, passed outside the source checkout.
+This check used no model and does not measure host uptake or scientific accuracy.
 Consumed Qwen development failures remain outside the main test pool. Historical
 Haiku records are development archives only, not publication baselines.
 
@@ -371,6 +376,18 @@ precision choices, failures and result-generation scripts support the reported
 simulation results.
 
 ## Appendix B. Host and Release Reproduction
+
+For the installed-tool check, source and fixture were committed before building
+the wheel. Only tracked application, lock, runtime and skill inputs were archived;
+old environments, credentials, study results and Lean build artifacts were not
+copied. Python dependencies were installed into a fresh environment without cloud
+or proof extras. The unchanged npm lock/preparation command supplied local Pyodide
+and WebR; the wheel does not bundle these dependencies. The tested wheel was
+invoked from a separate workspace through the existing runtime-path setting.
+Source/wheel identities, resolved dependencies, fixture observations and retained
+preparation/regression failures are in the linked record. This is same-machine
+installation/tool conformance, not a public release, model iteration, broad
+operating-system support or a successful statistical research workflow.
 
 The release record will supply the exact package and host versions, installation
 and activation instructions, relative-reference checks, allowed tools, model

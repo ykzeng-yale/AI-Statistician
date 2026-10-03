@@ -380,6 +380,12 @@ names the required tables, figures and supplements without inventing their value
   access and scientific Python/R workflows on a clean documented environment;
   freeze minimal installation and exact reconstruction instructions. Prepared
   operator environments and local unit tests are not clean-machine evidence.
+  The [installed-tool qualification](../benchmarks/publication_release_qualification_20261003/README.md)
+  now tests a committed wheel in a fresh Python environment, new HOME and separately
+  prepared locked npm runtime. CLI and synthetic two-file Python/R execution/raw
+  failures passed outside the source checkout, with zero model calls. This advances
+  installation only; same-host binaries, macOS-only execution, untested full
+  research/host workflow and unresolved rights keep R02 open.
 - [ ] **R03. Independent full-paper review.** Review both complete main texts,
   appendices and scientific analyses for correctness, contribution, agreement,
   reproducibility and claim scope. Correct all consequential findings.

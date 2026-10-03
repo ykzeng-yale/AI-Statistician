@@ -120,6 +120,19 @@ npm ci --omit=dev
 npm run prepare:scientific-sandbox
 ```
 
+The application wheel includes the execution adapters, but not npm dependencies
+or downloaded scientific wheels. When using an installed wheel from a different
+working directory, point the existing runtime discovery setting to the
+`node_modules` prepared above:
+
+```bash
+export AI_STATISTICIAN_SCIENTIFIC_SANDBOX_NODE_MODULES="$(pwd)/node_modules"
+```
+
+The [fresh-environment installation record](benchmarks/publication_release_qualification_20261003/README.md)
+tests this layout outside the source checkout on macOS. It is not a clean-machine,
+cross-platform, native host-activation or model-driven scientific result.
+
 The default scientific sandbox uses Pyodide for Python and WebR for R. Generated code
 runs in bounded subprocesses without inherited secrets or network access. If a
 required runtime is absent, the system records a capability blocker instead of
