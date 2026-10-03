@@ -24043,6 +24043,7 @@ def _run_generated_scientific_sandbox(
             language=language,
             code=code,
             project_files=code_draft.get("project_files", []),
+            execution_profile=(requested_profile if requested_profile != "stdlib" else SCIENTIFIC_WASM_SANDBOX_PROFILE),
             dependencies=dependencies,
             seed=seed,
             replicates=replicates,
@@ -24174,11 +24175,8 @@ def _run_generated_scientific_sandbox(
         "prototype_status": prototype_status,
         "executor": "generated_python_sandbox",
         "executor_family": "generated_algorithm_sandbox",
-        "executor_profile": (
-            SCIENTIFIC_WASM_SANDBOX_PROFILE
-            if estimator_bindings
-            else requested_profile
-        ),
+        "executor_profile": (execution.execution_profile if estimator_bindings and execution is not None
+                             else SCIENTIFIC_WASM_SANDBOX_PROFILE if estimator_bindings else requested_profile),
         "requested_execution_profile": requested_profile,
         "language": language,
         "dependencies": list(dependencies),

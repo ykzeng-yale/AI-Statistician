@@ -14,6 +14,9 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
+from .research_source_library import (
+    PinnedProcessRuntime, _bounded_execution_text, _execute_pinned_process, load_pinned_process_runtime,
+)
 from .scientific_project import (
     ScientificProjectFile,
     normalized_scientific_project_files,
@@ -32,16 +35,18 @@ except ImportError:  # pragma: no cover - exercised on non-POSIX hosts
 
 STDLIB_SANDBOX_PROFILE = "stdlib"
 SCIENTIFIC_WASM_SANDBOX_PROFILE = "scientific_wasm"
+SCIENTIFIC_NATIVE_R_PROFILE = "scientific_native_r"
 SCIENTIFIC_SANDBOX_LANGUAGES = ("python", "r")
 SCIENTIFIC_SANDBOX_PROFILES = (
     STDLIB_SANDBOX_PROFILE,
     SCIENTIFIC_WASM_SANDBOX_PROFILE,
+    SCIENTIFIC_NATIVE_R_PROFILE,
 )
 MAX_SCIENTIFIC_INPUT_ARTIFACT_BYTES = 64 * 1024 * 1024
 SCIENTIFIC_SANDBOX_BOUNDARY = (
-    "Generated scientific code executes as untrusted WebAssembly in a separate "
+    "Generated scientific code executes in an explicitly selected WASM or native R "
     "secret-free, resource-bounded process with network denial and a host-filesystem "
-    "allowlist. The host runtime supplies only pinned package names and execution "
+    "allowlist. The host runtime records selected resources, package versions and execution "
     "artifacts. Successful execution is empirical engineering evidence, not production "
     "promotion and not theorem proof evidence."
 )
@@ -98,6 +103,39 @@ _PYTHON_PACKAGE_CACHE_PREFIXES = {
 
 
 @dataclass(frozen=True)
+class NativeRRuntime:
+    process: PinnedProcessRuntime
+    runtime_version: str
+    package_versions: tuple[tuple[str, str], ...]
+    config_path: str
+    config_sha256: str
+
+
+def load_native_r_runtime(path: Path) -> NativeRRuntime:
+    content = path.read_bytes()
+    payload = json.loads(content)
+    if not isinstance(payload, Mapping) or payload.get("schema_version") != 1:
+        raise ValueError("native R configuration requires schema_version 1")
+    version = payload.get("runtime_version")
+    packages = payload.get("package_versions")
+    if not isinstance(version, str) or not version.strip():
+        raise ValueError("native R runtime_version is required")
+    if not isinstance(packages, Mapping) or not packages or not all(
+        isinstance(name, str) and name and name[0].isalpha()
+        and all(c.isalnum() or c == "." for c in name)
+        and isinstance(value, str) and value.strip()
+        for name, value in packages.items()
+    ):
+        raise ValueError("native R package_versions must contain package names and versions")
+    if "jsonlite" not in packages or len({name.lower() for name in packages}) != len(packages):
+        raise ValueError("native R requires jsonlite and unique normalized package names")
+    return NativeRRuntime(
+        load_pinned_process_runtime(payload), version,
+        tuple(sorted(packages.items())), str(path.resolve()), hashlib.sha256(content).hexdigest(),
+    )
+
+
+@dataclass(frozen=True)
 class ScientificSandboxRuntime:
     node_executable: str = ""
     pyodide_entry: str = ""
@@ -107,6 +145,12 @@ class ScientificSandboxRuntime:
     isolation_provider: str = ""
     python_available: bool = False
     r_available: bool = False
+    native_r: NativeRRuntime | None = None
+    native_r_errors: tuple[str, ...] = ()
+
+    @property
+    def native_r_available(self) -> bool:
+        return bool(self.node_executable and self.runner_path and self.isolation_provider and self.native_r)
 
     @property
     def available(self) -> bool:
@@ -114,7 +158,7 @@ class ScientificSandboxRuntime:
             self.node_executable
             and self.runner_path
             and self.isolation_provider
-            and (self.python_available or self.r_available)
+            and (self.python_available or self.r_available or self.native_r)
         )
 
 
@@ -235,8 +279,19 @@ def normalized_scientific_dependencies(
     return tuple(normalized)
 
 
+def _allowed_scientific_dependencies(
+    language: str, profile: str, runtime: ScientificSandboxRuntime | None,
+) -> set[str]:
+    if profile == SCIENTIFIC_NATIVE_R_PROFILE:
+        return (set(R_SCIENTIFIC_DEPENDENCIES) | {name.lower() for name, _ in runtime.native_r.package_versions}
+                if runtime and runtime.native_r else set())
+    return set({"python": PYTHON_SCIENTIFIC_DEPENDENCIES,
+                "r": R_SCIENTIFIC_DEPENDENCIES}.get(language, ()))
+
+
 def generated_code_execution_contract_errors(
-    draft: Mapping[str, Any], *, required_entrypoint: str | None = "run_sandbox"
+    draft: Mapping[str, Any], *, required_entrypoint: str | None = "run_sandbox",
+    runtime: ScientificSandboxRuntime | None = None,
 ) -> list[str]:
     language = normalized_generated_code_language(draft.get("language"))
     profile = normalized_generated_code_profile(
@@ -252,25 +307,25 @@ def generated_code_execution_contract_errors(
     if language not in SCIENTIFIC_SANDBOX_LANGUAGES:
         errors.append("generated code language must be python or r")
     if profile not in SCIENTIFIC_SANDBOX_PROFILES:
-        errors.append("generated code execution_profile must be stdlib or scientific_wasm")
-    if language == "r" and profile != SCIENTIFIC_WASM_SANDBOX_PROFILE:
-        errors.append("generated R code requires execution_profile scientific_wasm")
+        errors.append("generated code execution_profile is unsupported")
+    if language == "r" and profile not in {SCIENTIFIC_WASM_SANDBOX_PROFILE, SCIENTIFIC_NATIVE_R_PROFILE}:
+        errors.append("generated R code requires scientific_wasm or scientific_native_r")
+    if profile == SCIENTIFIC_NATIVE_R_PROFILE and language != "r":
+        errors.append("scientific_native_r supports only R")
     if "dependencies" in draft and (
         not isinstance(raw_dependencies, Sequence)
         or isinstance(raw_dependencies, (str, bytes))
     ):
         errors.append("generated code dependencies must be an array")
-    if profile == SCIENTIFIC_WASM_SANDBOX_PROFILE and "dependencies" not in draft:
-        errors.append("scientific_wasm generated code must declare dependencies as an array")
+    if profile != STDLIB_SANDBOX_PROFILE and "dependencies" not in draft:
+        errors.append("scientific generated code must declare dependencies as an array")
     if profile == STDLIB_SANDBOX_PROFILE and dependencies:
         errors.append("stdlib generated code cannot declare scientific dependencies")
-    allowed_dependencies = (
-        set(PYTHON_SCIENTIFIC_DEPENDENCIES)
-        if language == "python"
-        else set(R_SCIENTIFIC_DEPENDENCIES)
-        if language == "r"
-        else set()
-    )
+    if profile == SCIENTIFIC_NATIVE_R_PROFILE:
+        runtime = runtime or discover_scientific_sandbox_runtime()
+        if not runtime.native_r_available:
+            errors.extend(runtime.native_r_errors or ("explicit native R runtime is unavailable",))
+    allowed_dependencies = _allowed_scientific_dependencies(language, profile, runtime)
     unsupported = sorted(set(dependencies) - allowed_dependencies)
     if unsupported:
         errors.append(
@@ -532,19 +587,36 @@ def scientific_sandbox_contract(
                     "JSON-finite objects. AgentRuntime injects a mapping from immutable "
                     "estimator_id to callable and records invocation counts."
                 ),
-                "runtime_available": runtime.available,
+                "runtime_available": runtime.available and bool(runtime.python_available or runtime.r_available),
                 "python_available": runtime.python_available,
                 "r_available": runtime.r_available,
                 "isolation_provider": runtime.isolation_provider,
                 "preparation_command": "npm ci && npm run prepare:scientific-sandbox",
                 "boundary": SCIENTIFIC_SANDBOX_BOUNDARY,
             },
+            SCIENTIFIC_NATIVE_R_PROFILE: {
+                "languages": ["r"],
+                "runtime_available": runtime.native_r_available,
+                "r_dependencies": list(dict.fromkeys([*R_SCIENTIFIC_DEPENDENCIES,
+                    *(name for name, _ in runtime.native_r.package_versions)])) if runtime.native_r else [],
+                "package_versions": dict(runtime.native_r.package_versions) if runtime.native_r else {},
+                "runtime_version": runtime.native_r.runtime_version if runtime.native_r else "",
+                "configuration_errors": list(runtime.native_r_errors),
+                "configuration_environment_variable": "AI_STATISTICIAN_NATIVE_R_CONFIG",
+                "entrypoint": "run_sandbox",
+                "boundary": (
+                    "Explicit operator-selected local Rscript; same source/estimator/input ABI. "
+                    "No network, inherited secrets, automatic package installation or backend fallback. "
+                    "Declare directly used packages; installed transitive dependencies are resolved by R."
+                ),
+            },
         },
         "selection_policy": (
             "Use scientific_wasm when mature numerical/statistical libraries or R "
             "materially improve fidelity. Declare only packages actually imported. "
             "Use stdlib for genuinely small self-contained Python procedures; both "
-            "profiles execute under the same isolation boundary."
+            "profiles execute under isolation. For installed native R packages select "
+            "scientific_native_r explicitly when its runtime is available."
         ),
         "proof_evidence_status": "SCIENTIFIC_SANDBOX_CONTRACT_NOT_PROOF_EVIDENCE",
     }
@@ -577,9 +649,11 @@ def generated_code_draft_json_schema(
         "project_files": scientific_project_files_json_schema(),
     }
 
+    runtime = discover_scientific_sandbox_runtime()
+    native_packages = [name for name, _ in runtime.native_r.package_versions] if runtime.native_r_available else []
     dependency_values = list(
         dict.fromkeys(
-            [*PYTHON_SCIENTIFIC_DEPENDENCIES, *R_SCIENTIFIC_DEPENDENCIES]
+            [*PYTHON_SCIENTIFIC_DEPENDENCIES, *R_SCIENTIFIC_DEPENDENCIES, *native_packages]
         )
     )
     return {
@@ -599,7 +673,8 @@ def generated_code_draft_json_schema(
             },
             "execution_profile": {
                 "type": "string",
-                "enum": list(SCIENTIFIC_SANDBOX_PROFILES),
+                "enum": [STDLIB_SANDBOX_PROFILE, SCIENTIFIC_WASM_SANDBOX_PROFILE,
+                         *([SCIENTIFIC_NATIVE_R_PROFILE] if runtime.native_r_available else [])],
             },
             "dependencies": {
                 "type": "array",
@@ -607,8 +682,10 @@ def generated_code_draft_json_schema(
                 "description": (
                     "For language=python, use only: "
                     + ", ".join(PYTHON_SCIENTIFIC_DEPENDENCIES)
-                    + ". For language=r, use only: "
+                    + ". For language=r with scientific_wasm, use only: "
                     + ", ".join(R_SCIENTIFIC_DEPENDENCIES)
+                    + ". Native R packages are available only in scientific_native_r: "
+                    + ", ".join(native_packages)
                     + ". Never mix Python and R dependency names."
                 ),
                 "items": {
@@ -655,6 +732,14 @@ def discover_scientific_sandbox_runtime(
         if sys.platform == "darwin" and sandbox_exec
         else ""
     )
+    native_r = None
+    native_r_errors: tuple[str, ...] = ()
+    configured_r = os.environ.get("AI_STATISTICIAN_NATIVE_R_CONFIG", "").strip()
+    if configured_r:
+        try:
+            native_r = load_native_r_runtime(Path(configured_r).expanduser())
+        except (OSError, ValueError, TypeError) as exc:
+            native_r_errors = (f"native R configuration rejected: {exc}",)
     return ScientificSandboxRuntime(
         node_executable=node_executable,
         pyodide_entry=(
@@ -670,6 +755,8 @@ def discover_scientific_sandbox_runtime(
         ),
         runner_path=str(runner_path) if runner_path.exists() else "",
         isolation_provider=isolation_provider,
+        native_r=native_r,
+        native_r_errors=native_r_errors,
         python_available=bool(
             node_executable
             and isolation_provider
@@ -846,8 +933,9 @@ def _empty_execution(
     input_artifacts: Sequence[ScientificInputArtifactBinding] = (),
     required_callable_exports: Sequence[str] = (),
     invocation_mode: str = "standalone",
+    execution_profile: str = SCIENTIFIC_WASM_SANDBOX_PROFILE,
 ) -> ScientificSandboxExecution:
-    backend = "webr" if language == "r" else "pyodide"
+    backend = "native_r" if execution_profile == SCIENTIFIC_NATIVE_R_PROFILE else "webr" if language == "r" else "pyodide"
     estimator_code_hashes = {
         binding.artifact_id: binding.code_hash for binding in estimator_bindings
     }
@@ -861,9 +949,9 @@ def _empty_execution(
     return ScientificSandboxExecution(
         status=status,
         language=language,
-        execution_profile=SCIENTIFIC_WASM_SANDBOX_PROFILE,
+        execution_profile=execution_profile,
         backend=backend,
-        isolation_provider=runtime.isolation_provider,
+        isolation_provider="macos_sandbox_exec+native_r" if execution_profile == SCIENTIFIC_NATIVE_R_PROFILE else runtime.isolation_provider,
         dependencies=tuple(dependencies),
         execution_attempted=False,
         returncode=-1,
@@ -917,6 +1005,7 @@ def execute_scientific_sandbox(
     max_output_bytes: int = 16 * 1024 * 1024,
     max_node_heap_mb: int = 768,
     runtime: ScientificSandboxRuntime | None = None,
+    execution_profile: str = SCIENTIFIC_WASM_SANDBOX_PROFILE,
     estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
     estimator_transport: str = "json_finite",
     input_artifacts: Sequence[ScientificInputArtifactBinding] = (),
@@ -929,6 +1018,8 @@ def execute_scientific_sandbox(
         else "estimator_bound" if estimator_bindings else "standalone"
     )
     language = normalized_generated_code_language(language)
+    execution_profile = normalized_generated_code_profile(execution_profile, language=language)
+    native_r_selected = execution_profile == SCIENTIFIC_NATIVE_R_PROFILE
     dependencies = normalized_scientific_dependencies(
         dependencies,
         language=language,
@@ -1029,13 +1120,14 @@ def execute_scientific_sandbox(
     contract_errors = generated_code_execution_contract_errors(
         {
             "language": language,
-            "execution_profile": SCIENTIFIC_WASM_SANDBOX_PROFILE,
+            "execution_profile": execution_profile,
             "dependencies": list(dependencies),
             "entrypoint": entrypoint,
             "code": code,
             "project_files": [row.to_json() for row in normalized_project_files],
         },
         required_entrypoint=entrypoint,
+        runtime=runtime,
     )
     if entrypoint is not None and entrypoint != "run_sandbox":
         contract_errors.append("scientific entrypoint must be run_sandbox or None")
@@ -1098,13 +1190,7 @@ def execute_scientific_sandbox(
             binding_contract_errors.append(
                 "estimator binding source hash mismatch: " + binding.artifact_id
             )
-        allowed_binding_dependencies = (
-            set(PYTHON_SCIENTIFIC_DEPENDENCIES)
-            if binding.language == "python"
-            else set(R_SCIENTIFIC_DEPENDENCIES)
-            if binding.language == "r"
-            else set()
-        )
+        allowed_binding_dependencies = _allowed_scientific_dependencies(binding.language, execution_profile, runtime)
         unsupported_binding_dependencies = sorted(
             set(binding.dependencies) - allowed_binding_dependencies
         )
@@ -1177,13 +1263,27 @@ def execute_scientific_sandbox(
             ]
         )
     )
+    language_available = (
+        runtime.native_r_available if native_r_selected else runtime.python_available if language == "python" else runtime.r_available
+    )
+    early_status, early_errors = "", []
     if contract_errors:
+        early_status, early_errors = "REJECTED_CONTRACT", sorted(set(contract_errors))
+    elif not runtime.available or not language_available:
+        early_status, early_errors = "RUNTIME_UNAVAILABLE", [
+            "selected scientific runtime is unavailable; prepare its explicit "
+            "environment and a supported no-network isolation provider"]
+    elif language == "python":
+        early_errors = scientific_python_dependency_cache_errors(runtime, all_dependencies)
+        if early_errors:
+            early_status = "DEPENDENCY_CACHE_UNPREPARED"
+    if early_errors:
         return _empty_execution(
-            status="REJECTED_CONTRACT",
+            status=early_status,
             language=language,
             dependencies=all_dependencies,
             runtime=runtime,
-            errors=sorted(set(contract_errors)),
+            errors=early_errors,
             sandbox_dir=sandbox_dir,
             code_hash=code_hash,
             project_hash=computed_project_hash,
@@ -1194,51 +1294,7 @@ def execute_scientific_sandbox(
             input_artifacts=normalized_input_artifacts,
             required_callable_exports=normalized_required_callable_exports,
             invocation_mode=invocation_mode,
-        )
-    language_available = (
-        runtime.python_available if language == "python" else runtime.r_available
-    )
-    if not runtime.available or not language_available:
-        return _empty_execution(
-            status="RUNTIME_UNAVAILABLE",
-            language=language,
-            dependencies=all_dependencies,
-            runtime=runtime,
-            errors=(
-                "scientific WASM runtime is unavailable; run npm ci and use "
-                "a supported no-network isolation provider",
-            ),
-            sandbox_dir=sandbox_dir,
-            code_hash=code_hash,
-            project_hash=computed_project_hash,
-            resource_limits=limits,
-            project_files=normalized_project_files,
-            estimator_bindings=normalized_bindings,
-            input_artifacts=normalized_input_artifacts,
-            required_callable_exports=normalized_required_callable_exports,
-            invocation_mode=invocation_mode,
-        )
-    cache_errors = (
-        scientific_python_dependency_cache_errors(runtime, all_dependencies)
-        if language == "python"
-        else []
-    )
-    if cache_errors:
-        return _empty_execution(
-            status="DEPENDENCY_CACHE_UNPREPARED",
-            language=language,
-            dependencies=all_dependencies,
-            runtime=runtime,
-            errors=cache_errors,
-            sandbox_dir=sandbox_dir,
-            code_hash=code_hash,
-            project_hash=computed_project_hash,
-            resource_limits=limits,
-            project_files=normalized_project_files,
-            estimator_bindings=normalized_bindings,
-            input_artifacts=normalized_input_artifacts,
-            required_callable_exports=normalized_required_callable_exports,
-            invocation_mode=invocation_mode,
+            execution_profile=execution_profile,
         )
 
     sandbox_dir.mkdir(parents=True, exist_ok=True)
@@ -1253,6 +1309,7 @@ def execute_scientific_sandbox(
             "invocation_mode": invocation_mode,
             **({"script_path": script_path} if script_path else {}),
             "language": language,
+            "execution_profile": execution_profile,
             "dependencies": list(all_dependencies),
             "seed": int(seed),
             "replicates": int(replicates),
@@ -1282,6 +1339,9 @@ def execute_scientific_sandbox(
     stderr_path = sandbox_dir / f"{safe_id}_{execution_key}_stderr.txt"
     code_path.write_text(code, encoding="utf-8")
     project_root = sandbox_dir / f"{safe_id}_{execution_key}_project"
+    if native_r_selected:
+        project_root.mkdir()
+        (project_root / scientific_main_path(language)).write_text(code, encoding="utf-8")
     project_file_paths: dict[str, Path] = {}
     for project_file in normalized_project_files:
         support_path = project_root / project_file.path
@@ -1299,6 +1359,9 @@ def execute_scientific_sandbox(
         estimator_project_root = sandbox_dir / (
             f"{safe_id}_{execution_key}_estimator_{index}_project"
         )
+        if native_r_selected:
+            estimator_project_root.mkdir()
+            (estimator_project_root / scientific_main_path(language)).write_text(binding.code, encoding="utf-8")
         estimator_project_file_paths[binding.artifact_id] = {}
         for project_file in binding.project_files:
             support_path = estimator_project_root / project_file.path
@@ -1314,13 +1377,21 @@ def execute_scientific_sandbox(
         )
         input_path.write_text(binding.content, encoding="utf-8")
         input_artifact_paths[binding.artifact_id] = input_path
+    native_workspace = sandbox_dir / "native_workspace"
+    native_project_root = native_workspace / "project"
+    if native_r_selected:
+        native_workspace.mkdir()
+        shutil.copytree(project_root, native_project_root)
+        for index in range(len(normalized_bindings)):
+            shutil.copytree(sandbox_dir / f"{safe_id}_{execution_key}_estimator_{index}_project",
+                            native_workspace / f"estimator_{index}")
     request = {
         "schema_version": 1,
         "artifact_kind": "ScientificSandboxExecutionRequest",
         "artifact_id": artifact_id,
         "language": language,
-        "execution_profile": SCIENTIFIC_WASM_SANDBOX_PROFILE,
-        "backend": "webr" if language == "r" else "pyodide",
+        "execution_profile": execution_profile,
+        "backend": "native_r" if native_r_selected else "webr" if language == "r" else "pyodide",
         "dependencies": list(all_dependencies),
         "seed": int(seed),
         "replicates": int(replicates),
@@ -1329,6 +1400,7 @@ def execute_scientific_sandbox(
         "code_sha256": hashlib.sha256(code.encode("utf-8")).hexdigest(),
         "main_path": scientific_main_path(language),
         "project_hash": computed_project_hash,
+        **({"project_root": str(native_project_root.resolve())} if native_r_selected else {}),
         "project_files": [
             {
                 "path": project_file.path,
@@ -1357,6 +1429,7 @@ def execute_scientific_sandbox(
                 ).hexdigest(),
                 "main_path": scientific_main_path(binding.language),
                 "project_hash": binding.project_hash,
+                **({"project_root": str((native_workspace / f"estimator_{index}").resolve())} if native_r_selected else {}),
                 "project_files": [
                     {
                         "path": project_file.path,
@@ -1370,7 +1443,7 @@ def execute_scientific_sandbox(
                     for project_file in binding.project_files
                 ],
             }
-            for binding in normalized_bindings
+            for index, binding in enumerate(normalized_bindings)
         ],
         "input_artifacts": [
             {
@@ -1388,21 +1461,32 @@ def execute_scientific_sandbox(
             "pyodide_entry": runtime.pyodide_entry,
             "pyodide_root": runtime.pyodide_root,
             "webr_entry": runtime.webr_entry,
+            **({"native_r": {
+                "runtime_version": runtime.native_r.runtime_version,
+                "package_versions": dict(runtime.native_r.package_versions),
+                "configuration_path": runtime.native_r.config_path,
+                "configuration_sha256": runtime.native_r.config_sha256,
+                "process": asdict(runtime.native_r.process),
+            }} if native_r_selected and runtime.native_r else {}),
         },
         "network_access": False,
         "secret_environment_inherited": False,
         "host_filesystem_policy": (
-            "read pinned runtimes plus exact code/request artifacts; write exact "
-            "result/log artifacts only"
+            "read selected runtimes plus exact code/request artifacts; write owned "
+            "attempt artifacts only; verify immutable inputs after native execution"
         ),
         "resource_limits": limits,
         "proof_evidence_status": "SCIENTIFIC_SANDBOX_REQUEST_NOT_PROOF_EVIDENCE",
     }
     request_path.write_text(
-        json.dumps(request, indent=2, sort_keys=True) + "\n",
+        json.dumps(request, indent=2, sort_keys=True, default=str) + "\n",
         encoding="utf-8",
     )
+    request = json.loads(request_path.read_bytes())
     request_hash = stable_hash(request)
+    native_program_path = sandbox_dir / "native_execution.R"
+    native_result_path = sandbox_dir / "native_execution.json"
+    native_raw_result_path = native_workspace / "raw_result.json"
     node_command = [
         runtime.node_executable,
         f"--max-old-space-size={max(128, int(max_node_heap_mb))}",
@@ -1412,6 +1496,9 @@ def execute_scientific_sandbox(
         "--out",
         str(result_path.resolve()),
     ]
+    if native_r_selected:
+        node_command[-1] = str(native_raw_result_path.resolve())
+        node_command.extend(["--r-program", str(native_program_path.resolve())])
     command = [
         str(shutil.which("sandbox-exec")),
         "-p",
@@ -1429,11 +1516,12 @@ def execute_scientific_sandbox(
                 ),
                 *input_artifact_paths.values(),
             ),
-            writable_paths=(result_path, stdout_path, stderr_path),
+            writable_paths=(result_path, stdout_path, stderr_path, native_program_path, native_result_path),
         ),
         *node_command,
     ]
     environment = _scientific_sandbox_environment(sandbox_dir)
+    execution_environment_keys = set(environment)
     returncode = -1
     stdout = ""
     stderr = ""
@@ -1467,6 +1555,64 @@ def execute_scientific_sandbox(
         ).strip()
         stderr = "\n".join(row for row in (stderr, persisted_stderr) if row)
 
+    native_errors: list[str] = []
+    if native_r_selected and returncode == 0 and runtime.native_r:
+        # The trusted adapter prepares the existing R ABI; only R executes model source.
+        process_runtime = runtime.native_r.process
+        immutable_paths = [code_path, request_path, native_program_path,
+            *project_root.rglob("*"), *native_workspace.rglob("*"), *estimator_code_paths.values(),
+            *input_artifact_paths.values(),
+            *(path for paths in estimator_project_file_paths.values() for path in paths.values()),
+            *(sandbox_dir / f"{safe_id}_{execution_key}_estimator_{i}_project" / scientific_main_path(language)
+              for i in range(len(normalized_bindings)))]
+        immutable_hashes = {path: hashlib.sha256(path.read_bytes()).hexdigest()
+                            for path in immutable_paths if path.is_file()}
+        try:
+            checked = load_native_r_runtime(Path(runtime.native_r.config_path))
+            if checked != runtime.native_r:
+                raise ValueError("native R configuration changed before execution")
+            observed = _execute_pinned_process(
+                command=[str(process_runtime.interpreter_executable), "--vanilla", str(native_program_path)],
+                cwd=native_project_root, stdout_path=native_workspace / "stdout.txt", stderr_path=native_workspace / "stderr.txt",
+                environment_root=process_runtime.environment_root,
+                runtime_read_roots=process_runtime.runtime_read_roots,
+                runtime_executables=process_runtime.runtime_executables,
+                runtime_environment=process_runtime.runtime_environment,
+                source_paths=tuple(immutable_hashes), output_dir=native_workspace,
+                timeout_seconds=max(1, int(timeout_s)), max_output_bytes=max_output_bytes,
+            )
+            returncode = int(observed["returncode"] if observed["returncode"] is not None else 125)
+            stdout, stderr = str(observed["stdout"]), str(observed["stderr"])
+            native_errors.extend(observed["errors"])
+            execution_environment_keys.update(observed.get("subprocess_environment_keys", ()))
+            limits.update(observed.get("resource_limits", {}))
+            raw_result, raw_errors = _bounded_execution_text(native_raw_result_path, max_output_bytes)
+            native_errors.extend(raw_errors)
+            if raw_result and not raw_errors:
+                native_payload = json.loads(raw_result)
+                if not isinstance(native_payload, dict):
+                    raise ValueError("native R result must be an object")
+                native_payload.update(stdout=stdout, stderr=stderr)
+                native_result_path.write_text(json.dumps(native_payload), encoding="utf-8")
+                finalize_command = [str(shutil.which("sandbox-exec")), "-p",
+                    _macos_sandbox_profile(runtime=runtime,
+                        readable_paths=(*(path for path in immutable_hashes if not path.is_relative_to(native_workspace)), native_result_path),
+                        writable_paths=(result_path,)),
+                    runtime.node_executable, runtime.runner_path, "--request", str(request_path),
+                    "--out", str(result_path), "--native-result", str(native_result_path)]
+                finalized = subprocess.run(finalize_command, cwd=sandbox_dir, env=environment,
+                    capture_output=True, text=True, timeout=max(1, int(timeout_s)),
+                    preexec_fn=_resource_limiter(limits), check=False)
+                if finalized.returncode != 0:
+                    returncode = returncode or finalized.returncode
+                stderr = "\n".join(value for value in (stderr, finalized.stderr) if value)
+        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            returncode = 125
+            native_errors.append(f"native R execution failed: {exc}")
+        for path, digest in immutable_hashes.items():
+            if path.is_symlink() or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+                native_errors.append(f"native R execution changed immutable input: {path.name}")
+
     envelope: dict[str, Any] = {}
     result_parse_error = ""
     if result_path.exists():
@@ -1475,7 +1621,7 @@ def execute_scientific_sandbox(
             envelope = dict(loaded) if isinstance(loaded, Mapping) else {}
         except Exception as exc:  # pragma: no cover - defensive artifact parsing
             result_parse_error = repr(exc)
-    if invocation_mode == "script" and envelope:
+    if invocation_mode == "script" and envelope and "stdout" in envelope:
         stdout = str(envelope.get("stdout", ""))
     metrics = (
         dict(envelope.get("metrics", {}))
@@ -1510,7 +1656,7 @@ def execute_scientific_sandbox(
             json.dumps(metrics, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
-    errors: list[str] = []
+    errors: list[str] = list(native_errors)
     runtime_estimator_binding_errors: tuple[str, ...] = ()
     estimator_runtime_failure_ids: tuple[str, ...] = ()
     estimator_runtime_errors: tuple[str, ...] = ()
@@ -1566,9 +1712,9 @@ def execute_scientific_sandbox(
     return ScientificSandboxExecution(
         status=status,
         language=language,
-        execution_profile=SCIENTIFIC_WASM_SANDBOX_PROFILE,
-        backend="webr" if language == "r" else "pyodide",
-        isolation_provider=runtime.isolation_provider,
+        execution_profile=execution_profile,
+        backend="native_r" if native_r_selected else "webr" if language == "r" else "pyodide",
+        isolation_provider="macos_sandbox_exec+native_r" if native_r_selected else runtime.isolation_provider,
         dependencies=tuple(all_dependencies),
         execution_attempted=True,
         returncode=returncode,
@@ -1593,7 +1739,7 @@ def execute_scientific_sandbox(
             stable_hash(envelope) if invocation_mode == "script" and envelope
             else stable_hash(metrics) if metrics else ""
         ),
-        subprocess_environment_keys=tuple(sorted(environment)),
+        subprocess_environment_keys=tuple(sorted(execution_environment_keys)),
         resource_limits=dict(limits),
         execution_envelope_path=str(result_path),
         execution_envelope_hash=stable_hash(envelope) if envelope else "",

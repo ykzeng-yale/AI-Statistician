@@ -70,11 +70,9 @@ from .research_source_discovery import (
     research_source_discovery_client_tools,
 )
 from .scientific_sandbox import (
-    PYTHON_SCIENTIFIC_DEPENDENCIES,
-    R_SCIENTIFIC_DEPENDENCIES,
     SCIENTIFIC_SANDBOX_LANGUAGES,
-    SCIENTIFIC_SANDBOX_PROFILES,
     execute_scientific_sandbox,
+    generated_code_draft_json_schema,
     generated_code_execution_contract_errors,
     normalized_generated_code_language,
     normalized_generated_code_profile,
@@ -110,7 +108,6 @@ SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER = "return_to_bound_dependency_owner
 SCIENTIFIC_CODE_WORKSPACE_CHECKPOINT_KIND = "ScientificCodeWorkspaceCheckpoint"
 SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY = "scientific_consumer_revision"
 SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS = 128
-_SCIENTIFIC_PACKAGES = PYTHON_SCIENTIFIC_DEPENDENCIES + R_SCIENTIFIC_DEPENDENCIES
 _OUTCOME_DERIVED_SHAPE_FIELDS = frozenset(
     {"length", "dimensions", "field_count", "truncated_field_count"}
 )
@@ -2859,6 +2856,7 @@ def prepare_scientific_code_workspace(
                 execution = execute_scientific_sandbox(
                     sandbox_dir=Path(tempfile.mkdtemp(prefix="project-script-", dir=resolved_session_dir)),
                     artifact_id=artifact_id, language=draft["language"], code=draft["code"],
+                    execution_profile=draft["execution_profile"],
                     project_files=draft.get("project_files", []), dependencies=draft["dependencies"],
                     seed=seed, replicates=replicates, timeout_s=20, entrypoint=None, script_path=script_path,
                 )
@@ -3388,6 +3386,8 @@ def _scientific_code_tools(
     research_source_discovery_available: bool = False,
     research_repository_acquisition_available: bool = False,
 ) -> tuple[ClientToolDefinition, ...]:
+    execution_schema = generated_code_draft_json_schema(artifact_properties={}, artifact_required=())
+    execution_schema["properties"]["code"] = {"type": "string"}
     edit_schema = deepcopy(model_exact_text_edit_json_schema())
     edit_schema["properties"]["path"] = {
         "type": "string",
@@ -3401,54 +3401,10 @@ def _scientific_code_tools(
             description=(
                 "Store one complete model-authored Python/R candidate without "
                 "executing it. Continue editing if useful, then call "
-                "run_current_scientific_source for raw sandbox feedback. Python allows "
-                + ", ".join(PYTHON_SCIENTIFIC_DEPENDENCIES)
-                + "; R allows "
-                + ", ".join(R_SCIENTIFIC_DEPENDENCIES)
-                + "."
+                "run_current_scientific_source for raw sandbox feedback. Select the "
+                "execution profile and declared packages from the current schema."
             ),
-            input_schema={
-                "type": "object",
-                "additionalProperties": False,
-                "required": [
-                    "language",
-                    "execution_profile",
-                    "dependencies",
-                    "entrypoint",
-                    "code",
-                ],
-                "properties": {
-                    "language": {
-                        "type": "string",
-                        "enum": list(SCIENTIFIC_SANDBOX_LANGUAGES),
-                    },
-                    "execution_profile": {
-                        "type": "string",
-                        "enum": list(SCIENTIFIC_SANDBOX_PROFILES),
-                    },
-                    "dependencies": {
-                        "type": "array",
-                        "description": (
-                            "For language=python, use only: "
-                            + ", ".join(PYTHON_SCIENTIFIC_DEPENDENCIES)
-                            + ". For language=r, use only: "
-                            + ", ".join(R_SCIENTIFIC_DEPENDENCIES)
-                            + ". Use [] when the source imports none of them."
-                        ),
-                        "items": {
-                            "type": "string",
-                            "enum": list(_SCIENTIFIC_PACKAGES),
-                        },
-                        "uniqueItems": True,
-                    },
-                    "entrypoint": {
-                        "type": "string",
-                        "enum": ["run_sandbox"],
-                    },
-                    "code": {"type": "string"},
-                    "project_files": scientific_project_files_json_schema(),
-                },
-            },
+            input_schema=execution_schema,
             terminal=False,
         ),
         ClientToolDefinition(

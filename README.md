@@ -118,15 +118,46 @@ npm ci
 npm run prepare:scientific-sandbox
 ```
 
-The scientific sandbox uses Pyodide for Python and WebR for R. Generated code
+The default scientific sandbox uses Pyodide for Python and WebR for R. Generated code
 runs in bounded subprocesses without inherited secrets or network access. If a
 required runtime is absent, the system records a capability blocker instead of
-silently executing in the host process.
+silently selecting an unconfigured host interpreter.
+
+For installed native R packages, set `AI_STATISTICIAN_NATIVE_R_CONFIG` to an
+operator-owned [runtime configuration](#native-r-execution).
+The model explicitly selects `scientific_native_r` in its existing source or scratch
+tool. It uses the same project, estimator and input ABI, returns raw R observations
+to the same author, and never falls back to another backend. Native R currently
+requires macOS `sandbox-exec`; this is not yet a clean-machine cross-platform release.
 
 An explicit [offline native project tool](docs/research_harness_reuse_strategy.md#offline-native-project-tool)
 also lets Theory and Scientific owners run their own commands in a persistent
 Linux project. It requires a configured Apple container service and pinned images;
 it does not replace reviewed source execution or confirmatory evaluation.
+
+### Native R Execution
+
+Set `AI_STATISTICIAN_NATIVE_R_CONFIG` to one operator-owned JSON file containing:
+
+- `schema_version: 1`, `runtime_version`, and `package_versions` (exact R package
+  names mapped to versions, including `jsonlite` for the result bridge).
+- `environment_root`, `interpreter_executable_relative_path`, and
+  `interpreter_executable_sha256` for the installed Rscript.
+- `runtime_read_roots`, `runtime_executables` (absolute launcher paths mapped to
+  SHA-256), and `runtime_environment` (for example, explicit R home/library paths).
+
+These reuse the source executor's resource fields, without task or paper bindings.
+Discovery validates resources; execution revalidates configuration and R/package
+versions. Version pins are not package-content hashes; publication environments
+must separately freeze their library inventory. The configuration and hash enter
+the request. Native R limits CPU, elapsed time, output and open files; Node's heap
+limit applies to the trusted adapter, not R memory. R resolves installed transitive
+dependencies; declare directly used packages, without adding task-specific rules.
+Source, project and input hashes are checked before preparation and after execution.
+R writes only its own working tree; trusted requests/adapters remain outside that
+write boundary. Raw stream/result reads reject links and nonregular files.
+Hidden evaluators select their own frozen `execution_profile`, not the candidate's
+choice. Execution is engineering evidence, not mathematical or statistical validity.
 
 Lean proving defaults only to the source-controlled
 `external/EmpericalProcessLEAN-main` gitlink. That project pins Lean, Mathlib, and

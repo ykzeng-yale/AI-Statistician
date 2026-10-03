@@ -356,39 +356,10 @@ async function runPython(
   return JSON.parse(String(serialized));
 }
 
-async function runR(
-  request,
-  source,
-  estimatorSources,
-  inputArtifacts,
-  projectFiles,
-  estimatorProjectFiles,
-) {
-  const moduleUrl = pathToFileURL(request.runtime.webr_entry).href;
-  const { WebR } = await import(moduleUrl);
-  const webR = new WebR();
-  await webR.init();
-  let result;
-  try {
-    const simulationProject = await materializeWebRProject(
-      webR,
-      "/ai_stat_projects/simulation",
-      String(request.main_path || "main.R"),
-      source,
-      projectFiles,
-    );
+function rExecutionSource(request, source, estimatorSources, inputArtifacts,
+  projectFiles, simulationProject, estimatorProjects) {
     const scriptSource = request.script_path && request.script_path !== request.main_path
       ? projectFiles[request.script_path] : source;
-    const estimatorProjects = {};
-    for (const [index, [artifactId, estimatorSource]] of Object.entries(estimatorSources).entries()) {
-      estimatorProjects[artifactId] = await materializeWebRProject(
-        webR,
-        `/ai_stat_projects/estimator_${index}`,
-        String(request.estimators[index]?.main_path || "main.R"),
-        estimatorSource,
-        estimatorProjectFiles[artifactId] || {},
-      );
-    }
     const bound = request.invocation_mode === "estimator_bound";
     const nativeEstimatorTransport = request.estimator_transport === "native";
     const inputArtifactRows = Object.entries(inputArtifacts);
@@ -417,6 +388,12 @@ async function runR(
       .join(",");
     const projectPrelude =
       `.ai_stat_declared_dependencies <- ${declaredDependencyVector}\n` +
+      (request.backend === "native_r"
+        ? `.ai_stat_installed <- installed.packages()\n` +
+          `.ai_stat_package_names <- rownames(.ai_stat_installed)[tolower(rownames(.ai_stat_installed)) %in% .ai_stat_declared_dependencies]\n` +
+          `.ai_stat_transitive <- tools::package_dependencies(.ai_stat_package_names, db=.ai_stat_installed, recursive=TRUE)\n` +
+          `.ai_stat_declared_dependencies <- unique(c(.ai_stat_declared_dependencies, tolower(unlist(.ai_stat_transitive))))\n`
+        : "") +
       `.ai_stat_preloaded_namespaces <- tolower(loadedNamespaces())\n` +
       `.ai_stat_assert_declared_namespaces <- function() {\n` +
       `  .active <- setdiff(tolower(loadedNamespaces()), .ai_stat_preloaded_namespaces)\n` +
@@ -572,6 +549,26 @@ async function runR(
         `.ai_stat_assert_declared_namespaces()\n` +
         `list(metrics=.ai_stat_result, estimator_invocation_counts=list())\n` +
         `})`;
+    return wrapped;
+}
+
+async function runR(request, source, estimatorSources, inputArtifacts,
+  projectFiles, estimatorProjectFiles) {
+  const { WebR } = await import(pathToFileURL(request.runtime.webr_entry).href);
+  const webR = new WebR();
+  await webR.init();
+  let result;
+  try {
+    const simulationProject = await materializeWebRProject(webR,
+      "/ai_stat_projects/simulation", String(request.main_path || "main.R"), source, projectFiles);
+    const estimatorProjects = {};
+    for (const [index, [artifactId, estimatorSource]] of Object.entries(estimatorSources).entries()) {
+      estimatorProjects[artifactId] = await materializeWebRProject(webR,
+        `/ai_stat_projects/estimator_${index}`, String(request.estimators[index]?.main_path || "main.R"),
+        estimatorSource, estimatorProjectFiles[artifactId] || {});
+    }
+    const wrapped = rExecutionSource(request, source, estimatorSources, inputArtifacts,
+      projectFiles, simulationProject, estimatorProjects);
     if (request.invocation_mode === "script") {
       const shelter = await new webR.Shelter();
       try {
@@ -691,14 +688,52 @@ const inputArtifacts = Object.fromEntries(
   }),
 );
 const startedAt = new Date().toISOString();
+if (args["--r-program"]) {
+  if (request.backend !== "native_r" || request.language !== "r") {
+    throw new Error("native R preparation requires an explicit native_r request");
+  }
+  const wrapped = rExecutionSource(request, source, estimatorSources, inputArtifacts,
+    projectFiles, { root: request.project_root },
+    Object.fromEntries(request.estimators.map(row => [row.artifact_id, { root: row.project_root }])));
+  const versions = request.runtime.native_r.package_versions;
+  const packageVector = `c(${Object.keys(versions).map(JSON.stringify).join(",")})`;
+  const versionVector = `c(${Object.values(versions).map(JSON.stringify).join(",")})`;
+  const program =
+    `.ai_stat_output <- tryCatch({\n` +
+    `  if (as.character(getRversion()) != ${JSON.stringify(request.runtime.native_r.runtime_version)}) stop("native R runtime version mismatch")\n` +
+    `  .packages <- ${packageVector}\n  .versions <- ${versionVector}\n` +
+    `  for (i in seq_along(.packages)) if (packageVersion(.packages[[i]]) != package_version(.versions[[i]])) stop(paste("native R package version mismatch:", .packages[[i]]))\n` +
+    `  loadNamespace("jsonlite"); loadNamespace("tools")\n` +
+    `  .value <- ${wrapped}\n` +
+    `  if (is.null(.value)) .value <- list(metrics=list())\n` +
+    `  .finite <- function(x) { if (is.null(x)) return(TRUE); if (is.list(x)) return(all(vapply(x, .finite, logical(1)))); if (is.numeric(x)) return(all(is.finite(x))); if (is.character(x) || is.logical(x)) return(!anyNA(x)); FALSE }\n` +
+    `  if (!is.list(.value$metrics) || (length(.value$metrics) && is.null(names(.value$metrics)))) stop("run_sandbox must return a named dictionary/list object")\n` +
+    `  if (!.finite(.value$metrics)) stop("run_sandbox returned a non-finite or non-JSON metric value")\n` +
+    `  list(ok=TRUE, execution=.value)\n` +
+    `}, error=function(e) { message(conditionMessage(e)); list(ok=FALSE, error_type=class(e)[[1]], error_message=conditionMessage(e), error_stack=paste(vapply(sys.calls(), function(x) paste(deparse(x), collapse=""), character(1)), collapse="\\n")) })\n` +
+    `writeLines(jsonlite::toJSON(.ai_stat_output, auto_unbox=TRUE, null="null", digits=NA, force=TRUE), ${JSON.stringify(outputPath)}, useBytes=TRUE)\n` +
+    `if (!.ai_stat_output$ok) quit(status=1)\n`;
+  fs.writeFileSync(args["--r-program"], program, "utf8");
+  process.exit(0);
+}
 let envelope;
+let nativeResult;
 try {
   if (request.invocation_mode === "script" && (
     Object.keys(estimatorSources).length || request.required_callable_exports?.length
   )) {
     throw new Error("script execution cannot bind estimators or required callable exports");
   }
-  const execution = request.language === "r"
+  if (args["--native-result"]) {
+    nativeResult = JSON.parse(fs.readFileSync(args["--native-result"], "utf8"));
+    if (!nativeResult.ok) {
+      const error = new Error(nativeResult.error_message);
+      error.name = nativeResult.error_type || "Error";
+      error.stack = nativeResult.error_stack;
+      throw error;
+    }
+  }
+  const execution = nativeResult ? nativeResult.execution : request.language === "r"
     ? await runR(
       request,
       source,
@@ -718,9 +753,12 @@ try {
   if (scriptOutputBytes > request.resource_limits.file_size_bytes) {
     throw new Error("script output exceeds configured artifact-size boundary");
   }
-  const metrics = execution?.metrics;
-  const estimatorInvocationCounts = execution?.estimator_invocation_counts || {};
-  const estimatorInvocationSamples = execution?.estimator_invocation_samples || {};
+  const metrics = nativeResult && Array.isArray(execution?.metrics) && !execution.metrics.length
+    ? {} : execution?.metrics;
+  const estimatorInvocationCounts = nativeResult && Array.isArray(execution?.estimator_invocation_counts)
+    ? {} : execution?.estimator_invocation_counts || {};
+  const estimatorInvocationSamples = nativeResult && Array.isArray(execution?.estimator_invocation_samples)
+    ? {} : execution?.estimator_invocation_samples || {};
   if (!metrics || typeof metrics !== "object" || Array.isArray(metrics)) {
     throw new Error("run_sandbox must return a named dictionary/list object");
   }
@@ -756,7 +794,7 @@ try {
     language: request.language,
     backend: request.backend,
     metrics: {},
-    error_type: error?.constructor?.name || "Error",
+    error_type: error?.name || error?.constructor?.name || "Error",
     error_message: errorMessage,
     error_stack: String(error?.stack || "").slice(0, 8000),
     error_origin: failedBindingEstimatorId
@@ -770,8 +808,8 @@ try {
   };
 }
 if (request.invocation_mode === "script") {
-  envelope.stdout = Buffer.concat(scriptOutput.stdout).toString("utf8");
-  envelope.stderr = Buffer.concat(scriptOutput.stderr).toString("utf8");
+  envelope.stdout = nativeResult?.stdout ?? Buffer.concat(scriptOutput.stdout).toString("utf8");
+  envelope.stderr = nativeResult?.stderr ?? Buffer.concat(scriptOutput.stderr).toString("utf8");
   envelope.invocation_mode = "script";
 }
 fs.writeFileSync(outputPath, `${JSON.stringify(envelope, null, 2)}\n`, "utf8");

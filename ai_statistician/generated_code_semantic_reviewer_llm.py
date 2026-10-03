@@ -242,6 +242,7 @@ def _exact_estimator_probe_targets(
             ),
             "project_files": project_files,
             "project_hash": project_hash,
+            "execution_profile": str(row.get("requested_execution_profile", row.get("executor_profile", "scientific_wasm"))),
         }
     return targets
 
@@ -1310,12 +1311,13 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     artifact_id="semantic-review-probe:"
                     + stable_hash(probe_input)[:20],
                     language=target["language"],
+                    execution_profile=target["execution_profile"],
                     code=probe_code,
                     dependencies=probe_input["dependencies"],
                     seed=probe_input["seed"],
                     replicates=probe_input["replicates"],
                     timeout_s=max(1, int(probe_timeout_s)),
-                    estimator_bindings=(ScientificEstimatorBinding(**target),),
+                    estimator_bindings=(ScientificEstimatorBinding(**{key: value for key, value in target.items() if key != "execution_profile"}),),
                     estimator_transport="native",
                 )
                 estimator_binding_errors = list(getattr(

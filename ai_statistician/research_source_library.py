@@ -77,6 +77,76 @@ SOURCE_EXECUTION_RUNTIME_OWNED_ROOT_ENTRIES = frozenset({
 PinnedProcessExecutor = Callable[..., Mapping[str, Any]]
 
 
+@dataclass(frozen=True)
+class PinnedProcessRuntime:
+    environment_root: Path
+    interpreter_executable: Path
+    interpreter_executable_sha256: str
+    runtime_read_roots: tuple[Path, ...]
+    runtime_executables: tuple[tuple[Path, str], ...]
+    runtime_environment: tuple[tuple[str, str], ...]
+
+
+def load_pinned_process_runtime(
+    payload: Mapping[str, Any], *,
+    executable_path_field: str = "interpreter_executable_relative_path",
+    executable_hash_field: str = "interpreter_executable_sha256",
+) -> PinnedProcessRuntime:
+    """Validate operator-selected runtime resources, independently of a research task."""
+    environment_root = Path(_required_text(payload, "environment_root")).expanduser().resolve()
+    if not environment_root.is_dir():
+        raise ValueError("research source execution environment_root is unavailable")
+    executable_relative = PurePosixPath(_required_text(payload, executable_path_field))
+    if executable_relative.is_absolute() or ".." in executable_relative.parts:
+        raise ValueError("interpreter executable must stay inside environment_root")
+    interpreter_executable = environment_root / executable_relative
+    resolved = interpreter_executable.resolve()
+    if not resolved.is_file() or not os.access(interpreter_executable, os.X_OK):
+        raise ValueError("interpreter executable is unavailable or not executable")
+    expected_hash = _required_sha256(payload, executable_hash_field)
+    if _file_sha256(resolved) != expected_hash:
+        raise ValueError("interpreter executable sha256 mismatch")
+    raw_roots = payload.get("runtime_read_roots", [])
+    if not isinstance(raw_roots, list) or len(raw_roots) > 8:
+        raise ValueError("runtime_read_roots must be an array of at most eight paths")
+    roots = []
+    for value in raw_roots:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("runtime_read_roots entries must be nonempty paths")
+        root = Path(value).expanduser().resolve()
+        if not root.exists():
+            raise ValueError(f"runtime read root is unavailable: {root}")
+        roots.append(root)
+    raw_executables = payload.get("runtime_executables", {})
+    if not isinstance(raw_executables, Mapping) or len(raw_executables) > 8:
+        raise ValueError("runtime_executables must be an object with at most eight path hashes")
+    executables = []
+    for raw_path, raw_hash in raw_executables.items():
+        if not isinstance(raw_path, str) or not Path(raw_path).is_absolute():
+            raise ValueError("runtime executable paths must be absolute")
+        path = Path(raw_path).expanduser().resolve()
+        digest = str(raw_hash or "").strip().lower()
+        if (len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest)
+                or not path.is_file() or not os.access(path, os.X_OK)
+                or _file_sha256(path) != digest):
+            raise ValueError(f"runtime executable is unavailable or has a sha256 mismatch: {path}")
+        executables.append((path, digest))
+    raw_environment = payload.get("runtime_environment", {})
+    if not isinstance(raw_environment, Mapping) or len(raw_environment) > 16:
+        raise ValueError("runtime_environment must be an object with at most 16 entries")
+    environment = []
+    for name, value in raw_environment.items():
+        if (not isinstance(name, str) or not isinstance(value, str) or not name
+                or name[0] not in "_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                or any(c not in "_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" for c in name)
+                or name in SOURCE_EXECUTION_CONTROLLED_ENVIRONMENT_KEYS
+                or "\x00" in value or len(value) > 2048):
+            raise ValueError("runtime_environment contains an invalid or controlled entry")
+        environment.append((name, value))
+    return PinnedProcessRuntime(environment_root, interpreter_executable, expected_hash,
+                                tuple(roots), tuple(sorted(executables)), tuple(sorted(environment)))
+
+
 def normalized_internal_symlink_destination(*, link_path: str, target: str) -> str:
     """Resolve one relative POSIX symlink target without allowing root escape."""
 
@@ -1009,62 +1079,10 @@ def load_research_source_execution_spec(
     source_commit = _required_text(payload, "source_commit")
     if entrypoint.git_commit and entrypoint.git_commit != source_commit:
         raise ValueError("research source execution commit does not match the entrypoint")
-    environment_root = Path(_required_text(payload, "environment_root")).expanduser().resolve()
-    if not environment_root.is_dir():
-        raise ValueError("research source execution environment_root is unavailable")
-    executable_relative = PurePosixPath(
-        _required_text(payload, executable_path_field)
+    process_runtime = load_pinned_process_runtime(
+        payload, executable_path_field=executable_path_field,
+        executable_hash_field=executable_hash_field,
     )
-    if executable_relative.is_absolute() or ".." in executable_relative.parts:
-        raise ValueError("interpreter executable must stay inside environment_root")
-    interpreter_executable = environment_root / executable_relative
-    resolved_interpreter_executable = interpreter_executable.resolve()
-    try:
-        interpreter_executable.relative_to(environment_root)
-    except ValueError:
-        raise ValueError("interpreter executable must stay inside environment_root")
-    if not resolved_interpreter_executable.is_file() or not os.access(
-        interpreter_executable, os.X_OK
-    ):
-        raise ValueError("interpreter executable is unavailable or not executable")
-    expected_executable_hash = _required_sha256(payload, executable_hash_field)
-    if _file_sha256(resolved_interpreter_executable) != expected_executable_hash:
-        raise ValueError("interpreter executable sha256 mismatch")
-
-    raw_runtime_roots = payload.get("runtime_read_roots", [])
-    if not isinstance(raw_runtime_roots, list) or len(raw_runtime_roots) > 8:
-        raise ValueError("runtime_read_roots must be an array of at most eight paths")
-    runtime_roots: list[Path] = []
-    for raw_root in raw_runtime_roots:
-        if not isinstance(raw_root, str) or not raw_root.strip():
-            raise ValueError("runtime_read_roots entries must be nonempty paths")
-        root = Path(raw_root).expanduser().resolve()
-        if not root.exists():
-            raise ValueError(f"runtime read root is unavailable: {root}")
-        runtime_roots.append(root)
-    raw_runtime_executables = payload.get("runtime_executables", {})
-    if not isinstance(raw_runtime_executables, Mapping) or len(raw_runtime_executables) > 8:
-        raise ValueError(
-            "runtime_executables must be an object with at most eight path hashes"
-        )
-    runtime_executables: list[tuple[Path, str]] = []
-    for raw_path, raw_sha256 in raw_runtime_executables.items():
-        if not isinstance(raw_path, str) or not Path(raw_path).is_absolute():
-            raise ValueError("runtime executable paths must be absolute")
-        executable_path = Path(raw_path).expanduser().resolve()
-        expected_hash = str(raw_sha256 or "").strip().lower()
-        if (
-            len(expected_hash) != 64
-            or any(character not in "0123456789abcdef" for character in expected_hash)
-            or not executable_path.is_file()
-            or not os.access(executable_path, os.X_OK)
-            or _file_sha256(executable_path) != expected_hash
-        ):
-            raise ValueError(
-                f"runtime executable is unavailable or has a sha256 mismatch: {executable_path}"
-            )
-        runtime_executables.append((executable_path, expected_hash))
-    runtime_executables.sort(key=lambda row: str(row[0]))
     working_directory_relative = str(payload.get("working_directory_relative", ".") or ".").strip()
     working_path = PurePosixPath(working_directory_relative)
     if working_path.is_absolute() or ".." in working_path.parts:
@@ -1135,20 +1153,6 @@ def load_research_source_execution_spec(
         isinstance(value, str) and "\x00" not in value for value in raw_interpreter_arguments
     ):
         raise ValueError("interpreter_arguments must be at most 32 text values")
-    raw_runtime_environment = payload.get("runtime_environment", {})
-    if not isinstance(raw_runtime_environment, Mapping) or len(raw_runtime_environment) > 16:
-        raise ValueError("runtime_environment must be an object with at most 16 entries")
-    runtime_environment: list[tuple[str, str]] = []
-    for raw_name, raw_value in raw_runtime_environment.items():
-        name, value = str(raw_name), str(raw_value)
-        if (not isinstance(raw_name, str) or not isinstance(raw_value, str) or not name
-                or name[0] not in "_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                or any(character not in "_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" for character in name)
-                or name in SOURCE_EXECUTION_CONTROLLED_ENVIRONMENT_KEYS
-                or "\x00" in value or len(value) > 2048):
-            raise ValueError("runtime_environment contains an invalid or controlled entry")
-        runtime_environment.append((name, value))
-    runtime_environment.sort()
     raw_packages = payload.get("package_distributions", {})
     if not isinstance(raw_packages, Mapping) or not raw_packages:
         raise ValueError("package_distributions must be a nonempty object")
@@ -1181,23 +1185,23 @@ def load_research_source_execution_spec(
         source_commit=source_commit,
         entrypoint_document_id=entrypoint_document_id,
         environment_lock_document_id=environment_lock_document_id,
-        environment_root=environment_root,
+        environment_root=process_runtime.environment_root,
         runtime_language=runtime_language,
-        interpreter_executable=interpreter_executable,
-        interpreter_executable_sha256=expected_executable_hash,
+        interpreter_executable=process_runtime.interpreter_executable,
+        interpreter_executable_sha256=process_runtime.interpreter_executable_sha256,
         environment_probe_document_id=environment_probe_document_id,
-        runtime_read_roots=tuple(runtime_roots),
+        runtime_read_roots=process_runtime.runtime_read_roots,
         working_directory_relative=working_directory_relative,
         arguments=tuple(raw_arguments),
         package_distributions=tuple(package_distributions),
         timeout_seconds=timeout_seconds,
         max_output_bytes=max_output_bytes,
-        runtime_executables=tuple(runtime_executables),
+        runtime_executables=process_runtime.runtime_executables,
         schema_version=int(schema_version),
         execution_workspace_mode=execution_workspace_mode,
         result_artifact_paths=tuple(result_artifact_paths),
         interpreter_arguments=tuple(raw_interpreter_arguments),
-        runtime_environment=tuple(runtime_environment),
+        runtime_environment=process_runtime.runtime_environment,
         command_selection_mode=command_selection_mode,
     )
 
@@ -2413,6 +2417,8 @@ def _execute_pinned_process(
         "stdout": stdout,
         "stderr": stderr,
         "errors": transport_errors,
+        "subprocess_environment_keys": tuple(sorted(environment)),
+        "resource_limits": limits,
     }
 
 
@@ -2536,9 +2542,16 @@ def _executable_symlink_chain(path: Path) -> tuple[Path, ...]:
 
 
 def _bounded_execution_text(path: Path, max_output_bytes: int) -> tuple[str, list[str]]:
-    if not path.exists():
+    try:
+        with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), "rb") as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                return "", ["source execution output must be an owned regular file"]
+            raw = stream.read(max_output_bytes + 1)
+    except FileNotFoundError:
         return "", []
-    raw = path.read_bytes()
+    except OSError:
+        return "", ["source execution output cannot be safely read"]
     errors: list[str] = []
     if len(raw) > max_output_bytes:
         raw = raw[:max_output_bytes]

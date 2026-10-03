@@ -27,6 +27,8 @@ from .research_evaluation import research_evaluation_evidence_hash
 from .research_source_library import source_replication_execution_integrity_ok
 from .scientific_sandbox import (
     SCIENTIFIC_SANDBOX_LANGUAGES,
+    SCIENTIFIC_SANDBOX_PROFILES,
+    SCIENTIFIC_NATIVE_R_PROFILE,
     ScientificEstimatorBinding,
     ScientificInputArtifactBinding,
     execute_scientific_sandbox,
@@ -1012,6 +1014,7 @@ def _evaluate_gold_task(
             sandbox_dir=sandbox_root / task_id / "algorithm",
             artifact_id=f"gold-{task_id}",
             harness_language=str(evaluator.get("language", "") or "python"),
+            **({"harness_execution_profile": evaluator["execution_profile"]} if "execution_profile" in evaluator else {}),
             harness_code=harness_code,
             harness_dependencies=tuple(
                 str(value) for value in evaluator.get("dependencies", []) or []
@@ -1069,6 +1072,7 @@ def _evaluate_gold_task(
                 harness_language=str(
                     empirical_evaluator.get("language", "") or "python"
                 ),
+                **({"harness_execution_profile": empirical_evaluator["execution_profile"]} if "execution_profile" in empirical_evaluator else {}),
                 harness_code=empirical_harness_path.read_text(encoding="utf-8"),
                 harness_dependencies=tuple(
                     str(value)
@@ -2252,11 +2256,13 @@ def _run_hidden_scientific_harness(
     seed: int,
     replicates: int,
     timeout_s: int,
+    harness_execution_profile: str = "scientific_wasm",
 ) -> Mapping[str, Any]:
     execution = execute_scientific_sandbox(
         sandbox_dir=sandbox_dir,
         artifact_id=artifact_id,
         language=harness_language,
+        execution_profile=harness_execution_profile,
         code=harness_code,
         dependencies=harness_dependencies,
         seed=seed,
@@ -2933,6 +2939,11 @@ def _hidden_evaluator_validation_errors(
     required_contract_clause_ids: set[str] | None = None,
 ) -> list[str]:
     errors: list[str] = []
+    profile = evaluator.get("execution_profile", "scientific_wasm")
+    if profile not in SCIENTIFIC_SANDBOX_PROFILES or (
+        profile == SCIENTIFIC_NATIVE_R_PROFILE and evaluator.get("language") != "r"
+    ):
+        errors.append(f"active task {task_index} hidden {label} execution profile is invalid")
     if (
         str(evaluator.get("language", "") or "")
         not in SCIENTIFIC_SANDBOX_LANGUAGES
@@ -3225,6 +3236,7 @@ def _run_activation_candidate(
         sandbox_dir=sandbox_dir,
         artifact_id="gold-activation-candidate",
         harness_language=str(evaluator["language"]),
+        harness_execution_profile=str(evaluator.get("execution_profile", "scientific_wasm")),
         harness_code=harness.read_text(encoding="utf-8"),
         harness_dependencies=tuple(evaluator.get("dependencies", []) or []),
         estimator_binding=ScientificEstimatorBinding(

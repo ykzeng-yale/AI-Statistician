@@ -291,7 +291,7 @@ def test_generated_code_contract_keeps_stdlib_default_and_requires_r_wasm() -> N
             "code": "def run_sandbox(seed, replicates):\n    return {'n': replicates}",
         }
     ) == []
-    assert "generated R code requires execution_profile scientific_wasm" in (
+    assert "generated R code requires scientific_wasm or scientific_native_r" in (
         generated_code_execution_contract_errors(
             {
                 "language": "r",

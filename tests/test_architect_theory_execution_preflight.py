@@ -1342,7 +1342,8 @@ def test_preflight_failed_scratch_keeps_model_request_identity(
     )
     assert "ordinary script" in scratch_tool.description
     assert "entrypoint" not in scratch_tool.input_schema["properties"]
-    assert "execution_profile" not in scratch_tool.input_schema["properties"]
+    assert "execution_profile" in scratch_tool.input_schema["properties"]
+    assert "execution_profile" not in scratch_tool.input_schema["required"]
     assert "validates only this submitted program" in scratch_tool.description
     assert "joint dependence" in scratch_tool.description
 

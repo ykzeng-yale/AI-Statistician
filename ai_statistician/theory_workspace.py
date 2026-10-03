@@ -181,10 +181,11 @@ def theory_scratchpad_client_tool() -> ClientToolDefinition:
         artifact_required=(),
         code_max_length=100_000,
     )
-    for field in ("entrypoint", "execution_profile", "project_files"):
+    for field in ("entrypoint", "project_files"):
         scratch_schema["properties"].pop(field, None)
         if field in scratch_schema["required"]:
             scratch_schema["required"].remove(field)
+    scratch_schema["required"].remove("execution_profile")
     scratch_schema["properties"]["code"]["description"] = (
         "Complete Python or R script, executed once as written. Use print/cat for "
         "observations; no function entrypoint or JSON return is required. Globals "
@@ -233,7 +234,7 @@ def execute_theory_scratchpad_tool(
     """Execute exact model-authored exploratory code and return compact lineage."""
 
     language = str(tool_input.get("language", "") or "")
-    execution_profile = SCIENTIFIC_WASM_SANDBOX_PROFILE
+    execution_profile = str(tool_input.get("execution_profile", SCIENTIFIC_WASM_SANDBOX_PROFILE))
     dependencies = tool_input.get("dependencies", [])
     code = str(tool_input.get("code", "") or "")
     if not isinstance(dependencies, list):
@@ -246,6 +247,7 @@ def execute_theory_scratchpad_tool(
         ),
         artifact_id=artifact_id,
         language=language,
+        execution_profile=execution_profile,
         code=code,
         dependencies=[str(value) for value in dependencies],
         seed=int(scratchpad.seed),
