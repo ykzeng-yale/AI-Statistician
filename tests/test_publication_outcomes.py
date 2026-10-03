@@ -70,6 +70,32 @@ def scripted_semantics(monkeypatch, *, passed=True, mutate=None):
     return calls
 
 
+def external_review_fixture(kwargs, *, verdict="accepted"):
+    """Opaque record transport only: no expert or mathematical acceptance exists."""
+
+    def reference(name, text):
+        path = kwargs["project_root"] / name
+        path.write_bytes(text.encode("utf-8"))
+        return {"path": str(path), "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                "byte_size": len(text.encode("utf-8"))}
+
+    kwargs["task"].pop("hidden_theory_semantic_evaluator")
+    kwargs["task"]["external_theory_authority"] = {
+        "authority_id": "opaque-mechanism-authority-not-an-expert",
+        "protocol": reference("protocol.md", "# Unqualified opaque protocol\nNot mathematical gold.\n"),
+    }
+    kwargs["external_theory_review"] = {
+        "authority_id": kwargs["task"]["external_theory_authority"]["authority_id"],
+        "task_hash": stable_hash(kwargs["task"]),
+        "submission_identity_hash": stable_hash(kwargs["submission_identity"]),
+        "submitted_material_hash": outcomes.publication_submitted_material_hash(**{
+            key: kwargs.get(key) for key in ("theory_documents", "estimator_bindings", "empirical_artifact",
+                                           "source_replication_artifact", "formal_artifacts")}),
+        "verdict": verdict,
+        "report": reference("review.tex", "% Opaque transport fixture, not a proof.\r\nNo scientific verdict.\r\n"),
+    }
+
+
 def require_runtime(language):
     runtime = discover_scientific_sandbox_runtime()
     if not runtime.python_available or (language == "r" and not runtime.r_available):
@@ -90,6 +116,7 @@ def test_same_external_criteria_ignore_internal_disposition_but_keep_theory_sepa
     assert rows["scientific_code"]["status"] == ("passed" if offset == 0 else "failed")
     assert rows["scientific_code"]["execution"]["estimator_invocation_count"] == 1
     assert rows["theory"]["status"] == ("passed" if theory_passed else "failed")
+    assert rows["theory"]["assessment_authority"] == "local_model_review"
     assert rows["empirical"]["status"] == "passed"
     assert rows["formal"]["status"] == "not_requested"
     assert result["task_passed"] is (theory_passed and offset == 0)
@@ -103,6 +130,79 @@ def test_same_external_criteria_ignore_internal_disposition_but_keep_theory_sepa
     with pytest.raises(FileExistsError):
         outcomes.evaluate_final_research_artifacts(**kwargs)
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("verdict,status", [("accepted", "passed"), ("rejected", "failed"), ("unresolved", "unresolved")])
+def test_external_review_is_recorded_without_model_agreement_or_inferred_scientific_truth(tmp_path, monkeypatch, verdict, status):
+    kwargs = outcome_fixture(tmp_path, intent={"theory": "required"})
+    external_review_fixture(kwargs, verdict=verdict)
+    original = deepcopy(kwargs)
+    calls = scripted_semantics(monkeypatch)
+    result = outcomes.evaluate_final_research_artifacts(**kwargs)
+    row = result["dimension_status"]["theory"]
+    assert row["status"] == status and row["assessment_authority"] == "external_adjudication_record"
+    assert row["external_review_verdict"] == verdict and row["external_review_hash"] == stable_hash(kwargs["external_theory_review"])
+    assert result["task_passed"] is (verdict == "accepted") and not calls
+    assert result["submitted_material_hash"] == kwargs["external_theory_review"]["submitted_material_hash"]
+    directory = kwargs["out_dir"] / "theory"
+    assert json.loads((directory / "external_review.json").read_text()) == kwargs["external_theory_review"]
+    assert (directory / "assessment_report.txt").read_bytes() == Path(kwargs["external_theory_review"]["report"]["path"]).read_bytes()
+    assert (directory / "assessment_protocol.txt").read_bytes() == Path(kwargs["task"]["external_theory_authority"]["protocol"]["path"]).read_bytes()
+    assert kwargs == original
+    with pytest.raises(FileExistsError):
+        outcomes.evaluate_final_research_artifacts(**kwargs)
+    assert not calls
+
+
+@pytest.mark.parametrize("change", ["authority", "task", "submission", "material", "protocol", "report", "verdict",
+                                   "changed_document", "changed_experiment", "model_fallback", "no_frozen_authority"])
+def test_external_review_cannot_grade_another_submission_change_its_protocol_or_fall_back(tmp_path, monkeypatch, change):
+    kwargs = outcome_fixture(tmp_path, intent={"theory": "required"})
+    external_review_fixture(kwargs)
+    review = kwargs["external_theory_review"]
+    field = {"authority": "authority_id", "task": "task_hash", "submission": "submission_identity_hash",
+             "material": "submitted_material_hash"}.get(change)
+    if field:
+        review[field] = "another"
+    elif change in {"protocol", "report"}:
+        reference = kwargs["task"]["external_theory_authority"]["protocol"] if change == "protocol" else review["report"]
+        Path(reference["path"]).write_text("changed after assessment")
+    elif change == "verdict":
+        review["verdict"] = ["accepted"]
+    elif change == "changed_document":
+        text = "another final argument"
+        kwargs["theory_documents"][0].update(content=text, sha256=hashlib.sha256(text.encode()).hexdigest())
+    elif change == "changed_experiment":
+        kwargs["empirical_artifact"]["measurement"] += 1
+    elif change == "model_fallback":
+        kwargs["task"]["hidden_theory_semantic_evaluator"] = {"provider": "local"}
+    else:
+        kwargs["task"].pop("external_theory_authority")
+    calls = scripted_semantics(monkeypatch)
+    with pytest.raises(ValueError):
+        outcomes.evaluate_final_research_artifacts(**kwargs)
+    assert not calls and not kwargs["out_dir"].exists()
+
+
+def test_missing_external_assessment_stays_pending_and_does_not_use_a_model(tmp_path, monkeypatch):
+    kwargs = outcome_fixture(tmp_path, intent={"theory": "required"})
+    external_review_fixture(kwargs)
+    kwargs.pop("external_theory_review")
+    calls = scripted_semantics(monkeypatch)
+    result = outcomes.evaluate_final_research_artifacts(**kwargs)
+    assert result["dimension_status"]["theory"]["status"] == "pending_adjudication"
+    assert result["task_passed"] is False and not calls
+
+
+def test_external_theory_acceptance_cannot_override_incorrect_numerical_submission(tmp_path, monkeypatch):
+    require_runtime("python")
+    kwargs = outcome_fixture(tmp_path, offset=1)
+    external_review_fixture(kwargs)
+    calls = scripted_semantics(monkeypatch)
+    result = outcomes.evaluate_final_research_artifacts(**kwargs)
+    assert result["dimension_status"]["theory"]["status"] == "passed"
+    assert result["dimension_status"]["scientific_code"]["status"] == "failed"
+    assert result["task_passed"] is False and not calls
 
 
 @pytest.mark.parametrize("missing", ["theory_documents", "estimator_bindings", "empirical_artifact", "source_replication_artifact"])

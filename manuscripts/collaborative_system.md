@@ -202,6 +202,17 @@ PaperBench's replication evaluation motivates artifact-level assessment, while
 statistical derivations require additional mathematical scrutiny. [PaperBench](https://arxiv.org/abs/2504.01848)
 Optional formal outcomes remain separately reported.
 
+For the theoretical endpoint, a prospectively frozen authority supplies its
+assessment of the actual selected argument and an explicit accepted, rejected
+or unresolved conclusion. The evaluator binds the report to the frozen task,
+final submission and complete material and stores its exact bytes and protocol.
+It does not create a mathematical referee, infer a verdict from prose or certify
+expertise through a hash. Missing assessment remains pending; unresolved theory
+does not satisfy full-task acceptance. Local-model grading remains a separately
+labelled automatic diagnostic, not a substitute for this independent endpoint.
+The available tests establish record identity and non-substitution only; no
+qualified panel or mathematical acceptance has yet been demonstrated.
+
 The task-selection and possible generalization unit is a paper/problem family.
 Variants and repeated draws within one family do not add new sampled problems.
 The proposed roster is purposive, not a probability sample. Task selection will

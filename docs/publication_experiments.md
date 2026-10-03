@@ -210,6 +210,36 @@ shortcut. Formal closure and native result-file decoding remain explicit study
 obligations, not implicit fallbacks. Outcomes retain the
 input submission identity hash as well as the material hash.
 
+For theoretical tasks, freeze `external_theory_authority` in the private task
+before the first draw: an `authority_id` and a hash-bound `protocol` reference
+(`path`, `sha256`, `byte_size`), using resolved evaluator-owned file paths.
+The protocol identifies the qualified assessors,
+conflicts, blinding, full claim rubric, permitted alternatives and adjudication
+procedure. The trusted study caller obtains their final assessment; the product
+does not nominate or invoke its own publication referee. Qualification is a
+scientific responsibility, not a consequence of filling these fields.
+
+`publication_submitted_material_hash` identifies the complete projected final
+material before assessment. Supply `external_theory_review` with the frozen
+`authority_id`, `task_hash`, `submission_identity_hash`, `submitted_material_hash`,
+explicit `verdict` (`accepted`, `rejected` or `unresolved`) and a hash-bound
+Markdown/LaTeX `report` reference. The report gives the actual assessment and
+localized findings, not just a score. The evaluator stores the exact report and
+protocol and records their identities. A missing assessment leaves theory
+`pending_adjudication`; an unresolved assessment does not satisfy required theory.
+An accepted assessment
+cannot manufacture missing material or override a failed implementation/experiment
+check. Review record transport does not establish reviewer independence or truth.
+
+The separately qualified local-model assessment is still available as an
+automated diagnostic condition, with `assessment_authority=local_model_review`.
+It is not the expert mathematical endpoint of these papers. The evaluator rejects
+simultaneous model and external authorities rather than choosing a favorable
+verdict or falling back when a review is absent. Fix the authority and intended
+endpoint prospectively; do not append a new review to reinterpret a consumed
+outcome. This implementation has only opaque transport tests, no qualified expert
+panel, mathematical acceptance or activated publication study.
+
 Artifact evaluators take an explicitly frozen JSON view; binary snapshots remain preserved
 at collection, with no generic decoding or silent omission here. Formal input must
 contain only the selected final proof evidence, not an earlier blackboard success.

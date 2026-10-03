@@ -179,6 +179,17 @@ Reviewers record the first unsupported step when identifiable and their unresolv
 uncertainty. Expert identities, conflicts, blinding, adjudication and workload
 must be disclosed. No qualified mathematical panel has yet been completed.
 
+The prospective evaluation entry now accepts the independent assessors' explicit
+accepted, rejected or unresolved conclusion and complete Markdown/LaTeX report.
+The authority and rubric protocol are frozen in the private task before draws;
+the assessment binds that task, final submission and complete submitted material.
+Exact report and protocol copies remain evaluator-side, outside the author's
+feedback. A missing assessment stays pending, and an unresolved argument does
+not meet required theory. The software records this assessment; it does not
+certify the assessors' competence or the argument's truth. A local-model verdict
+is labelled separately and cannot replace a missing or unfavorable independent
+assessment. No expert acceptance is established by the transport tests.
+
 Final assessment distinguishes the scientific result from its explanation:
 an accurate number, a faithful implementation, a complete argument and an honest
 gap report are different observations. Automated grading, if used for mathematical

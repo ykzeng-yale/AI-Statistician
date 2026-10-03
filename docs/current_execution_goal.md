@@ -48,6 +48,13 @@ that candidate, without turning its findings into product instructions or a new
 proof-repair pipeline. Code replication and mathematical assessment retain their
 separate endpoints; neither substitutes for the other.
 
+The common publication evaluator can now record a prospective external Theory
+assessment, bound to the frozen authority/protocol and exact final material.
+Missing adjudication stays pending and model grading is separately labelled;
+there is no verdict fallback, product referee or repair loop. Opaque transport
+tests do not qualify the authority. Selecting independent assessors and completing
+their source/rubric qualification remains necessary before official theory draws.
+
 The unconsumed curvature-IV development panel added on 2026-10-02 was withdrawn
 before any model call or protocol activation. Its finite reference checks were
 numerical implementation diagnostics, not mathematical proof or agent outcomes.

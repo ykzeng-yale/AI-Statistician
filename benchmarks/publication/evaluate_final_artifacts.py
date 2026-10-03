@@ -156,6 +156,22 @@ def _selected_source_replication_material(checkpoint, submission):
             "unresolved_gaps": deepcopy(body["unresolved_gaps"])}
 
 
+def publication_submitted_material_hash(
+    *, theory_documents=(), estimator_bindings=(), empirical_artifact=None,
+    source_replication_artifact=None, formal_artifacts=None,
+) -> str:
+    """Identify the complete evaluator view before independent adjudication.
+
+    This does not validate collection, qualify a reviewer or assess mathematics.
+    The trusted caller must project the actual final selection, not another draft.
+    """
+
+    return stable_hash({"theory_documents": list(theory_documents),
+                        "estimators": [asdict(row) for row in estimator_bindings],
+                        "empirical": empirical_artifact, "source_replication": source_replication_artifact,
+                        "formal": formal_artifacts})
+
+
 def evaluate_final_research_artifacts(
     *, question: OpenResearchQuestion, task: Mapping[str, Any],
     submission_identity: Mapping[str, Any], project_root: Path, out_dir: Path,
@@ -166,10 +182,15 @@ def evaluate_final_research_artifacts(
     formal_artifacts: Mapping[str, Any] | None = None,
     theory_semantic_judge_provider: Any = None,
     run_theory_semantic_judge: Any = None,
+    external_theory_review: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Judge exact final material against one prospectively frozen task authority.
 
-    Theory uses the existing separately prequalified document-review protocol.
+    Theory uses either a prospectively fixed external adjudication authority or
+    the existing separately prequalified model protocol, never a verdict fallback.
+    External records are supplied by the trusted study caller, not the author.
+    Hash validation binds an assessment to material; it cannot certify reviewer
+    expertise, independence, honesty or mathematical correctness.
     Scientific code uses held evaluator data and exact estimator bindings.
     Empirical/replication evaluators inspect submitted material via evaluate_artifact;
     they do not manufacture a missing candidate experiment by rerunning its method.
@@ -226,6 +247,30 @@ def evaluate_final_research_artifacts(
     semantic = task.get("hidden_theory_semantic_evaluator", {})
     if semantic and semantic.get("provider") != "local":
         raise ValueError("publication model evaluation requires the frozen local open-weight provider")
+    authority = task.get("external_theory_authority", {})
+    review = deepcopy(dict(external_theory_review)) if external_theory_review is not None else None
+    material_hash = publication_submitted_material_hash(
+        theory_documents=documents, estimator_bindings=bindings, empirical_artifact=empirical,
+        source_replication_artifact=replication, formal_artifacts=formal,
+    )
+    if (authority and semantic) or (review is not None and not authority):
+        raise ValueError("publication theory requires one prospectively fixed assessment authority")
+    if authority:
+        if not isinstance(authority.get("authority_id"), str) or not authority["authority_id"].strip():
+            raise ValueError("external theory authority identity is missing")
+        protocol, errors = read_hash_bound_utf8_file(authority.get("protocol", {}))
+        if errors or not protocol.strip():
+            raise ValueError("external theory protocol identity is invalid")
+        if review is not None:
+            expected = {"authority_id": authority["authority_id"], "task_hash": stable_hash(task),
+                        "submission_identity_hash": submission_identity_hash, "submitted_material_hash": material_hash}
+            if any(review.get(key) != value for key, value in expected.items()):
+                raise ValueError("external theory assessment differs from the final submission or frozen authority")
+            if not isinstance(review.get("verdict"), str) or review["verdict"] not in {"accepted", "rejected", "unresolved"}:
+                raise ValueError("external theory assessment verdict is invalid")
+            report, errors = read_hash_bound_utf8_file(review.get("report", {}))
+            if errors or not report.strip():
+                raise ValueError("external theory assessment report identity is invalid")
     for dimension, candidate in (("empirical", empirical), ("source_replication", replication)):
         if (candidate is not None and evaluators[dimension]
             and requirements.get(dimension, "not_applicable") != "not_applicable"):
@@ -234,8 +279,6 @@ def evaluate_final_research_artifacts(
             except (TypeError, ValueError) as exc:
                 raise ValueError("publication artifact evaluator requires its frozen JSON view") from exc
     out_dir.mkdir(parents=True, exist_ok=False)
-    material = {"theory_documents": documents, "estimators": [asdict(row) for row in bindings],
-                "empirical": empirical, "source_replication": replication, "formal": formal}
     dimensions = {}
     for dimension, requirement in requirements.items():
         row = {"requirement": requirement, "status": "not_requested"}
@@ -257,7 +300,7 @@ def evaluate_final_research_artifacts(
             if requirement == "required":
                 row["status"] = "missing"
             continue
-        if not evaluator and not (dimension == "theory" and semantic):
+        if not evaluator and not (dimension == "theory" and (semantic or authority)):
             row["status"] = "unconfigured"
             continue
         passed = True
@@ -285,10 +328,26 @@ def evaluate_final_research_artifacts(
             row["execution"] = summary
             passed = summary["passed"]
         if dimension == "theory":
+            if authority:
+                row["assessment_authority"] = "external_adjudication_record"
+                if review is None:
+                    row["status"] = "pending_adjudication" if passed else "failed"
+                    continue
+                row["external_review_hash"] = stable_hash(review)
+                row["external_review_verdict"] = review["verdict"]
+                review_dir = out_dir / "theory"
+                review_dir.mkdir(exist_ok=True)
+                (review_dir / "external_review.json").write_text(json.dumps(review, indent=2) + "\n", encoding="utf-8")
+                (review_dir / "assessment_protocol.txt").write_bytes(protocol.encode("utf-8"))
+                (review_dir / "assessment_report.txt").write_bytes(report.encode("utf-8"))
+                row["status"] = ({"accepted": "passed", "rejected": "failed", "unresolved": "unresolved"}[review["verdict"]]
+                                 if passed else "failed")
+                continue
             # A structural artifact check alone cannot accept a mathematical argument.
             if not semantic:
                 row["status"] = "unconfigured"
                 continue
+            row["assessment_authority"] = "local_model_review"
             judgment, error = _run_hidden_document_semantic_evaluation(
                 evaluator=deepcopy(semantic), task_id=question.id, visible_question=deepcopy(public),
                 candidate_documents=deepcopy(documents), project_root=project_root,
@@ -307,7 +366,7 @@ def evaluate_final_research_artifacts(
     required = [row for row in dimensions.values() if row["requirement"] == "required"]
     result = {"question_id": question.id, "question_hash": stable_hash(public), "task_hash": stable_hash(task),
               "submission_identity_hash": submission_identity_hash,
-              "submitted_material_hash": stable_hash(material), "dimension_status": dimensions,
+              "submitted_material_hash": material_hash, "dimension_status": dimensions,
               "task_passed": bool(required) and all(row["status"] == "passed" for row in required),
               "internal_acceptance_required": False, "runtime_feedback_generated": False,
               "evaluation_role": "external_publication_outcome_not_product_acceptance_or_proof"}
