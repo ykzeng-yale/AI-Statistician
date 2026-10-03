@@ -1,6 +1,6 @@
 # A Portable Harness for Reviewable Statistical Research with Coding Agents
 
-Working methods draft, 2026-10-02. Not submission-ready. Authors and affiliations
+Working methods draft, 2026-10-03. Not submission-ready. Authors and affiliations
 are not yet supplied. Comparative results, installation qualification and release rights
 remain unresolved; this draft does not claim an efficacy result.
 
@@ -49,6 +49,12 @@ that our statistical package improves a native host. Our comparison must therefo
 test statistical research value rather than present skills or persistent files
 as a new agent architecture. [NORA](https://arxiv.org/abs/2605.02092),
 [PARNESS](https://arxiv.org/abs/2605.05258)
+
+FUSION is an especially close precedent for portable scientific skills and
+reference-driven code use, while LabAgent connects executable laboratory skills
+to reproduction experience. Our package does not claim to invent either route
+or adopt their task-specific execution recipes. [FUSION](https://arxiv.org/abs/2609.04742),
+[LabAgent](https://arxiv.org/abs/2609.13437)
 
 The proposed contribution is a statistical operating package and an evaluation
 of its incremental value within a fixed coding host. Native skills, file-backed

@@ -1,6 +1,6 @@
 # Publication Sources And Reuse Decisions
 
-Checked 2026-10-02. This is a focused continuation of the local collection and
+Checked 2026-10-03. This is a focused continuation of the local collection and
 [previous reuse audit](research_harness_reuse_strategy.md), not an exhaustive
 survey of all publications. Read primary methods/limitations and inspect relevant
 code before adopting a component. Website claims and published scores are not our
@@ -24,6 +24,30 @@ experimental results. Pins below are observed upstream HEADs, not dependencies.
 | [Towards a Science of Scaling Agent Systems, v2](https://arxiv.org/html/2512.08296v2) | Controlled tools, prompt structures and resources expose task-dependent coordination benefits and costs | Test whether collaboration helps statistical tasks; neither agent count nor published cross-domain results establishes our benefit |
 | [AI Scientist v2](https://arxiv.org/abs/2504.08066) | Executable candidate search and full research artifacts | Conditional baseline where compatible; do not port its controller or infer theoretical correctness from paper review scores |
 | [Morris, White, Crowther](https://doi.org/10.1002/sim.8086) | ADEMP and uncertainty in simulation performance measures | Scientific experimental design and reporting; no hardcoded method choices |
+| [FUSION, September 2026](https://arxiv.org/html/2609.04742v1) | Portable scientific skills, native execution and explicit separation of reference reproduction from scientific validity | Read the complete short paper; no physics-code recipes, named flaky-test retries or engine fork enter our product |
+| [LabAgent, September 2026](https://arxiv.org/html/2609.13437v1) | Executable laboratory skills and retained reproduction experience are direct prior art | Read methods, comparisons and selected supplementary prompts; no automatic error-command replay, skill controller or completion sentinel is adopted |
+| [VERITAS, April 2026](https://arxiv.org/html/2604.12144v1) | Auditable statistical analysis and a phase-guided single-agent comparator | Read architecture, evaluation and D.7/D.8; its local roles use different checkpoints, and its benchmark labels are not a universal statistical authority |
+| [Denario, PRX Intelligence, October 2026](https://doi.org/10.1103/kk55-gc95) | The published abstract explicitly labels team expert scores as conflicted self-assessment | Abstract and repository metadata only, not a full-paper audit; no numerical score transfers to our independent study |
+
+### Selected Code Check, 2026-10-03
+
+These public trees and selected source portions were read, not executed or copied.
+The check changes novelty and evaluation positioning, not product research answers.
+
+| Repository/pin | Inspected scope and boundary |
+| --- | --- |
+| [FUSION](https://github.com/jinleiphys/FUSION/tree/adfd438af18da41567c31bab0a4e2e0220c08747), `adfd438af18da41567c31bab0a4e2e0220c08747` | Scoped root MIT notice and the first 180 lines of `skills/smash/scripts/verify_smash.sh`. GitHub reports NOASSERTION, so the actual notice matters. Source/build identity checks are instructive; its code-specific retry policy is not ours. |
+| [LabAgent](https://github.com/fpxlei/LabAgent/tree/c81744e553b3ce9eb2f9c6989bf536ac286e1a1b), `c81744e553b3ce9eb2f9c6989bf536ac286e1a1b` | MIT metadata; complete `reproduce/core/verifier.py` and first 220 lines of `agent_runner.py`. The latter uses mini-SWE-agent; completion text alone sets its internal success, while the separate verifier compares reported metrics. Neither substitutes for fresh executable evidence or mathematical assessment. |
+| [VERITAS](https://github.com/LucZot/veritas/tree/05a2c1e49e953f2e357567c2c4ea3f98ffa66ecc), `05a2c1e49e953f2e357567c2c4ea3f98ffa66ecc` | Apache-2.0 metadata; selected power and label functions in `experiments/evaluation.py`. Group power uses a normal approximation and regression reuses correlation power, unlike the paper's stated noncentral t/F routes. This static mismatch is not a regraded result. Do not import its hardcoded p/power verdict into the runtime. |
+| [Denario](https://github.com/AstroPilot-AI/Denario/tree/f6cc751603f2caed7524cc22b31652243c7b7c97), `f6cc751603f2caed7524cc22b31652243c7b7c97` | Default branch `master`, GPL-3.0 metadata; no controller source reviewed or adopted in this check. |
+
+The new comparisons belong in both manuscript masters. Portable skills and
+reproduction memory are not sufficient novelty; statistical derivation fidelity,
+exact implementation and interpretation need their own measured outcomes.
+Successful-case-only comparisons, matched-looking arm names and agreement with
+published numbers cannot replace a prospectively fixed all-outcome comparison.
+No new model draw, source repair, reference execution or experiment activation
+occurred in this literature check.
 
 ## Main-Paper and Appendix Review, 2026-10-02
 

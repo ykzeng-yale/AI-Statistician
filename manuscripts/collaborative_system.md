@@ -1,6 +1,6 @@
 # AI-Statistician: Scoped Collaboration for Statistical Research Through a Single Model API
 
-Working methods draft, 2026-10-02. Not submission-ready. Authors and affiliations
+Working methods draft, 2026-10-03. Not submission-ready. Authors and affiliations
 are not yet supplied. Official comparative experiments have not been activated;
 this draft makes no claim that collaboration improves scientific correctness.
 
@@ -40,6 +40,13 @@ statistical argument. Our proposed comparison adds assessment of the argument,
 its exact implementation and empirical interpretation; that assessment has not
 yet been qualified or run. [PaperBench](https://arxiv.org/abs/2504.01848),
 [Fisher-R1](https://arxiv.org/abs/2608.07437)
+
+VERITAS supplies a closer statistical-analysis comparison, including a
+phase-guided single-agent arm. Its local role configuration uses different
+checkpoints, so its reported effects do not isolate our same-model question.
+LabAgent separately studies laboratory reproduction and memory. Neither supplies
+our independent statistical-derivation outcome. [VERITAS](https://arxiv.org/abs/2604.12144),
+[LabAgent](https://arxiv.org/abs/2609.13437)
 
 The statistical task is defined by its inferential target and evidence needs.
 Identification, estimation, computation and inference are different obligations.

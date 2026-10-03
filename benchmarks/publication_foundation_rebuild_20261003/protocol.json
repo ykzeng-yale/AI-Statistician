@@ -1,0 +1,22 @@
+{
+  "purpose": "Cache-assisted reconstruction of the pinned Lean release source in a fresh checkout, not an agent experiment or scientific assessment",
+  "parent_source_commit": "3607c143563818027d6f3af58cd0f9e84ac519db",
+  "repository": "https://github.com/ykzeng-yale/EmpericalProcessLEAN.git",
+  "source_commit": "db6c7718349f3c14a7e37905f3529675f1ebaa52",
+  "toolchain": "leanprover/lean4:v4.30.0",
+  "mathlib_commit": "81343555dae873c8de2de2b27bbabf7bc4d8d97a",
+  "statlib_commit": "6575d611b5d32ef6013e9560d30b1a82a1972fb6",
+  "checkout": "/Volumes/T7 Shield/AI-Statistician-publication-verification/lean430-db6c7718-20261003",
+  "target": "StatInference",
+  "command": ["lake", "build", "StatInference"],
+  "timeout_seconds": 3600,
+  "source_and_dependency_configuration_edits": false,
+  "reuse_local_library_build_artifacts": false,
+  "dependency_cache": "Copy the existing pinned .lake/packages, after checking each manifest Git revision; record initial cache and source state",
+  "shared_verifier_guard": "Existing active-project scripts/stat_tool_layer.py repository_verifier_lock and active_statinference_verifiers",
+  "active_project_and_rag_unchanged": true,
+  "model_calls": 0,
+  "clean_machine_or_cold_dependency_claim": false,
+  "axiom_hygiene_source_fidelity_or_agent_proof_credit": false,
+  "failure_policy": "Preserve the first terminal build result and raw logs; do not alter source or dependency pins to make the record pass"
+}
