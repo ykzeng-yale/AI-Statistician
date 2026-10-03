@@ -1,6 +1,6 @@
 # Publication Programme
 
-Updated: 2026-10-02. Status: design and release work in progress; no new scientific
+Updated: 2026-10-03. Status: design and release work in progress; no new scientific
 benchmark result. The native chat goal is active and covers both publications.
 
 ## Two Research Questions
@@ -76,15 +76,21 @@ patches. A demonstration of a model error is not by itself a harness defect.
 
 ## Current Audit Evidence
 
-Inspected commits: AI-Statistician `4c0a1ade`, EmpericalProcessLEAN `4cec7860c`.
-Both were clean and their remotes were fetched. This audit inspected canonical
+The initial audit inspected AI-Statistician `4c0a1ade` and EmpericalProcessLEAN
+`4cec7860c`. Both were clean and their remotes were fetched. It inspected canonical
 entry points, session/provider contracts, installation metadata, source maps,
 Lean tooling and branch ancestry; it is not a claim that every source line or
 external paper has received expert review.
+The [integration follow-up](publication_lean_integration_20261002.md) records the
+subsequent pinned source, selected checks, PR comparison and release-access boundary.
 
 - The full `StatInference` root built locally on Lean 4.30.0 (9843 Lake jobs,
   including cached replay). This is not a clean-machine or all-declaration axiom
   audit; the root file has zero declarations to scan.
+- The separate [fresh-source check](../benchmarks/publication_foundation_rebuild_20261003/README.md)
+  timed out before root completion under its recorded environment and 3600-second
+  budget. No local-library build artifacts were reused; third-party caches were.
+  It is not a passing reconstruction, a proof rejection or a new agent outcome.
 - The library has 1361 Lean files. Its 611 source-map rows cover 173 distinct
   `(book, source_kind, source_label)` items: 509 foundation, 73 proved-general and
   29 proved-exact rows. These are existing author labels, not independently
@@ -95,6 +101,8 @@ external paper has received expert review.
 - Both repositories lack a top-level license. Source-textbook redistribution and
   third-party attribution need a rights inventory before an installable public
   release. Do not assume the owner's request establishes third-party rights.
+  Anonymous Lean repository-page/API access returned 404 on 2026-10-03; configured
+  operator Git access does not establish public release availability.
 - Existing strict development closure is still 0/2. Historical scoped credits,
   unit tests and transport checks do not create a new full-system success rate.
 - The default backend is local Qwen. Forward runtime model bindings and semantic

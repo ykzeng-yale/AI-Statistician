@@ -1,0 +1,1717 @@
+✔ [8481/9843] Built StatInference.Foundation (17s)
+✔ [8482/9843] Built StatInference.AsymptoticStatistics.ConvergenceCore (11s)
+✔ [8483/9843] Built StatInference.ProbabilityMeasure.FiniteProduct (7.5s)
+✔ [8484/9843] Built StatInference.ProbabilityMeasure.GeneratedSigma (12s)
+✔ [8485/9843] Built StatInference.ProbabilityMeasure.FiniteDimensional (12s)
+✔ [8486/9843] Built StatInference.EmpiricalProcess.BallSigma (12s)
+✔ [8487/9843] Built StatInference.ProbabilityMeasure.StrongLaw (12s)
+✔ [8488/9843] Built StatInference.EmpiricalProcess.HilbertFoundation (12s)
+✔ [8489/9843] Built StatInference.ProbabilityMeasure.Tail (13s)
+✔ [8490/9843] Built StatInference.ProbabilityMeasure.KolmogorovChentsov.FiniteInf (4.4s)
+✔ [8491/9843] Built StatInference.ProbabilityMeasure.KolmogorovChentsov.ENNReal (5.6s)
+✔ [8492/9843] Built StatInference.ProbabilityMeasure.BorelCantelli (8.4s)
+✔ [8493/9843] Built StatInference.ProbabilityMeasure.KolmogorovExtension.CompactSystem (7.4s)
+✔ [8494/9843] Built StatInference.ProbabilityMeasure.KolmogorovChentsov.MeanInequalities (7.1s)
+✔ [8495/9843] Built StatInference.ProbabilityMeasure.ProductMeasure (10s)
+✔ [8496/9843] Built StatInference.EmpiricalProcess.VCSauer (13s)
+✔ [8497/9843] Built StatInference.ProbabilityMeasure.KolmogorovChentsov.BoundedCoveringNumber (6.3s)
+✔ [8498/9843] Built StatInference.ProbabilityMeasure.Rademacher (12s)
+✔ [8499/9843] Built StatInference.ProbabilityMeasure.KolmogorovChentsov.StochasticProcesses (5.7s)
+✔ [8500/9843] Built StatInference.EmpiricalProcess.SeparableSup (6.4s)
+✔ [8501/9843] Built StatInference.ProbabilityMeasure.GaussianMoment (14s)
+✔ [8502/9843] Built StatInference.EmpiricalProcess.OuterExpectation (27s)
+✔ [8503/9843] Built StatInference.Matching.WDSM.FiniteMatching (5.3s)
+✔ [8504/9843] Built StatInference.Matching.WDSM.SurveyRatio (5.2s)
+✔ [8505/9843] Built StatInference.Matching.WDSM.ScoreRelations (6.2s)
+✔ [8506/9843] Built StatInference.Matching.WDSM.DiscreteIdentificationAlgebra (5.0s)
+✔ [8507/9843] Built StatInference.ProbabilityMeasure.GaussianMoments (11s)
+✔ [8508/9843] Built StatInference.Matching.WDSM.ConditionalExpectationBridge (7.2s)
+✔ [8509/9843] Built StatInference.Matching.WDSM.ExactZeroLimitAlgebra (5.6s)
+✔ [8510/9843] Built StatInference.Matching.WDSM.SqueezeAlgebra (5.4s)
+✔ [8511/9843] Built StatInference.Matching.WDSM.HajekLimitAlgebra (5.9s)
+✔ [8512/9843] Built StatInference.Matching.WDSM.QuadraticVariation (4.4s)
+✔ [8513/9843] Built StatInference.Matching.WDSM.ExactZeroInMeasureAlgebra (8.8s)
+✔ [8514/9843] Built StatInference.ProbabilityMeasure.KolmogorovChentsov.Topology (15s)
+✔ [8515/9843] Built StatInference.Matching.WDSM.VarianceAlgebra (5.9s)
+✔ [8516/9843] Built StatInference.Matching.WDSM.RatioLinearization (5.6s)
+✔ [8517/9843] Built StatInference.Matching.WDSM.NegligibleAlgebra (5.8s)
+✔ [8518/9843] Built StatInference.Matching.WDSM.SlutskyAlgebra (9.0s)
+✔ [8519/9843] Built StatInference.Matching.WDSM.ResidualMartingalePartialSum (7.4s)
+✔ [8520/9843] Built StatInference.Matching.WDSM.ResidualMartingaleQuadraticVariation (7.4s)
+✔ [8521/9843] Built StatInference.Matching.ConditionalExpectationBridge (7.2s)
+✔ [8522/9843] Built StatInference.Matching.ExactZeroInMeasureAlgebra (7.1s)
+✔ [8523/9843] Built StatInference.Matching.SlutskyAlgebra (9.9s)
+✔ [8524/9843] Built StatInference.Optimization.FinitePinskerIdentities (6.6s)
+⚠ [8525/9843] Built StatInference.Optimization.BrunnMinkowski (11s)
+warning: StatInference/Optimization/BrunnMinkowski.lean:370:35: `mul_le_mul_left'` has been deprecated: Use `mul_le_mul_right` instead
+✔ [8526/9843] Built StatInference.ProbabilityTheory.ProductBounds (11s)
+✔ [8527/9843] Built StatInference.Optimization.ASGDScalarAsymptotics (12s)
+⚠ [8528/9843] Built StatInference.Optimization.BubeckEldanLogAffine (12s)
+warning: StatInference/Optimization/BubeckEldanLogAffine.lean:221:35: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+warning: StatInference/Optimization/BubeckEldanLogAffine.lean:222:45: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+warning: StatInference/Optimization/BubeckEldanLogAffine.lean:408:12: This simp argument is unused:
+  boundaryPrimitive
+
+Hint: Omit it from the simp argument list.
+  simp [b̵o̵u̵n̵d̵a̵r̵y̵P̵r̵i̵m̵i̵t̵i̵v̵e̵,̵ ̵secondIntegrand, cubicIntegrand]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Optimization/BubeckEldanLogAffine.lean:407:35: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+warning: StatInference/Optimization/BubeckEldanLogAffine.lean:408:64: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+✔ [8529/9843] Built StatInference.ProbabilityTheory.MomentStandardization (10s)
+✔ [8530/9843] Built StatInference.Optimization.EntropicPartition (13s)
+✔ [8531/9843] Built StatInference.Optimization.RelativePolar (10s)
+✔ [8532/9843] Built StatInference.Optimization.OrthonormalCoordinateTransport (8.5s)
+✔ [8533/9843] Built StatInference.ProbabilityTheory.BernsteinApproximation (6.7s)
+✔ [8534/9843] Built StatInference.Optimization.MomentCrossing (8.1s)
+✔ [8535/9843] Built StatInference.ProbabilityTheory.ConvergenceInProbability (8.7s)
+✔ [8537/9843] Built StatInference.ProbabilityTheory.GammaDistribution (7.6s)
+✔ [8538/9843] Built StatInference.ProbabilityTheory.ENNRealSeries (6.6s)
+✔ [8539/9843] Built StatInference.ProbabilityTheory.GaussianDistribution (7.8s)
+✔ [8540/9843] Built StatInference.Optimization.ZerothOrderLowerBound (10s)
+✔ [8541/9843] Built StatInference.ProbabilityTheory.IndependenceFoundations (7.6s)
+✔ [8542/9843] Built StatInference.ProbabilityTheory.StandardBorel (6.3s)
+✔ [8543/9843] Built StatInference.ProbabilityTheory.Occupancy (8.3s)
+✔ [8544/9843] Built StatInference.Inference.Deterministic (6.2s)
+✔ [8545/9843] Built StatInference.Inference.QMD (6.4s)
+✔ [8546/9843] Built StatInference.ProbabilityTheory.ShrinkingIntervalCounterexample (7.8s)
+✔ [8547/9843] Built StatInference.ProbabilityTheory.StrongLawTruncation (10s)
+✔ [8548/9843] Built StatInference.ProbabilityMeasure.InfiniteProduct (8.2s)
+✔ [8549/9843] Built StatInference.ProbabilityTheory.FourthMomentStrongLaw (7.6s)
+✔ [8550/9843] Built StatInference.AsymptoticStatistics.Projections (11s)
+✔ [8551/9843] Built StatInference.EmpiricalProcess.HilbertGaussian (8.4s)
+✔ [8552/9843] Built StatInference.ProbabilityTheory.GeneralizedLayerCake (8.3s)
+✔ [8553/9843] Built StatInference.ProbabilityTheory.IntegerValuedMoments (8.9s)
+✔ [8554/9843] Built StatInference.ProbabilityTheory.BorelCantelli (7.7s)
+✔ [8555/9843] Built StatInference.ProbabilityTheory.AlmostSureNormalization (9.3s)
+✔ [8556/9843] Built StatInference.ProbabilityMeasure.KolmogorovChentsov.Chaining (10s)
+✔ [8557/9843] Built StatInference.ProbabilityMeasure.KolmogorovExtension.RegularContent (6.1s)
+✔ [8558/9843] Built StatInference.ProbabilityMeasure.LastExit (8.2s)
+✔ [8559/9843] Built StatInference.ProbabilityTheory.BoundedSupremumBorelCantelli (9.1s)
+✔ [8560/9843] Built StatInference.EmpiricalProcess.EllInfty (19s)
+✔ [8561/9843] Built StatInference.Matching.WDSM.IdentificationInterfaces (5.1s)
+✔ [8562/9843] Built StatInference.ProbabilityTheory.RandomPermutationIndicators (8.7s)
+✔ [8563/9843] Built StatInference.Matching.WDSM.DependentMatchingCoefficientFacts (6.0s)
+✔ [8564/9843] Built StatInference.EmpiricalProcess.OuterExpectationScale (8.3s)
+✔ [8565/9843] Built StatInference.Matching.WDSM.UnweightedSpecialization (6.1s)
+✔ [8566/9843] Built StatInference.Matching.ScoreRelations (5.8s)
+✔ [8567/9843] Built StatInference.Matching.WDSM.EstimatorAlgebra (6.1s)
+✔ [8568/9843] Built StatInference.Matching.DiscreteIdentificationAlgebra (6.3s)
+✔ [8569/9843] Built StatInference.Matching.WDSM.DiscreteMeanRecovery (6.0s)
+✔ [8570/9843] Built StatInference.Matching.ConditionalResidualBridge (7.8s)
+✔ [8571/9843] Built StatInference.Matching.SqueezeAlgebra (6.1s)
+✔ [8572/9843] Built StatInference.Matching.WDSM.FiniteLyapunovLindeberg (6.5s)
+✔ [8573/9843] Built StatInference.Matching.WDSM.ConditionalResidualBridge (7.9s)
+✔ [8574/9843] Built StatInference.Matching.ConditionalMeanIntegralBridge (8.1s)
+✔ [8575/9843] Built StatInference.Matching.TwoArmVarianceAlgebra (5.3s)
+✔ [8576/9843] Built StatInference.Matching.WDSM.ScaledSqueezeAlgebra (6.3s)
+✔ [8577/9843] Built StatInference.Matching.WDSM.ConditionalMeanIntegralBridge (9.3s)
+⚠ [8578/9843] Built StatInference.Optimization.SelfConcordancePolarization (52s)
+warning: StatInference/Optimization/SelfConcordancePolarization.lean:99:8: `push_neg` has been deprecated. Prefer using `push Not` instead.
+If you'd rather continue using `push_neg` in your project, you can implement it as follows:
+```
+open Lean.Parser.Tactic in
+macro "push_neg" cfg:optConfig loc:(location)? : tactic =>
+  `(tactic| push $cfg:optConfig Not $[$loc]?)
+```
+warning: StatInference/Optimization/SelfConcordancePolarization.lean:262:10: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Optimization/SelfConcordancePolarization.lean:13:5: unused variable `hC`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Optimization/SelfConcordancePolarization.lean:75:27: This simp argument is unused:
+  Real.norm_eq_abs
+
+Hint: Omit it from the simp argument list.
+  simp [e₀, norm_smul, R̵e̵a̵l̵.̵n̵o̵r̵m̵_̵e̵q̵_̵a̵b̵s̵,̵ ̵abs_of_nonneg, he]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Optimization/SelfConcordancePolarization.lean:75:45: This simp argument is unused:
+  abs_of_nonneg
+
+Hint: Omit it from the simp argument list.
+  simp [e₀, norm_smul, Real.norm_eq_abs, a̵b̵s̵_̵o̵f̵_̵n̵o̵n̵n̵e̵g̵,̵ ̵he]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Optimization/SelfConcordancePolarization.lean:104:30: This simp argument is unused:
+  Real.norm_eq_abs
+
+Hint: Omit it from the simp argument list.
+  simp [u, norm_smul, R̵e̵a̵l̵.̵n̵o̵r̵m̵_̵e̵q̵_̵a̵b̵s̵,̵ ̵abs_of_nonneg, hnorm_ne i]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Optimization/SelfConcordancePolarization.lean:104:48: This simp argument is unused:
+  abs_of_nonneg
+
+Hint: Omit it from the simp argument list.
+  simp [u, norm_smul, Real.norm_eq_abs, a̵b̵s̵_̵o̵f̵_̵n̵o̵n̵n̵e̵g̵,̵ ̵hnorm_ne i]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Optimization/SelfConcordancePolarization.lean:120:34: This simp argument is unused:
+  Real.norm_eq_abs
+
+Hint: Omit it from the simp argument list.
+  simp [normalize, norm_smul, R̵e̵a̵l̵.̵n̵o̵r̵m̵_̵e̵q̵_̵a̵b̵s̵,̵ ̵abs_of_nonneg, hx]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Optimization/SelfConcordancePolarization.lean:120:52: This simp argument is unused:
+  abs_of_nonneg
+
+Hint: Omit it from the simp argument list.
+  simp [normalize, norm_smul, Real.norm_eq_abs, a̵b̵s̵_̵o̵f̵_̵n̵o̵n̵n̵e̵g̵,̵ ̵hx]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Optimization/SelfConcordancePolarization.lean:31:14: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+✔ [8579/9843] Built StatInference.Matching.WDSM.HeterogeneityVarianceAlgebra (4.0s)
+✔ [8580/9843] Built StatInference.Matching.WDSM.OwnPlusReuseVariance (5.1s)
+✔ [8581/9843] Built StatInference.Matching.WDSM.ResidualVarianceAlgebra (5.0s)
+✔ [8582/9843] Built StatInference.Matching.WDSM.TwoArmVarianceAlgebra (4.0s)
+✔ [8583/9843] Built StatInference.Matching.WDSM.ProspectiveVarianceFormulaAudit (5.1s)
+✔ [8584/9843] Built StatInference.Matching.WDSM.CenteringAlgebra (5.5s)
+✔ [8585/9843] Built StatInference.Matching.WDSM.BootstrapAlgebra (5.8s)
+✔ [8586/9843] Built StatInference.Matching.NegligibleAlgebra (5.7s)
+✔ [8587/9843] Built StatInference.Matching.WDSM.BiasLimitAlgebra (6.3s)
+✔ [8588/9843] Built StatInference.Matching.WDSM.ExactZeroInDistributionAlgebra (9.8s)
+✔ [8589/9843] Built StatInference.Matching.ExactZeroInDistributionAlgebra (9.3s)
+✔ [8590/9843] Built StatInference.Matching.WDSM.BiasCorrectionLimitAlgebra (8.3s)
+✔ [8591/9843] Built StatInference.Matching.WDSM.KnownScoreLimitAlgebra (8.7s)
+✔ [8592/9843] Built StatInference.Matching.WDSM.TextbookAsymptoticAdapters (9.6s)
+✔ [8593/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayPrimitives (8.3s)
+✔ [8594/9843] Built StatInference.ProbabilityTheory.HeadRuns (32s)
+✔ [8595/9843] Built StatInference.Optimization.BrunnMinkowskiFinite (12s)
+⚠ [8596/9843] Built StatInference.Optimization.BubeckEldanTiltedMoments (12s)
+warning: StatInference/Optimization/BubeckEldanTiltedMoments.lean:65:12: This simp argument is unused:
+  F
+
+Hint: Omit it from the simp argument list.
+  simp [F̵,̵ ̵fk, fksucc, pow_succ]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Optimization/BubeckEldanTiltedMoments.lean:64:34: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+warning: StatInference/Optimization/BubeckEldanTiltedMoments.lean:65:37: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+warning: StatInference/Optimization/BubeckEldanTiltedMoments.lean:423:42: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+warning: StatInference/Optimization/BubeckEldanTiltedMoments.lean:424:37: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+✔ [8597/9843] Built StatInference.ProbabilityTheory.BernoulliConvergence (9.7s)
+⚠ [8598/9843] Built StatInference.Optimization.BubeckEldanQuadratic (15s)
+warning: StatInference/Optimization/BubeckEldanQuadratic.lean:84:10: This simp argument is unused:
+  bubeckEldanQLog
+
+Hint: Omit it from the simp argument list.
+  simp ̵[̵b̵u̵b̵e̵c̵k̵E̵l̵d̵a̵n̵Q̵L̵o̵g̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Optimization/BubeckEldanQuadratic.lean:83:61: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+warning: StatInference/Optimization/BubeckEldanQuadratic.lean:84:27: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+✔ [8599/9843] Built StatInference.Optimization.CubicMomentSupremum (10s)
+✔ [8600/9843] Built StatInference.ProbabilityTheory.CountableSpaceConvergence (10s)
+✔ [8601/9843] Built StatInference.ProbabilityTheory.ConvergenceInProbabilityMetric (10s)
+✔ [8602/9843] Built StatInference.Optimization.EntropicDirectionalDerivatives (12s)
+✔ [8603/9843] Built StatInference.Optimization.RelativePolarTransport (15s)
+✔ [8604/9843] Built StatInference.Matching.ExactZeroLimitAlgebra (150s)
+✔ [8605/9843] Built StatInference.Matching.FiniteMatching (150s)
+✔ [8606/9843] Built StatInference.Matching.HajekLimitAlgebra (151s)
+✔ [8607/9843] Built StatInference.Matching.QuadraticVariation (152s)
+✔ [8608/9843] Built StatInference.Matching.RatioLinearization (152s)
+✔ [8609/9843] Built StatInference.Matching.SurveyRatio (152s)
+✔ [8610/9843] Built StatInference.Asymptotics.Basic (147s)
+✔ [8611/9843] Built StatInference.Matching.VarianceAlgebra (155s)
+✔ [8612/9843] Built StatInference.Optimization.UniversalBarrierScalarAlgebra (168s)
+✔ [8613/9843] Built StatInference.Inference (8.7s)
+✔ [8614/9843] Built StatInference.ProbabilityTheory.PairwiseIndependenceExample (12s)
+✔ [8615/9843] Built StatInference.EmpiricalProcess.BrownianBridge (12s)
+✔ [8616/9843] Built StatInference.ProbabilityTheory.IndependentEventUnion (13s)
+✔ [8617/9843] Built StatInference.ProbabilityTheory.UncorrelatedDependentExample (13s)
+✔ [8618/9843] Built StatInference.ProbabilityTheory.OccupancyVariance (14s)
+✔ [8619/9843] Built StatInference.ProbabilityTheory.TransitionEventBorelCantelli (9.4s)
+✔ [8620/9843] Built StatInference.ProbabilityMeasure.KolmogorovExtension.ProjectiveLimit (10s)
+✔ [8621/9843] Built StatInference.ProbabilityTheory.ExponentialMaxima (15s)
+✔ [8622/9843] Built StatInference.EmpiricalProcess.EllInftyFiniteRestrictionGrid (9.3s)
+✔ [8623/9843] Built StatInference.EmpiricalProcess.EllInftyReindex (12s)
+✔ [8624/9843] Built StatInference.AsymptoticStatistics.ProjectionAsymptoticEquivalence (26s)
+✔ [8625/9843] Built StatInference.EmpiricalProcess.FiniteCoordinateApproximation (13s)
+✔ [8626/9843] Built StatInference.Matching.IdentificationInterfaces (5.8s)
+✔ [8627/9843] Built StatInference.ProbabilityTheory.RandomWalkRecurrence (17s)
+⚠ [8628/9843] Built StatInference.ProbabilityTheory.StationaryMarkovChain (30s)
+warning: StatInference/ProbabilityTheory/StationaryMarkovChain.lean:3449:14: `mul_le_mul_left'` has been deprecated: Use `mul_le_mul_right` instead
+warning: StatInference/ProbabilityTheory/StationaryMarkovChain.lean:3778:39: This simp argument is unused:
+  hsum
+
+Hint: Omit it from the simp argument list.
+  simp [killedState, hy,̵ ̵h̵s̵u̵m̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+✔ [8629/9843] Built StatInference.Matching.PATTAlgebra (5.6s)
+✔ [8630/9843] Built StatInference.Matching.UnweightedSpecialization (5.6s)
+✔ [8631/9843] Built StatInference.EmpiricalProcess.EllInftyFiniteSelector (9.7s)
+✔ [8632/9843] Built StatInference.ProbabilityTheory.RandomPermutationTransport (9.0s)
+✔ [8633/9843] Built StatInference.Matching.EstimatorAlgebra (5.4s)
+✔ [8634/9843] Built StatInference.ProbabilityTheory.RecordValues (8.6s)
+✔ [8635/9843] Built StatInference.Matching.WDSM.PATTAlgebra (5.0s)
+✔ [8636/9843] Built StatInference.Matching.WDSM.PATEAlgebra (5.4s)
+✔ [8637/9843] Built StatInference.Matching.WDSM.ScoreSpaceMean (5.4s)
+✔ [8638/9843] Built StatInference.Matching.WDSM.ResidualReuse (5.5s)
+⚠ [8639/9843] Built StatInference.Optimization.Basic (195s)
+warning: StatInference/Optimization/Basic.lean:558:55: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+warning: StatInference/Optimization/Basic.lean:559:28: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+warning: StatInference/Optimization/Basic.lean:765:64: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+✔ [8640/9843] Built StatInference.Matching.WDSM.BiasDecomposition (5.5s)
+✔ [8641/9843] Built StatInference.Matching.DiscreteMeanRecovery (4.9s)
+✔ [8642/9843] Built StatInference.Matching.WDSM.DiscreteBalancingAlgebra (4.9s)
+✔ [8643/9843] Built StatInference.Matching.WDSM.ResidualCoefficientLyapunov (5.0s)
+✔ [8644/9843] Built StatInference.Matching.ConditionalOrthogonalityBridge (6.8s)
+✔ [8645/9843] Built StatInference.Matching.WDSM.ConditionalOrthogonalityBridge (7.4s)
+✔ [8646/9843] Built StatInference.Matching.ScaledSqueezeAlgebra (5.7s)
+✔ [8647/9843] Built StatInference.Matching.WDSM.EnvelopeRateAlgebra (6.0s)
+✔ [8648/9843] Built StatInference.Matching.HeterogeneityVarianceAlgebra (4.9s)
+✔ [8649/9843] Built StatInference.Matching.OwnPlusReuseVariance (4.6s)
+✔ [8650/9843] Built StatInference.ProbabilityMeasure.KolmogorovChentsov.IsKolmogorovProcess (33s)
+✔ [8651/9843] Built StatInference.Matching.ConditionalIdentificationBridge (7.4s)
+✔ [8652/9843] Built StatInference.Matching.WDSM.ConditionalIdentificationBridge (7.6s)
+✔ [8653/9843] Built StatInference.Matching.WDSM.ResidualVarianceExpansion (5.0s)
+✔ [8654/9843] Built StatInference.Matching.ScoreAdjustmentAlgebra (5.1s)
+✔ [8655/9843] Built StatInference.Matching.ResidualVarianceAlgebra (4.5s)
+✔ [8656/9843] Built StatInference.Matching.WDSM.TwoArmResidualVarianceAlgebra (4.7s)
+✔ [8657/9843] Built StatInference.Matching.WDSM.ScoreAdjustmentAlgebra (4.8s)
+✔ [8658/9843] Built StatInference.Matching.WDSM.PATTVarianceAlgebra (5.4s)
+✔ [8659/9843] Built StatInference.Matching.CenteringAlgebra (4.8s)
+✔ [8660/9843] Built StatInference.Matching.BootstrapAlgebra (5.1s)
+✔ [8661/9843] Built StatInference.Matching.WDSM.BootstrapMultiplierMomentBridge (5.4s)
+✔ [8662/9843] Built StatInference.Matching.BiasLimitAlgebra (5.7s)
+✔ [8663/9843] Built StatInference.Matching.BiasCorrectionLimitAlgebra (7.4s)
+✔ [8664/9843] Built StatInference.Matching.KnownScoreLimitAlgebra (6.9s)
+✔ [8665/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayCharacteristicPrimitives (7.8s)
+✔ [8666/9843] Built StatInference.Matching.WDSM.HajekSlutskyAlgebra (8.3s)
+✔ [8667/9843] Built StatInference.Optimization.EntropicLogConcavity (9.8s)
+✔ [8668/9843] Built StatInference.Optimization.ConvexBodySections (9.5s)
+✔ [8669/9843] Built StatInference.ProbabilityTheory.ConvergenceInProbabilityComplete (11s)
+✔ [8670/9843] Built StatInference.Optimization.EntropicCovariance (11s)
+✔ [8671/9843] Built StatInference.Optimization.RelativePolarVolume (11s)
+✔ [8672/9843] Built StatInference.Optimization.BubeckEldanMonotonicity (14s)
+✔ [8673/9843] Built StatInference.ProbabilityTheory.KolmogorovExtension (10s)
+✔ [8674/9843] Built StatInference.EmpiricalProcess.ContinuousPathProcessMeasurability (11s)
+✔ [8675/9843] Built StatInference.Optimization.BubeckEldanTiltedMomentB (28s)
+✔ [8676/9843] Built StatInference.ProbabilityTheory.FiniteRelativeRanks (12s)
+✔ [8677/9843] Built StatInference.ProbabilityTheory.CharacteristicFunctionRecurrence (19s)
+✔ [8678/9843] Built StatInference.ProbabilityTheory.GaussianLimitRecurrence (19s)
+✔ [8679/9843] Built StatInference.Matching.WDSM.ProspectiveEstimatorSpecialization (8.0s)
+✔ [8680/9843] Built StatInference.Matching.WDSM.RetrospectivePATTReuseTransfer (8.9s)
+✔ [8681/9843] Built StatInference.AsymptoticStatistics.UStatistics (24s)
+✔ [8682/9843] Built StatInference.Matching.PATEAlgebra (6.1s)
+✔ [8683/9843] Built StatInference.Matching.WDSM.RetrospectiveReuseTransfer (6.4s)
+✔ [8684/9843] Built StatInference.Matching.ScoreSpaceMean (6.9s)
+✔ [8685/9843] Built StatInference.Matching.ResidualReuse (5.0s)
+✔ [8686/9843] Built StatInference.Matching.WDSM.LipschitzBiasBound (6.0s)
+✔ [8687/9843] Built StatInference.Benchmarks.Basic (128s)
+✔ [8688/9843] Built StatInference.Asymptotics.Op (134s)
+✔ [8689/9843] Built StatInference.Experiments.TwoStageERM (136s)
+✔ [8690/9843] Built StatInference.EmpiricalProcess.Basic (132s)
+✔ [8691/9843] Built StatInference.Optimization.HopfLax (110s)
+✔ [8692/9843] Built StatInference.Matching.BiasDecomposition (7.0s)
+✔ [8693/9843] Built StatInference.Matching.WDSM.BiasCorrectionAlgebra (8.0s)
+✔ [8694/9843] Built StatInference.Matching.WDSM.AggregateDecomposition (8.5s)
+✔ [8695/9843] Built StatInference.Optimization.DiscreteGronwall (106s)
+✔ [8696/9843] Built StatInference.Optimization.Reductions (114s)
+✔ [8697/9843] Built StatInference.Matching.WDSM.DiscreteCellErrorBounds (8.0s)
+✔ [8698/9843] Built StatInference.Matching.WDSM.DiscretePATTBalancing (8.1s)
+✔ [8699/9843] Built StatInference.Matching.DiscreteBalancingAlgebra (8.3s)
+✔ [8700/9843] Built StatInference.Matching.WDSM.DiscreteShareMeanDecomposition (7.5s)
+✔ [8701/9843] Built StatInference.Matching.WDSM.DiscretePATEBalancing (7.0s)
+✔ [8702/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayLindebergPrimitives (7.8s)
+✔ [8703/9843] Built StatInference.Matching.WDSM.TwoArmResidualCoefficientLyapunov (7.4s)
+✔ [8704/9843] Built StatInference.Matching.EnvelopeRateAlgebra (7.0s)
+✔ [8705/9843] Built StatInference.Optimization.LowerBounds (127s)
+✔ [8706/9843] Built StatInference.Optimization.FrankWolfe (125s)
+✔ [8707/9843] Built StatInference.Matching.ConditionalQuadraticVariationBridge (9.8s)
+✔ [8708/9843] Built StatInference.Matching.WDSM.ConditionalQuadraticVariationBridge (10s)
+✔ [8709/9843] Built StatInference.Optimization.AppendixA (126s)
+✔ [8710/9843] Built StatInference.Matching.ScoreVersionIdentificationBridge (8.2s)
+✔ [8711/9843] Built StatInference.Matching.ResidualVarianceExpansion (6.1s)
+✔ [8712/9843] Built StatInference.Matching.PATTVarianceAlgebra (5.9s)
+✔ [8713/9843] Built StatInference.Matching.WDSM.VarianceLimitComponentPositivity (5.7s)
+✔ [8714/9843] Built StatInference.Matching.WDSM.ProspectiveResidualQuadraticVariationAudit (6.0s)
+✔ [8715/9843] Built StatInference.Matching.WDSM.ScoreVersionIdentificationBridge (9.1s)
+✔ [8716/9843] Built StatInference.Matching.WDSM.BootstrapMultinomialMomentBridge (5.6s)
+✔ [8717/9843] Built StatInference.Matching.WDSM.VarianceLimitAlgebra (9.8s)
+✔ [8718/9843] Built StatInference.Matching.HajekSlutskyAlgebra (7.7s)
+✔ [8719/9843] Built StatInference.Optimization.ConvexBodyCoordinateMarginal (7.8s)
+✔ [8720/9843] Built StatInference.Optimization.ConvexBodySectionContinuity (11s)
+✔ [8721/9843] Built StatInference.ProbabilityMeasure.KolmogorovChentsov.KolmogorovChentsovInequality (25s)
+✔ [8722/9843] Built StatInference.Matching.WDSM.ProspectiveReuseTransfer (6.1s)
+✔ [8723/9843] Built StatInference.Optimization.EntropicCovarianceOperator (11s)
+✔ [8724/9843] Built StatInference.ProbabilityTheory.AtomlessFiniteSamples (11s)
+✔ [8725/9843] Built StatInference.Matching.LipschitzBiasBound (6.5s)
+⚠ [8726/9843] Built StatInference.Optimization.Minimizer (59s)
+warning: StatInference/Optimization/Minimizer.lean:437:62: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+ℹ [8727/9843] Built StatInference.ProbabilityTheory.PolyaDistribution (17s)
+info: StatInference/ProbabilityTheory/PolyaDistribution.lean:65:4: Try this:
+  [apply] ring_nf
+  
+  The `ring` tactic failed to close the goal. Use `ring_nf` to obtain a normal form.
+    
+  Note that `ring` works primarily in *commutative* rings. If you have a noncommutative ring, abelian group or module, consider using `noncomm_ring`, `abel` or `module` instead.
+info: StatInference/ProbabilityTheory/PolyaDistribution.lean:113:6: Try this:
+  [apply] ring_nf
+  
+  The `ring` tactic failed to close the goal. Use `ring_nf` to obtain a normal form.
+    
+  Note that `ring` works primarily in *commutative* rings. If you have a noncommutative ring, abelian group or module, consider using `noncomm_ring`, `abel` or `module` instead.
+✔ [8728/9843] Built StatInference.Optimization.UniversalBarrier (22s)
+✔ [8729/9843] Built StatInference.AsymptoticStatistics.RankStatistics (17s)
+✔ [8730/9843] Built StatInference.Optimization.BubeckEldanTiltedMomentC (25s)
+✔ [8731/9843] Built StatInference.Matching.BiasCorrectionAlgebra (6.4s)
+✔ [8732/9843] Built StatInference.Matching.AggregateDecomposition (4.9s)
+✔ [8733/9843] Built StatInference.Matching.HajekWeights (5.9s)
+✔ [8734/9843] Built StatInference.Matching.WDSM.RetrospectivePATTDecomposition (5.4s)
+✔ [8735/9843] Built StatInference.Matching.WDSM.BiasBounds (5.5s)
+✔ [8736/9843] Built StatInference.Matching.WDSM.HajekWeights (5.5s)
+✔ [8737/9843] Built StatInference.Matching.WDSM.RetrospectivePATEDecomposition (7.6s)
+⚠ [8738/9843] Built StatInference.Matching.WDSM.AsymptoticInterfaces (7.2s)
+warning: StatInference/Matching/WDSM/AsymptoticInterfaces.lean:661:5: unused variable `hregular`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/AsymptoticInterfaces.lean:662:5: unused variable `hchen_han`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/AsymptoticInterfaces.lean:663:5: unused variable `hmoment_transfer`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/AsymptoticInterfaces.lean:666:5: unused variable `hresidual_reg`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+✔ [8739/9843] Built StatInference.Matching.DiscreteCellErrorBounds (4.0s)
+✔ [8740/9843] Built StatInference.Benchmarks (32s)
+✔ [8741/9843] Built StatInference.Experiments (30s)
+✔ [8742/9843] Built StatInference.Matching.WDSM.DiscreteContrastErrorBounds (4.0s)
+✔ [8743/9843] Built StatInference.Matching.DiscretePATTBalancing (4.5s)
+✔ [8744/9843] Built StatInference.Matching.DiscreteShareMeanDecomposition (4.0s)
+✔ [8745/9843] Built StatInference.Matching.WDSM.DiscreteTreatmentEffectShareDecomposition (5.3s)
+✔ [8746/9843] Built StatInference.Asymptotics.AsymptoticNormal (37s)
+✔ [8747/9843] Built StatInference.EmpiricalProcess.Average (26s)
+✔ [8748/9843] Built StatInference.Asymptotics.Convergence (37s)
+✔ [8749/9843] Built StatInference.EmpiricalProcess.Outer (32s)
+✔ [8750/9843] Built StatInference.Matching.DiscretePATEBalancing (5.2s)
+✔ [8751/9843] Built StatInference.Matching.WDSM.DiscreteScoreMeasurableBalancing (5.4s)
+✔ [8752/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayLindebergRoute (5.0s)
+✔ [8753/9843] Built StatInference.Matching.WDSM.ResidualLindebergCondition (5.0s)
+✔ [8754/9843] Built StatInference.Matching.WDSM.ProspectiveResidualQVVarianceAudit (5.3s)
+✔ [8755/9843] Built StatInference.Matching.ConditionalCrossMomentBridge (7.6s)
+✔ [8756/9843] Built StatInference.Matching.WDSM.ConditionalVarianceTargetBridge (7.7s)
+✔ [8757/9843] Built StatInference.Matching.WDSM.ConditionalCrossMomentBridge (8.1s)
+✔ [8758/9843] Built StatInference.Matching.WDSM.ProspectiveResidualQVStabilization (6.1s)
+✔ [8759/9843] Built StatInference.Matching.SurveyConditionalIdentificationBridge (7.4s)
+✔ [8760/9843] Built StatInference.Matching.WDSM.BootstrapMultinomialCountBridge (5.6s)
+✔ [8761/9843] Built StatInference.Matching.VarianceLimitAlgebra (8.1s)
+✔ [8762/9843] Built StatInference.Matching.WDSM.StudentizedLimitAlgebra (9.2s)
+✔ [8763/9843] Built StatInference.Matching.WDSM.SurveyConditionalIdentificationBridge (10s)
+✔ [8764/9843] Built StatInference.Matching.WDSM.WaldIntervalAlgebra (9.8s)
+✔ [8765/9843] Built StatInference.Optimization.ConcavePowerDensity (9.5s)
+✔ [8766/9843] Built StatInference.Optimization.ConvexBodyCoordinateSupport (10s)
+✔ [8767/9843] Built StatInference.ProbabilityTheory.InfiniteRelativeRanks (12s)
+✔ [8768/9843] Built StatInference.Optimization.GradientDescent (50s)
+✔ [8769/9843] Built StatInference.Optimization.AdaptiveRegularization (56s)
+⚠ [8770/9843] Built StatInference.ProbabilityMeasure.KolmogorovChentsov.KolmogorovChentsov (27s)
+warning: StatInference/ProbabilityMeasure/KolmogorovChentsov/KolmogorovChentsov.lean:827:17: `ENNReal.max_eq_zero_iff` has been deprecated: Use `max_eq_zero` instead
+
+Note: The updated constant has a different type:
+  ∀ {α : Type u_1} [inst : LinearOrder α] [inst_1 : Zero α] [IsBotZeroClass α] {a b : α}, max a b = 0 ↔ a = 0 ∧ b = 0
+instead of
+  ∀ {a b : ℝ≥0∞}, max a b = 0 ↔ a = 0 ∧ b = 0
+
+Note: The updated constant is in a different namespace. Dot notation may need to be changed (e.g., from `x.max_eq_zero_iff` to `max_eq_zero x`).
+warning: StatInference/ProbabilityMeasure/KolmogorovChentsov/KolmogorovChentsov.lean:848:17: `ENNReal.max_eq_zero_iff` has been deprecated: Use `max_eq_zero` instead
+
+Note: The updated constant has a different type:
+  ∀ {α : Type u_1} [inst : LinearOrder α] [inst_1 : Zero α] [IsBotZeroClass α] {a b : α}, max a b = 0 ↔ a = 0 ∧ b = 0
+instead of
+  ∀ {a b : ℝ≥0∞}, max a b = 0 ↔ a = 0 ∧ b = 0
+
+Note: The updated constant is in a different namespace. Dot notation may need to be changed (e.g., from `x.max_eq_zero_iff` to `max_eq_zero x`).
+✔ [8771/9843] Built StatInference.Matching.WDSM.ProspectiveSpecialization (6.7s)
+✔ [8772/9843] Built StatInference.Matching.BiasBounds (5.6s)
+✔ [8773/9843] Built StatInference.Optimization.Theorem131 (49s)
+✔ [8774/9843] Built StatInference.Optimization.EntropicFrechet (34s)
+✔ [8775/9843] Built StatInference.Matching.WDSM.AggregateLipschitzBiasBound (4.9s)
+✔ [8776/9843] Built StatInference.Matching.WDSM.EstimatedScoreLocalExperimentVarianceRefinement (5.1s)
+✔ [8777/9843] Built StatInference.Optimization.BubeckEldanRatioCertificate (18s)
+⚠ [8778/9843] Built StatInference.Optimization.Theorem45 (55s)
+warning: StatInference/Optimization/Theorem45.lean:3665:24: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+warning: StatInference/Optimization/Theorem45.lean:4054:32: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+✔ [8779/9843] Built StatInference.Matching.ReferenceTheorems (5.2s)
+✔ [8780/9843] Built StatInference.AsymptoticStatistics.Testing (27s)
+✔ [8781/9843] Built StatInference.Matching.WDSM.ProspectiveResidualMartingaleAudit (5.6s)
+✔ [8782/9843] Built StatInference.Matching.DiscreteContrastErrorBounds (4.9s)
+✔ [8783/9843] Built StatInference.Matching.WDSM.ReferenceTheorems (5.6s)
+⚠ [8784/9843] Built StatInference.Matching.WDSM.EstimatorAlgebraSupportRestriction (11s)
+warning: StatInference/Matching/WDSM/EstimatorAlgebraSupportRestriction.lean:56:0: automatically included section variable(s) unused in theorem `StatInference.Matching.WDSM.imputedOutcome_eq_matchSet_sum_of_subset_of_coeff_zero_off`:
+  [DecidableEq Unit]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq Unit] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Matching/WDSM/EstimatorAlgebraSupportRestriction.lean:1278:8: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/EstimatorAlgebraSupportRestriction.lean:1310:8: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/EstimatorAlgebraSupportRestriction.lean:1367:8: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/EstimatorAlgebraSupportRestriction.lean:2681:0: automatically included section variable(s) unused in theorem `StatInference.Matching.WDSM.selectedMatchWeightDenominator_pos_of_nonempty_of_pos`:
+  [DecidableEq Unit]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq Unit] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Matching/WDSM/EstimatorAlgebraSupportRestriction.lean:2744:0: automatically included section variable(s) unused in theorem `StatInference.Matching.WDSM.retrospectivePATE_PATT_denominator_nonzero_of_nonempty_of_weight_pos`:
+  [DecidableEq Unit]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq Unit] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Matching/WDSM/EstimatorAlgebraSupportRestriction.lean:2966:0: automatically included section variable(s) unused in theorem `StatInference.Matching.WDSM.two_arm_matchSupport_subset_nonempty_of_filtered_support_nonempty`:
+  [DecidableEq Unit]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq Unit] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Matching/WDSM/EstimatorAlgebraSupportRestriction.lean:3002:0: automatically included section variable(s) unused in theorem `StatInference.Matching.WDSM.treatedSet_controlSet_card_pos_of_one_side_card_pos_filtered_support_nonempty`:
+  [DecidableEq Unit]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq Unit] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Matching/WDSM/EstimatorAlgebraSupportRestriction.lean:3052:0: automatically included section variable(s) unused in theorem `StatInference.Matching.WDSM.treatedSet_controlSet_card_pos_of_one_side_card_pos_matchSupport_subset_nonempty`:
+  [DecidableEq Unit]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq Unit] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+✔ [8785/9843] Built StatInference.Matching.DiscreteTreatmentEffectShareDecomposition (4.5s)
+✔ [8786/9843] Built StatInference.Matching.WDSM.DiscreteErrorRateAlgebra (5.8s)
+✔ [8787/9843] Built StatInference.Matching.WDSM.DiscreteArmEffectShareBalancing (4.4s)
+✔ [8788/9843] Built StatInference.Matching.ProspectiveSpecialization (4.6s)
+✔ [8789/9843] Built StatInference.Matching.WDSM.DiscreteApproximateBalancing (4.4s)
+✔ [8790/9843] Built StatInference.Optimization.UniversalBarrierVolumeDerivatives (59s)
+✔ [8791/9843] Built StatInference.Matching.DiscreteScoreMeasurableBalancing (6.6s)
+✔ [8792/9843] Built StatInference.Matching.WDSM.DiscreteInverseProbabilityBalancing (2.0s)
+✔ [8793/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayCharacteristicFunctionPrimitive (11s)
+✔ [8794/9843] Built StatInference.Matching.WDSM.FiniteCellCoefficientEnvelope (3.3s)
+✔ [8795/9843] Built StatInference.Optimization.GradientFlow (87s)
+⚠ [8796/9843] Built StatInference.Optimization.ConjugateGradient (85s)
+warning: StatInference/Optimization/ConjugateGradient.lean:99:84: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+✔ [8797/9843] Built StatInference.Matching.WDSM.BootstrapMultinomialDrawBridge (2.7s)
+✔ [8798/9843] Built StatInference.Matching.ConditionalVarianceTargetBridge (5.4s)
+✔ [8799/9843] Built StatInference.Matching.WDSM.ComponentOrthogonalityBridge (5.2s)
+✔ [8800/9843] Built StatInference.Matching.StudentizedLimitAlgebra (5.1s)
+✔ [8801/9843] Built StatInference.Matching.WDSM.StudentizedLimitComponentPositivity (5.9s)
+✔ [8802/9843] Built StatInference.Matching.WDSM.PopulationInverseSelectionIdentity (5.4s)
+✔ [8803/9843] Built StatInference.Matching.WaldIntervalAlgebra (5.0s)
+✔ [8804/9843] Built StatInference.Matching.WDSM.CoverageLimitAlgebra (5.1s)
+✔ [8805/9843] Built StatInference.Optimization.ConvexBodyCoordinateMoments (4.9s)
+✔ [8806/9843] Built StatInference.Asymptotics (86s)
+✔ [8807/9843] Built StatInference.Matching.AsymptoticInterfaces (95s)
+✔ [8808/9843] Built StatInference.EmpiricalProcess.Finite (91s)
+✔ [8809/9843] Built StatInference.Estimator.Basic (94s)
+✔ [8810/9843] Built StatInference.AsymptoticStatistics.LocationEstimators (96s)
+✔ [8811/9843] Built StatInference.AsymptoticStatistics.MaximumLikelihood (96s)
+✔ [8812/9843] Built StatInference.Matching.WDSM.ProspectiveWeightedSampleMean (6.8s)
+✔ [8813/9843] Built StatInference.Matching.WDSM.RetrospectivePATEBiasBound (6.7s)
+✔ [8814/9843] Built StatInference.Matching.WDSM.RetrospectivePATTBiasBound (4.6s)
+✔ [8815/9843] Built StatInference.Matching.MatchingBiasRate (5.2s)
+✔ [8816/9843] Built StatInference.EmpiricalProcess.CoveringPrimitive (102s)
+✔ [8817/9843] Built StatInference.Matching.AggregateLipschitzBiasBound (4.3s)
+✔ [8818/9843] Built StatInference.Matching.WDSM.EstimatedScoreLocalExperimentPrimitiveCompanion (4.3s)
+✔ [8819/9843] Built StatInference.Matching.WDSM.ResidualMartingaleLyapunovBridge (4.6s)
+✔ [8820/9843] Built StatInference.Matching.WDSM.ChenHanGeometryAudit (4.2s)
+✔ [8821/9843] Built StatInference.Matching.WDSM.ReferenceTheoremsScoreAdjustmentRefinement (5.5s)
+✔ [8822/9843] Built StatInference.Matching.DiscreteErrorRateAlgebra (5.2s)
+✔ [8823/9843] Built StatInference.Optimization.BubeckEldanBoundaryLimit (8.0s)
+✔ [8824/9843] Built StatInference.Matching.DiscreteArmEffectShareBalancing (4.1s)
+✔ [8825/9843] Built StatInference.Matching.WDSM.DiscreteEffectShareIdentification (4.9s)
+✔ [8826/9843] Built StatInference.Matching.DiscreteApproximateBalancing (4.8s)
+✔ [8827/9843] Built StatInference.Optimization.Theorem36 (51s)
+✔ [8828/9843] Built StatInference.Optimization.Theorem37 (26s)
+✔ [8829/9843] Built StatInference.Matching.DiscreteInverseProbabilityBalancing (4.8s)
+✔ [8830/9843] Built StatInference.Matching.WDSM.DiscreteApproximateBalancingRate (6.2s)
+✔ [8831/9843] Built StatInference.Optimization.Theorem33 (57s)
+✔ [8832/9843] Built StatInference.Matching.WDSM.DiscretePropensityBalancing (4.5s)
+✔ [8833/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayCharacteristicFunctionTaylor (6.7s)
+✔ [8834/9843] Built StatInference.Optimization.Theorem34 (59s)
+✔ [8835/9843] Built StatInference.Matching.WDSM.BootstrapOneHotDrawMomentBridge (5.2s)
+✔ [8836/9843] Built StatInference.Matching.PopulationSurveyIdentificationBridge (6.4s)
+✔ [8837/9843] Built StatInference.Matching.PopulationMeasureScaling (5.8s)
+✔ [8838/9843] Built StatInference.Matching.PopulationInverseSelectionIdentity (5.4s)
+✔ [8839/9843] Built StatInference.Matching.WDSM.PopulationMeasureScaling (6.0s)
+✔ [8840/9843] Built StatInference.Optimization.EntropicThirdFrechet (36s)
+✔ [8841/9843] Built StatInference.Matching.WDSM.PopulationSurveyIdentificationBridge (5.0s)
+✔ [8842/9843] Built StatInference.Matching.CoverageLimitAlgebra (5.7s)
+✔ [8843/9843] Built StatInference.Matching.WDSM.WaldInferenceBridge (6.0s)
+✔ [8844/9843] Built StatInference.Optimization.UniversalBarrierDerivatives (30s)
+✔ [8845/9843] Built StatInference.Optimization.Theorem28 (60s)
+✔ [8846/9843] Built StatInference.Optimization.Theorem55 (60s)
+✔ [8847/9843] Built StatInference.Optimization.Theorem58 (62s)
+⚠ [8848/9843] Built StatInference.Optimization.Theorem27 (63s)
+warning: StatInference/Optimization/Theorem27.lean:1786:4: Try this: intro t _ht x hx z hz
+info: StatInference/Optimization/Theorem27.lean:1969:28: Try this:
+  [apply] ring_nf
+  
+  The `ring` tactic failed to close the goal. Use `ring_nf` to obtain a normal form.
+    
+  Note that `ring` works primarily in *commutative* rings. If you have a noncommutative ring, abelian group or module, consider using `noncomm_ring`, `abel` or `module` instead.
+warning: StatInference/Optimization/Theorem27.lean:1968:59: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+warning: StatInference/Optimization/Theorem27.lean:1969:24: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+✔ [8849/9843] Built StatInference.Matching.WDSM.ProspectiveDecomposition (6.4s)
+✔ [8850/9843] Built StatInference.Matching.WDSM.ProspectiveScoreCellShare (6.7s)
+✔ [8851/9843] Built StatInference.EmpiricalProcess.Preservation (91s)
+✔ [8852/9843] Built StatInference.Estimator.AsymptoticLinear (99s)
+✔ [8853/9843] Built StatInference.Estimator.Ratio (100s)
+✔ [8854/9843] Built StatInference.Estimator.DeltaMethod (101s)
+✔ [8855/9843] Built StatInference.Estimator.InferenceModel (102s)
+✔ [8856/9843] Built StatInference.Estimator.MEstimator (103s)
+✔ [8857/9843] Built StatInference.Matching.DiscreteEffectShareIdentification (11s)
+✔ [8858/9843] Built StatInference.Matching.WDSM.DiscreteScoreMeasurableEffectShareIdentification (11s)
+✔ [8859/9843] Built StatInference.Matching.WDSM.EstimatedScoreGodambeTotalLoadingPrimitive (11s)
+✔ [8860/9843] Built StatInference.Matching.DiscretePropensityBalancing (3.5s)
+✔ [8861/9843] Built StatInference.Matching.WDSM.DiscretePropensityPartition (3.7s)
+✔ [8862/9843] Built StatInference.Matching.DiscreteApproximateBalancingRate (4.1s)
+✔ [8863/9843] Built StatInference.Optimization.BubeckEldanGlobalInterval (17s)
+✔ [8864/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreBalancing (5.4s)
+⚠ [8865/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayScalarTaylorBound (12s)
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayScalarTaylorBound.lean:53:61: Used `tac1 <;> tac2` where `(tac1; tac2)` would suffice
+
+Note: This linter can be disabled with `set_option linter.unnecessarySeqFocus false`
+⚠ [8866/9843] Built StatInference.Matching.WDSM.BootstrapUniformResamplingLaw (9.9s)
+warning: StatInference/Matching/WDSM/BootstrapUniformResamplingLaw.lean:2299:2: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/BootstrapUniformResamplingLaw.lean:2315:2: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+✔ [8867/9843] Built StatInference.Matching.PopulationSurveyDensityScaling (7.7s)
+✔ [8868/9843] Built StatInference.Matching.WaldInferenceBridge (5.9s)
+✔ [8869/9843] Built StatInference.Matching.WDSM.PopulationSurveyDensityScaling (7.5s)
+✔ [8870/9843] Built StatInference.Matching.WDSM.WaldCriticalRegionCalibration (6.7s)
+✔ [8871/9843] Built StatInference.EmpiricalProcess.TraceCoding (97s)
+✔ [8872/9843] Built StatInference.EmpiricalProcess.BinaryTraceVC (97s)
+✔ [8873/9843] Built StatInference.AsymptoticStatistics.CurrentStatusMLE (105s)
+✔ [8874/9843] Built StatInference.EmpiricalProcess.EntropyIntegral (102s)
+✔ [8875/9843] Built StatInference.Matching.WDSM.WaldStandardErrorPositivity (15s)
+✔ [8876/9843] Built StatInference.Matching.WDSM.ProspectiveKnownScoreAsymptotic (4.8s)
+⚠ [8877/9843] Built StatInference.Optimization.UniversalBarrierProjectiveRebase (19s)
+warning: StatInference/Optimization/UniversalBarrierProjectiveRebase.lean:53:8: automatically included section variable(s) unused in theorem `_private.StatInference.Optimization.UniversalBarrierProjectiveRebase.0.StatInference.Optimization.absDet_smul_volumeKernelFDeriv_projectiveMap`:
+  [MeasurableSpace E]
+  [BorelSpace E]
+  [volume.IsAddHaarMeasure]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [MeasurableSpace E] [BorelSpace E] [volume.IsAddHaarMeasure] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Optimization/UniversalBarrierProjectiveRebase.lean:72:8: automatically included section variable(s) unused in theorem `_private.StatInference.Optimization.UniversalBarrierProjectiveRebase.0.StatInference.Optimization.absDet_smul_volumeKernelSecondFDeriv_projectiveMap`:
+  [MeasurableSpace E]
+  [BorelSpace E]
+  [volume.IsAddHaarMeasure]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [MeasurableSpace E] [BorelSpace E] [volume.IsAddHaarMeasure] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+✔ [8878/9843] Built StatInference.Matching.DiscreteScoreMeasurableEffectShareIdentification (5.5s)
+✔ [8879/9843] Built StatInference.Matching.DiscretePropensityPartition (9.1s)
+✔ [8880/9843] Built StatInference.Matching.WDSM.DiscreteRetrospectivePropensity (14s)
+✔ [8881/9843] Built StatInference.Optimization.Theorem510 (79s)
+✔ [8882/9843] Built StatInference.Optimization.Theorem54 (95s)
+✔ [8883/9843] Built StatInference.Optimization.ProjectedSubgradient (97s)
+✔ [8884/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreApproximateBalancing (10s)
+✔ [8885/9843] Built StatInference.Matching.DiscreteDoubleScoreEffectShareIdentification (7.5s)
+✔ [8886/9843] Built StatInference.Matching.FiniteCellShareRatioConvergence (10s)
+✔ [8887/9843] Built StatInference.Matching.DiscreteDoubleScoreBalancing (5.7s)
+✔ [8888/9843] Built StatInference.Matching.WDSM.FiniteCellShareRatioConvergence (6.7s)
+✔ [8889/9843] Built StatInference.Optimization.BubeckEldanUniformLimit (28s)
+⚠ [8890/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorMass (6.3s)
+warning: StatInference/Matching/WDSM/FiniteCellIndicatorMass.lean:68:0: automatically included section variable(s) unused in theorem `StatInference.Matching.WDSM.weightedSampleTotal_eq_massLimit_of_weightedSampleSum_one_eq`:
+  [DecidableEq Cell]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq Cell] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Matching/WDSM/FiniteCellIndicatorMass.lean:82:0: automatically included section variable(s) unused in theorem `StatInference.Matching.WDSM.weightedSampleSum_one_eq_massLimit_of_weightedSampleTotal_eq`:
+  [DecidableEq Cell]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq Cell] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Matching/WDSM/FiniteCellIndicatorMass.lean:349:0: automatically included section variable(s) unused in theorem `StatInference.Matching.WDSM.finiteCellResidual_ne_zero_of_contributionLimit_ne_target_mul_weightLimit`:
+  [DecidableEq Cell]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq Cell] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+✔ [8891/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreEffectShareIdentification (4.0s)
+✔ [8892/9843] Built StatInference.Matching.WaldCriticalRegionCalibration (6.5s)
+✔ [8893/9843] Built StatInference.Matching.PopulationSurveySelectionDensity (6.4s)
+✔ [8894/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayCharacteristicConvergencePrimitive (7.3s)
+✔ [8895/9843] Built StatInference.Matching.WDSM.PopulationSurveySelectionDensity (5.2s)
+✔ [8896/9843] Built StatInference.Matching.WDSM.WaldVarianceCriticalRegionCalibration (6.7s)
+✔ [8897/9843] Built StatInference.Matching.WDSM.PositiveVarianceWaldInferenceBridge (6.1s)
+✔ [8898/9843] Built StatInference.Matching.WDSM.ProspectiveKnownScoreVariance (5.3s)
+✔ [8899/9843] Built StatInference.Matching.WaldStandardErrorPositivity (6.4s)
+✔ [8900/9843] Built StatInference.Matching.DiscreteRetrospectivePropensity (8.5s)
+✔ [8901/9843] Built StatInference.Matching.WDSM.DiscreteRetrospectiveWeightRecovery (7.9s)
+✔ [8902/9843] Built StatInference.Semiparametric.InfluenceFunction (111s)
+✔ [8903/9843] Built StatInference.Estimator.Normality (111s)
+✔ [8904/9843] Built StatInference.Estimator.MConsistency (107s)
+✔ [8905/9843] Built StatInference.Estimator.ZEstimator (110s)
+✔ [8906/9843] Built StatInference.EmpiricalProcess.Complexity (110s)
+✔ [8907/9843] Built StatInference.Optimization.Theorem59 (125s)
+✔ [8908/9843] Built StatInference.Matching.DiscreteDoubleScoreApproximateBalancing (8.5s)
+✔ [8909/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreApproximateBalancingRate (10s)
+✔ [8910/9843] Built StatInference.Matching.FiniteCellIndicatorMass (6.0s)
+✔ [8911/9843] Built StatInference.Optimization.BubeckEldanIntervalClosure (10s)
+✔ [8912/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorBounds (8.1s)
+✔ [8913/9843] Built StatInference.Matching.WDSM.ProspectiveNormalizedCountIndicatorBridge (10s)
+✔ [8914/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorPartition (4.2s)
+✔ [8915/9843] Built StatInference.EmpiricalProcess.SubgraphTraceVC (82s)
+✔ [8916/9843] Built StatInference.EmpiricalProcess.Chaining (82s)
+✔ [8917/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayCharacteristicLimitPrimitive (13s)
+✔ [8918/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayCenteredCharacteristicExpansion (17s)
+✔ [8919/9843] Built StatInference.Matching.WDSM.PopulationSelectionSurveyIdentificationBridge (7.6s)
+✔ [8920/9843] Built StatInference.Matching.WDSM.PopulationSelectionSurveyAEIdentificationBridge (7.6s)
+✔ [8921/9843] Built StatInference.Matching.PopulationSelectionSurveyAEIdentificationBridge (4.3s)
+✔ [8922/9843] Built StatInference.Matching.PopulationSelectionSurveyIdentificationBridge (4.3s)
+✔ [8923/9843] Built StatInference.Matching.WDSM.PopulationSelectionDensityDesign (4.9s)
+✔ [8924/9843] Built StatInference.Matching.PopulationSelectionDensityDesign (5.1s)
+✔ [8925/9843] Built StatInference.Matching.WDSM.WaldCoverageLimitBridgeConstructors (4.5s)
+✔ [8926/9843] Built StatInference.Matching.WaldVarianceCriticalRegionCalibration (4.5s)
+✔ [8927/9843] Built StatInference.Matching.DiscreteRetrospectiveWeightRecovery (2.8s)
+✔ [8928/9843] Built StatInference.Matching.WDSM.ProspectiveKnownScoreVarianceMartingale (3.1s)
+✔ [8929/9843] Built StatInference.Matching.PositiveVarianceWaldInferenceBridge (4.1s)
+✔ [8930/9843] Built StatInference.Matching.WDSM.PositiveVarianceWaldCoverageBridge (5.3s)
+✔ [8931/9843] Built StatInference.Matching.WDSM.DiscreteRetrospectiveSurveyWeighting (2.8s)
+✔ [8932/9843] Built StatInference.Optimization.ConvexAnalysis (95s)
+✔ [8933/9843] Built StatInference.Optimization.AlternatingMinimization (115s)
+✔ [8934/9843] Built StatInference.Optimization.NonsmoothLowerBounds (98s)
+✔ [8935/9843] Built StatInference.Optimization.Proximal (111s)
+✔ [8936/9843] Built StatInference.Optimization.Grunbaum (112s)
+✔ [8937/9843] Built StatInference.Matching.DiscreteDoubleScoreApproximateBalancingRate (20s)
+✔ [8938/9843] Built StatInference.Matching.FiniteCellShareConvergence (23s)
+✔ [8939/9843] Built StatInference.Matching.WDSM.FiniteCellShareConvergence (8.6s)
+✔ [8940/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreApproximateBalancingConvergence (8.1s)
+✔ [8941/9843] Built StatInference.Matching.FiniteCellIndicatorPartition (5.7s)
+✔ [8942/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorVectorBounds (6.3s)
+✔ [8943/9843] Built StatInference.Matching.WDSM.BootstrapLinearizedReplicate (6.8s)
+✔ [8944/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovariance (5.2s)
+✔ [8945/9843] Built StatInference.Optimization.BubeckEldanLocalizationConsumer (12s)
+✔ [8946/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayCharacteristicEndpointPrimitive (7.2s)
+✔ [8947/9843] Built StatInference.Matching.PopulationSelectionDensityDesignResidualOrthogonality (6.5s)
+✔ [8948/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayConditionalCharacteristicIteration (7.4s)
+✔ [8949/9843] Built StatInference.Matching.PopulationSelectionDensityDesignRepresentation (6.9s)
+✔ [8950/9843] Built StatInference.Matching.PopulationSelectionDensityDesignIdentification (7.6s)
+✔ [8951/9843] Built StatInference.Matching.PopulationSelectionDensityDesignQuadraticVariation (8.4s)
+✔ [8952/9843] Built StatInference.Matching.PopulationSelectionDensityDesignCrossMoment (11s)
+✔ [8953/9843] Built StatInference.Matching.PopulationSelectionDensityDesignAEIdentification (10s)
+✔ [8954/9843] Built StatInference.Matching.WDSM.PopulationSelectionDensityDesignCrossMoment (11s)
+✔ [8955/9843] Built StatInference.Matching.WDSM.PopulationSelectionDensityDesignQuadraticVariation (14s)
+✔ [8956/9843] Built StatInference.Matching.WDSM.PopulationSelectionDensityDesignResidualOrthogonality (12s)
+✔ [8957/9843] Built StatInference.Matching.WDSM.PopulationSelectionDensityDesignRepresentation (23s)
+✔ [8958/9843] Built StatInference.Causal.PotentialOutcomes (126s)
+✔ [8959/9843] Built StatInference.EmpiricalProcess.Donsker (123s)
+✔ [8960/9843] Built StatInference.EmpiricalProcess.VCSubgraph (124s)
+✔ [8961/9843] Built StatInference.Estimator.ZLinearization (126s)
+✔ [8962/9843] Built StatInference.Matching.WDSM.PopulationSelectionDensityDesignIdentification (17s)
+✔ [8963/9843] Built StatInference.Matching.WDSM.PopulationSelectionDensityDesignAEIdentification (18s)
+✔ [8964/9843] Built StatInference.Matching.WDSM.ProspectiveKnownScoreVarianceLyapunov (5.1s)
+✔ [8965/9843] Built StatInference.Matching.DiscreteRetrospectiveSurveyWeighting (5.7s)
+✔ [8966/9843] Built StatInference.Matching.WDSM.DiscreteRetrospectiveSurveyMeanRecovery (6.0s)
+✔ [8967/9843] Built StatInference.Matching.PositiveVarianceWaldCoverageBridge (9.1s)
+✔ [8968/9843] Built StatInference.Matching.WDSM.PositiveVarianceWaldCoverageComponentPositivity (11s)
+✔ [8969/9843] Built StatInference.EmpiricalProcess.Bracketing (134s)
+✔ [8970/9843] Built StatInference.EmpiricalProcess.ThresholdCoding (129s)
+✔ [8971/9843] Built StatInference.Optimization.UniversalBarrierBoundaryGeometry (182s)
+✔ [8972/9843] Built StatInference.Optimization.AffinePowerMoments (174s)
+✔ [8973/9843] Built StatInference.Optimization.Fenchel (176s)
+✔ [8974/9843] Built StatInference.Optimization.MinkowskiCaratheodory (182s)
+✔ [8975/9843] Built StatInference.Optimization.NonsmoothLowerBoundsEmbedding (180s)
+✔ [8976/9843] Built StatInference.Optimization.RandomizedAlternatingMinimization (181s)
+⚠ [8977/9843] Built StatInference.Optimization.FiniteMaxSubdifferential (189s)
+warning: StatInference/Optimization/FiniteMaxSubdifferential.lean:331:8: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+✔ [8978/9843] Built StatInference.Matching.DiscreteDoubleScoreApproximateBalancingConvergence (6.5s)
+✔ [8979/9843] Built StatInference.Matching.DoubleScoreShareConvergenceInterfaces (8.1s)
+✔ [8980/9843] Built StatInference.Matching.FiniteCellMassConvergence (8.6s)
+✔ [8981/9843] Built StatInference.Matching.WDSM.ProspectiveScoreCellShareConvergence (8.9s)
+✔ [8982/9843] Built StatInference.Matching.WDSM.FiniteCellMassConvergence (8.8s)
+✔ [8983/9843] Built StatInference.Matching.WDSM.DoubleScoreShareConvergenceInterfaces (5.2s)
+✔ [8984/9843] Built StatInference.Matching.WDSM.BootstrapVarianceConsistencyBridge (6.4s)
+✔ [8985/9843] Built StatInference.Matching.FiniteCellIndicatorCovarianceFormula (6.7s)
+✔ [8986/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceFormula (6.4s)
+✔ [8987/9843] Built StatInference.Matching.FiniteCellIndicatorCovariance (6.6s)
+✔ [8988/9843] Built StatInference.Optimization.BubeckEldanCompactLocalization (10s)
+✔ [8989/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayCharacteristicLevyPrimitive (10s)
+✔ [8990/9843] Built StatInference.Matching.PopulationSelectionDensityDesignScoreRepresentation (9.4s)
+✔ [8991/9843] Built StatInference.Matching.PopulationSelectionDensityDesignAEScoreRepresentation (9.3s)
+✔ [8992/9843] Built StatInference.Matching.WDSM.PopulationSelectionDensityDesignAEScoreRepresentation (9.7s)
+✔ [8993/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayProductIdentityFromFiltration (11s)
+✔ [8994/9843] Built StatInference.Matching.WDSM.PopulationSelectionDensityDesignScoreRepresentation (10s)
+✔ [8995/9843] Built StatInference.Optimization.TruncatedPowerMoments (169s)
+✔ [8996/9843] Built StatInference.Optimization.GrunbaumCoordinate (143s)
+✔ [8997/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreRetrospectiveSurveyMean (6.5s)
+✔ [8998/9843] Built StatInference.Matching.DiscreteRetrospectiveSurveyMeanRecovery (5.7s)
+✔ [8999/9843] Built StatInference.Matching.WDSM.DiscreteProspectiveSurveyMeanRecovery (6.1s)
+✔ [9000/9843] Built StatInference.Matching.WDSM.PositiveVarianceWaldCoverageLimitComponentPositivity (13s)
+✔ [9001/9843] Built StatInference.Optimization.CuttingPlane (71s)
+✔ [9002/9843] Built StatInference.Estimator (126s)
+✔ [9003/9843] Built StatInference.EmpiricalProcess.EndpointStrongLaw (128s)
+✔ [9004/9843] Built StatInference.Causal.ATE (138s)
+✔ [9005/9843] Built StatInference.Optimization.AffinePowerMeanVariance (127s)
+✔ [9006/9843] Built StatInference.EmpiricalProcess.BracketingPrimitive (130s)
+✔ [9007/9843] Built StatInference.Matching.WDSM.FirstStepZEstimatorBridge (136s)
+✔ [9008/9843] Built StatInference.Matching.WDSM.FiniteCellMassApproximationConvergence (7.0s)
+✔ [9009/9843] Built StatInference.Matching.WDSM.ProspectiveCountPositivity (8.5s)
+✔ [9010/9843] Built StatInference.Matching.WDSM.ProspectiveCountRatioConvergence (12s)
+✔ [9011/9843] Built StatInference.Matching.WDSM.ProspectiveBootstrapVariance (6.5s)
+✔ [9012/9843] Built StatInference.Matching.WDSM.DoubleScoreShareConvergenceConstructors (6.7s)
+✔ [9013/9843] Built StatInference.Matching.WDSM.BootstrapVarianceStability (5.6s)
+✔ [9014/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorLinearCovariance (5.3s)
+✔ [9015/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayConditionalCharacteristicFromFiltration (10s)
+✔ [9016/9843] Built StatInference.Optimization.BubeckEldanContinuousClosure (12s)
+⚠ [9017/9843] Built StatInference.Optimization.ConcavePowerConeCrossing (158s)
+warning: StatInference/Optimization/ConcavePowerConeCrossing.lean:48:13: unused variable `hd`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+✔ [9018/9843] Built StatInference.Optimization.ApproximateCaratheodory (150s)
+✔ [9019/9843] Built StatInference.Optimization.FenchelExtended (123s)
+✔ [9020/9843] Built StatInference.Matching.DiscreteDoubleScoreRetrospectiveSurveyMean (7.2s)
+✔ [9021/9843] Built StatInference.Matching.DiscreteProspectiveSurveyMeanRecovery (7.1s)
+✔ [9022/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreProspectiveSurveyMean (7.2s)
+✔ [9023/9843] Built StatInference.Matching.WDSM.FiniteInverseSelectionIdentity (6.7s)
+✔ [9024/9843] Built StatInference.Optimization.HopfLaxExercise93 (55s)
+✔ [9025/9843] Built StatInference.Optimization.NonsmoothStrongLowerBoundsEmbedding (55s)
+✔ [9026/9843] Built StatInference.Optimization.Bregman (64s)
+✔ [9027/9843] Built StatInference.Optimization.GrunbaumTransport (46s)
+✔ [9028/9843] Built StatInference.Optimization.AffineDensityTransport (46s)
+✔ [9029/9843] Built StatInference.Optimization.TruncatedPowerMomentBounds (53s)
+✔ [9030/9843] Built StatInference.EmpiricalProcess.L1Bracketing (114s)
+✔ [9031/9843] Built StatInference.Matching.WDSM.ProspectiveCountPositivityEventually (14s)
+✔ [9032/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorApproximationConvergence (8.5s)
+✔ [9033/9843] Built StatInference.Matching.FiniteCellMassApproximationConvergence (9.5s)
+✔ [9034/9843] Built StatInference.Optimization.Ellipsoid (164s)
+✔ [9035/9843] Built StatInference.Matching.WDSM.ProspectiveCountApproximationConvergence (24s)
+✔ [9036/9843] Built StatInference.Matching.WDSM.BootstrapFiniteAlgebraBridge (7.1s)
+✔ [9037/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorLinearProjectionBounds (4.5s)
+✔ [9038/9843] Built StatInference.Matching.WDSM.BootstrapErrorBoundBridge (5.3s)
+✔ [9039/9843] Built StatInference.EmpiricalProcess.BracketingCountable (163s)
+✔ [9040/9843] Built StatInference.EmpiricalProcess.L2Bracketing (163s)
+✔ [9041/9843] Built StatInference.Causal.IPW (171s)
+✔ [9042/9843] Built StatInference.Matching.FiniteCellIndicatorLinearCovariance (5.3s)
+✔ [9043/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceQuadraticForm (5.2s)
+✔ [9044/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayConditionalProductIterationInterface (10s)
+✔ [9045/9843] Built StatInference.Optimization.BubeckEldanCompactSetLogConcavity (10s)
+✔ [9046/9843] Built StatInference.EmpiricalProcess.RealHalfLine (177s)
+✔ [9047/9843] Built StatInference.Matching.DiscreteDoubleScoreSurveyEffectShareIdentification (4.7s)
+✔ [9048/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreSurveyEffectShareIdentification (4.9s)
+✔ [9049/9843] Built StatInference.Matching.DiscreteDoubleScoreProspectiveSurveyMean (3.2s)
+✔ [9050/9843] Built StatInference.Matching.WDSM.FiniteHajekRepresentation (2.8s)
+✔ [9051/9843] Built StatInference.Matching.FiniteInverseSelectionIdentity (2.0s)
+✔ [9052/9843] Built StatInference.Matching.WDSM.FirstStepGodambeScoreAdjustmentPrimitive (169s)
+✔ [9053/9843] Built StatInference.Matching.WDSM.ProspectiveEstimatedScoreAudit (170s)
+✔ [9054/9843] Built StatInference.Matching.WDSM.FirstStepZEstimatorScoreAdjustmentRefinement (170s)
+✔ [9055/9843] Built StatInference.Matching.WDSM.FiniteInverseSelectionPopulationBridge (12s)
+⚠ [9056/9843] Built StatInference.Optimization.InteriorPoint (870s)
+warning: StatInference/Optimization/InteriorPoint.lean:25920:2: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+⚠ [9057/9843] Built StatInference.Optimization.ConcavePowerSecondMoment (116s)
+warning: StatInference/Optimization/ConcavePowerSecondMoment.lean:77:30: This simp argument is unused:
+  zero_mul
+
+Hint: Omit it from the simp argument list.
+  simp only [smul_eq_mul, zero_m̵u̵l̵,̵ ̵z̵e̵r̵o̵_̵add, hpoint] at hchord
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Optimization/ConcavePowerSecondMoment.lean:77:40: This simp argument is unused:
+  zero_add
+
+Hint: Omit it from the simp argument list.
+  simp only [smul_eq_mul, zero_mul, z̵e̵r̵o̵_̵a̵d̵d̵,̵ ̵hpoint] at hchord
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+✔ [9058/9843] Built StatInference.Optimization.FenchelInfimalConvolution (113s)
+✔ [9059/9843] Built StatInference.Optimization.FenchelStrongConvex (113s)
+✔ [9060/9843] Built StatInference.Matching.FiniteCellIndicatorApproximationConvergence (4.0s)
+✔ [9061/9843] Built StatInference.Matching.IndicatorSumConvergenceInterfaces (5.2s)
+✔ [9062/9843] Built StatInference.Matching.WDSM.ProspectiveCountPositivityConvergence (5.4s)
+✔ [9063/9843] Built StatInference.Matching.WDSM.IndicatorSumConvergenceInterfaces (5.2s)
+✔ [9064/9843] Built StatInference.EmpiricalProcess.L1BracketingNumber (29s)
+✔ [9065/9843] Built StatInference.Matching.WDSM.ProspectiveNormalizedCountApproximationConvergence (9.3s)
+✔ [9066/9843] Built StatInference.Optimization.BregmanHessian (106s)
+✔ [9067/9843] Built StatInference.Optimization.GrunbaumOneDimensional (104s)
+✔ [9068/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorLinearProjectionSampleBounds (7.3s)
+⚠ [9069/9843] Built StatInference.Optimization.AlternatingMinimizationSource (110s)
+warning: StatInference/Optimization/AlternatingMinimizationSource.lean:67:0: automatically included section variable(s) unused in theorem `StatInference.Optimization.chewi114CyclicBlockPoint_zero`:
+  [(i : Fin D) → NormedAddCommGroup (E i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [(i : Fin D) → NormedAddCommGroup (E i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Optimization/AlternatingMinimizationSource.lean:74:0: automatically included section variable(s) unused in theorem `StatInference.Optimization.chewi114CyclicBlockPoint_card`:
+  [(i : Fin D) → NormedAddCommGroup (E i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [(i : Fin D) → NormedAddCommGroup (E i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Optimization/AlternatingMinimizationSource.lean:81:0: automatically included section variable(s) unused in theorem `StatInference.Optimization.chewi114CyclicBlockPoint_apply_before`:
+  [(i : Fin D) → NormedAddCommGroup (E i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [(i : Fin D) → NormedAddCommGroup (E i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Optimization/AlternatingMinimizationSource.lean:87:0: automatically included section variable(s) unused in theorem `StatInference.Optimization.chewi114CyclicBlockPoint_apply_after`:
+  [(i : Fin D) → NormedAddCommGroup (E i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [(i : Fin D) → NormedAddCommGroup (E i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+✔ [9070/9843] Built StatInference.Matching.WDSM.BootstrapErrorEnvelopeBridge (7.4s)
+✔ [9071/9843] Built StatInference.Matching.FiniteCellIndicatorCovarianceQuadraticForm (6.3s)
+✔ [9072/9843] Built StatInference.Optimization.RandomizedAlternatingMinimizationSource (123s)
+✔ [9073/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceNonneg (5.8s)
+✔ [9074/9843] Built StatInference.Matching.DiscreteDoubleScoreSurveyZeroError (4.3s)
+✔ [9075/9843] Built StatInference.Examples.ConcreteEstimatorChain (17s)
+✔ [9076/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayConditionalProductTowerBridge (7.4s)
+✔ [9077/9843] Built StatInference.EmpiricalProcess.EndpointSamples (17s)
+✔ [9078/9843] Built StatInference.Optimization.EllipsoidCfcSqrt (27s)
+✔ [9079/9843] Built StatInference.Causal.AIPW (15s)
+✔ [9080/9843] Built StatInference.Optimization.BubeckEldanCompactSetClosure (8.2s)
+✔ [9081/9843] Built StatInference.EmpiricalProcess.L2BracketingDifference (16s)
+✔ [9082/9843] Built StatInference.Matching.FiniteHajekRepresentation (4.1s)
+✔ [9083/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreSurveyZeroError (4.5s)
+✔ [9084/9843] Built StatInference.Optimization.MirrorDescent (129s)
+✔ [9085/9843] Built StatInference.Optimization.Exercises (139s)
+✔ [9086/9843] Built StatInference.Matching.WDSM.FirstStepGodambeModelInterpretationPrimitive (40s)
+✔ [9087/9843] Built StatInference.Matching.WDSM.EstimatedScoreTotalLoadingRouteCompanion (40s)
+✔ [9088/9843] Built StatInference.Optimization.Lemma1315Source (32s)
+✔ [9089/9843] Built StatInference.Optimization.SelfConcordantHessianComparison (39s)
+✔ [9090/9843] Built StatInference.Optimization.UniversalBarrierBoundary (41s)
+⚠ [9091/9843] Built StatInference.Optimization.SelfConcordantGradientMonotonicity (39s)
+warning: StatInference/Optimization/SelfConcordantGradientMonotonicity.lean:20:0: automatically included section variable(s) unused in theorem `StatInference.Optimization.gradient_difference_inner_ge_localNorm_sq_div_one_add`:
+  [CompleteSpace E]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [CompleteSpace E] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+✔ [9092/9843] Built StatInference.Optimization.SelfConcordanceSemidefinitePolarization (46s)
+✔ [9093/9843] Built StatInference.Matching.WDSM.ProspectiveFiniteCellPositivityConvergence (7.3s)
+✔ [9094/9843] Built StatInference.Matching.FiniteCellIndicatorLLNInterfaces (7.1s)
+✔ [9095/9843] Built StatInference.Matching.WDSM.IndicatorSumConvergenceConstructors (5.4s)
+✔ [9096/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorEventuallyIndicatorConvergence (7.7s)
+✔ [9097/9843] Built StatInference.Optimization.LogDetBarrier (44s)
+✔ [9098/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorLLNInterfaces (4.2s)
+✔ [9099/9843] Built StatInference.Matching.WDSM.ProspectiveNormalizedCountInterfaces (3.0s)
+✔ [9100/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorLinearProjectionMomentBounds (4.0s)
+✔ [9101/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorLinearProjectionCardinalityBounds (4.1s)
+✔ [9102/9843] Built StatInference.Matching.FiniteCellIndicatorCovarianceNonneg (3.8s)
+✔ [9103/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceBounds (4.1s)
+✔ [9104/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceDegeneracy (3.8s)
+✔ [9105/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayConditionalProductTowerFactorization (6.7s)
+✔ [9106/9843] Built StatInference.Optimization.GrunbaumOrthogonal (18s)
+✔ [9107/9843] Built StatInference.Optimization.RandomizedAlternatingMinimizationHistory (15s)
+✔ [9108/9843] Built StatInference.EmpiricalProcess.VdVW241 (19s)
+✔ [9109/9843] Built StatInference.Examples (12s)
+✔ [9110/9843] Built StatInference.Optimization.CompactSetPowerConcavity (9.1s)
+⚠ [9111/9843] Built StatInference.Optimization.FenchelLegendre (36s)
+warning: StatInference/Optimization/FenchelLegendre.lean:60:0: automatically included section variable(s) unused in theorem `ConvexOn.isSubgradientAt_of_hasGradientAt`:
+  [CompleteSpace E]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [CompleteSpace E] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Optimization/FenchelLegendre.lean:60:8: Overlapping instance parameters in `ConvexOn.isSubgradientAt_of_hasGradientAt`:
+
+⚠️ There are 2 `[CompleteSpace E]` instances; one is sufficient.
+
+Note: This linter can be disabled with `set_option linter.overlappingInstances false`
+warning: StatInference/Optimization/FenchelLegendre.lean:153:4: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Optimization/FenchelLegendre.lean:136:0: automatically included section variable(s) unused in theorem `StatInference.Optimization.extendedRealSubdifferential_eq_singleton_gradient`:
+  [CompleteSpace E]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [CompleteSpace E] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Optimization/FenchelLegendre.lean:136:8: Overlapping instance parameters in `extendedRealSubdifferential_eq_singleton_gradient`:
+
+⚠️ There are 2 `[CompleteSpace E]` instances; one is sufficient.
+
+Note: This linter can be disabled with `set_option linter.overlappingInstances false`
+warning: StatInference/Optimization/FenchelLegendre.lean:201:4: Try `simp at hlimit_mem` instead of `simpa using hlimit_mem`
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Optimization/FenchelLegendre.lean:165:0: automatically included section variable(s) unused in theorem `StatInference.Optimization.ExtendedRealRegular.mem_extendedRealSubdifferential_of_tendsto`:
+  [CompleteSpace E]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [CompleteSpace E] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Optimization/FenchelLegendre.lean:493:0: automatically included section variable(s) unused in theorem `StatInference.Optimization.extendedFenchelConjugate_ne_bot_of_mem_domain`:
+  [CompleteSpace E]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [CompleteSpace E] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Optimization/FenchelLegendre.lean:539:0: automatically included section variable(s) unused in theorem `StatInference.Optimization.withTopToEReal_extendedFenchelConjugateWithTop`:
+  [CompleteSpace E]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [CompleteSpace E] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Optimization/FenchelLegendre.lean:620:35: This simp argument is unused:
+  EReal.coe_sub
+
+Hint: Omit it from the simp argument list.
+  simp only [withTopToEReal_coe,̵ ̵E̵R̵e̵a̵l̵.̵c̵o̵e̵_̵s̵u̵b̵] at hvalue
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Optimization/FenchelLegendre.lean:628:33: This simp argument is unused:
+  EReal.coe_sub
+
+Hint: Omit it from the simp argument list.
+  simp only [withTopToEReal_coe,̵ ̵E̵R̵e̵a̵l̵.̵c̵o̵e̵_̵s̵u̵b̵] at hterm
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Optimization/FenchelLegendre.lean:1022:0: automatically included section variable(s) unused in theorem `StatInference.Optimization.ExtendedRealRegular.boundary_subdifferential_eq_empty_of_subsingleton`:
+  [CompleteSpace E]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [CompleteSpace E] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Optimization/FenchelLegendre.lean:1191:0: automatically included section variable(s) unused in theorem `StatInference.Optimization.extendedFenchelConjugate_halfspace_convex`:
+  [CompleteSpace E]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [CompleteSpace E] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Optimization/FenchelLegendre.lean:1298:0: automatically included section variable(s) unused in theorem `StrictConvexOn.eq_of_common_extendedRealSubgradient`:
+  [CompleteSpace E]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [CompleteSpace E] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Optimization/FenchelLegendre.lean:1338:0: automatically included section variable(s) unused in theorem `StatInference.Optimization.ExtendedRealConvex.interior_domain_nonempty_of_subdifferential_subsingleton`:
+  [CompleteSpace E]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [CompleteSpace E] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+✔ [9112/9843] Built StatInference.EmpiricalProcess.GlivenkoCantelli (15s)
+✔ [9113/9843] Built StatInference.Optimization.Theorem131Taylor (78s)
+✔ [9114/9843] Built StatInference.Optimization.BubeckEldanWeakDual (10s)
+✔ [9115/9843] Built StatInference.Causal (14s)
+✔ [9116/9843] Built StatInference.Semiparametric.Normality (14s)
+✔ [9117/9843] Built StatInference.Matching.DiscreteDoubleScoreSurveyZeroErrorInDistribution (5.6s)
+✔ [9118/9843] Built StatInference.Matching.DiscreteDoubleScoreSurveyMeasureTransfer (5.8s)
+✔ [9119/9843] Built StatInference.Matching.DiscreteDoubleScoreSurveyLimitTransfer (6.0s)
+✔ [9120/9843] Built StatInference.EmpiricalProcess.L2BracketingScale (10s)
+✔ [9121/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreSurveyMeasureTransfer (6.4s)
+✔ [9122/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreSurveyLimitTransfer (6.1s)
+✔ [9123/9843] Built StatInference.EmpiricalProcess.L2BracketingEntropy (11s)
+✔ [9124/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreSurveyZeroErrorLimit (4.4s)
+✔ [9125/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreSurveyZeroErrorInMeasure (5.6s)
+✔ [9126/9843] Built StatInference.Matching.WDSM.DiscreteDoubleScoreSurveyZeroErrorInDistribution (5.8s)
+✔ [9127/9843] Built StatInference.Matching.WDSM.ProspectiveFiniteSideConditionsConvergence (4.6s)
+✔ [9128/9843] Built StatInference.Matching.WDSM.FirstStepGodambeConcreteModelInterpretation (15s)
+✔ [9129/9843] Built StatInference.Optimization.Lemma1316Source (13s)
+✔ [9130/9843] Built StatInference.Optimization.SelfConcordanceMixedThird (15s)
+✔ [9131/9843] Built StatInference.Optimization.BarrierParameterLowerBound (17s)
+✔ [9132/9843] Built StatInference.Matching.WDSM.FiniteCellGeometryMomentBridge (5.4s)
+⚠ [9133/9843] Built StatInference.Optimization.ConcavePowerMeanVariance (69s)
+warning: StatInference/Optimization/ConcavePowerMeanVariance.lean:19:19: unused variable `hd`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Optimization/ConcavePowerMeanVariance.lean:39:18: unused variable `hb`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+✔ [9134/9843] Built StatInference.Matching.WDSM.ProspectiveNormalizedCountIndicatorInterfaceBridge (5.0s)
+✔ [9135/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorLinearProjectionCardinalityMomentBounds (4.4s)
+✔ [9136/9843] Built StatInference.Matching.FiniteCellIndicatorCovarianceDegeneracy (3.8s)
+✔ [9137/9843] Built StatInference.Optimization.AlternatingBregman (24s)
+✔ [9138/9843] Built StatInference.Optimization.LogDetBarrierInterior (18s)
+⚠ [9139/9843] Built StatInference.Matching.WDSM.ChenHanSamplingCount (55s)
+warning: StatInference/Matching/WDSM/ChenHanSamplingCount.lean:4263:8: unused variable `cell`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/ChenHanSamplingCount.lean:4263:13: unused variable `hcell`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/ChenHanSamplingCount.lean:8844:9: unused variable `ω`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/ChenHanSamplingCount.lean:8905:9: unused variable `ω`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/ChenHanSamplingCount.lean:10716:5: unused variable `evidence`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/ChenHanSamplingCount.lean:10912:4: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/ChenHanSamplingCount.lean:11098:5: unused variable `evidence`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/ChenHanSamplingCount.lean:14555:6: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/ChenHanSamplingCount.lean:14613:4: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/ChenHanSamplingCount.lean:14726:4: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+✔ [9140/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceBilinear (4.1s)
+✔ [9141/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorLLNFromMass (12s)
+✔ [9142/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayConditionalProductTowerIntegralProof (5.5s)
+✔ [9143/9843] Built StatInference.Optimization.StochasticGradient (28s)
+✔ [9144/9843] Built StatInference.Optimization.ConcavePowerMeasure (5.0s)
+✔ [9145/9843] Built StatInference.Optimization.CompactPowerConcaveFamily (5.5s)
+✔ [9146/9843] Built StatInference.Optimization.ConvexBodyCoordinatePowerConcavity (5.7s)
+✔ [9147/9843] Built StatInference.Optimization.CenterOfGravity (12s)
+✔ [9148/9843] Built StatInference.Optimization.ExtremeProbabilityCombination (6.3s)
+✔ [9149/9843] Built StatInference.Optimization.RandomizedAlternatingMinimizationLiteral (14s)
+✔ [9150/9843] Built StatInference.EmpiricalProcess.RandomIndexEquicontinuity (11s)
+✔ [9151/9843] Built StatInference.EmpiricalProcess.RealHalfLineGC (11s)
+✔ [9152/9843] Built StatInference.Optimization.EntropicLegendre (14s)
+✔ [9153/9843] Built StatInference.Matching.DiscreteDoubleScoreSurveyZeroErrorLimit (4.0s)
+✔ [9154/9843] Built StatInference.Optimization.MilmanConverse (12s)
+✔ [9155/9843] Built StatInference.Matching.DiscreteDoubleScoreSurveyZeroErrorInMeasure (5.0s)
+✔ [9156/9843] Built StatInference.EmpiricalProcess.OuterProbabilityExpectation (14s)
+✔ [9157/9843] Built StatInference.Semiparametric (10s)
+✔ [9158/9843] Built StatInference.EmpiricalProcess.L2BracketingSymmetricClip (10s)
+✔ [9159/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorLinearProjectionTailBounds (3.8s)
+✔ [9160/9843] Built StatInference.Matching.WDSM.FirstStepGodambeComponentCovarianceIdentity (10s)
+✔ [9161/9843] Built StatInference.Optimization.Theorem1316Stopping (12s)
+✔ [9162/9843] Built StatInference.Optimization.Sinkhorn (14s)
+✔ [9163/9843] Built StatInference.Optimization.SelfConcordanceDikinDomain (18s)
+✔ [9164/9843] Built StatInference.Optimization.LogDetBarrierSource (13s)
+✔ [9165/9843] Built StatInference.Optimization.FiniteKLEquality (15s)
+✔ [9166/9843] Built StatInference.Optimization.BarrierParameterGeometry (17s)
+✔ [9167/9843] Built StatInference.Matching.FiniteCellIndicatorCovarianceBilinear (4.7s)
+✔ [9168/9843] Built StatInference.Optimization.MatrixLogDetRegularity (17s)
+✔ [9169/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceCenteredBilinear (4.6s)
+✔ [9170/9843] Built StatInference.Matching.WDSM.ChenHanSamplingCountPaperRouteCompanion (16s)
+✔ [9171/9843] Built StatInference.Matching.WDSM.MatchingBiasRate (19s)
+✔ [9172/9843] Built StatInference.Matching.WDSM.ChenHanSamplingProcessInstantiation (12s)
+✔ [9173/9843] Built StatInference.Matching.WDSM.FiniteCellReuseMomentTransfer (12s)
+⚠ [9174/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayConditionalProductTowerInduction (8.6s)
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayConditionalProductTowerInduction.lean:408:8: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayConditionalProductTowerInduction.lean:437:8: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayConditionalProductTowerInduction.lean:623:17: This simp argument is unused:
+  mul_left_comm
+
+Hint: Omit it from the simp argument list.
+  simp [triangularRowHybridCharacteristicProduct, triangularRowHybridStepMultiplier,
+        triangularRowConditionalCharacteristicPrefixProduct_succ_nat,
+  ̵  ̵ ̵ ̵ ̵ ̵mul_assoc, mul_l̵e̵f̵t̵_̵comm,̵ ̵m̵u̵l̵_̵c̵o̵m̵m̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayConditionalProductTowerInduction.lean:629:6: This simp argument is unused:
+  mul_assoc
+
+Hint: Omit it from the simp argument list.
+  simp [triangularRowHybridCharacteristicProduct, triangularRowHybridStepMultiplier,
+        triangularRowRawCharacteristicTailProduct_step_nat coefficient residual t row stop k hk
+           ̲ ̲sample,
+        mul_a̵s̵s̵o̵c̵,̵ ̵m̵u̵l_̵l̵eft_comm, mul_comm]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayConditionalProductTowerInduction.lean:822:12: This simp argument is unused:
+  mul_left_comm
+
+Hint: Omit it from the simp argument list.
+  simp [pref, factor, tail, triangularRowHybridStepMultiplier, mul_assoc, m̵u̵l̵_̵l̵e̵f̵t̵_̵c̵o̵m̵m̵,̵ ̵mul_comm]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayConditionalProductTowerInduction.lean:842:72: This simp argument is unused:
+  mul_assoc
+
+Hint: Omit it from the simp argument list.
+  simp [pref, current, tail, triangularRowHybridStepMultiplier, m̵u̵l̵_̵a̵s̵s̵o̵c̵,̵mul_left_comm, mul_comm]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+✔ [9175/9843] Built StatInference.Matching.WDSM.FiniteCellMomentConvergence (12s)
+✔ [9176/9843] Built StatInference.Optimization.NaturalPowerClipping (7.5s)
+⚠ [9177/9843] Built StatInference.Matching.WDSM.FiniteCellMassEnvelopeBridge (11s)
+warning: StatInference/Matching/WDSM/FiniteCellMassEnvelopeBridge.lean:111:2: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+✔ [9178/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorLinearProjectionTailConvergence (5.0s)
+✔ [9179/9843] Built StatInference.Optimization.FradeliziGuedonRestriction (8.0s)
+✔ [9180/9843] Built StatInference.Optimization.EntropicGradientImage (20s)
+✔ [9181/9843] Built StatInference.Optimization.EntropicVarentropy (23s)
+✔ [9182/9843] Built StatInference.Optimization.CenterOfGravityCut (25s)
+✔ [9183/9843] Built StatInference.EmpiricalProcess.PMeasurable (22s)
+✔ [9184/9843] Built StatInference.Optimization.VarianceReduction (35s)
+✔ [9185/9843] Built StatInference.Optimization.SchurSymmetry (194s)
+✔ [9186/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceBilinearBounds (9.3s)
+✔ [9187/9843] Built StatInference.Matching.WDSM.FirstStepGodambeConcreteDerivationPrimitive (39s)
+✔ [9188/9843] Built StatInference.Matching.WDSM.FirstStepGodambeScoreAdjustmentAlgebraConcrete (40s)
+✔ [9189/9843] Built StatInference.Optimization.EntropicOptimalTransport (27s)
+✔ [9190/9843] Built StatInference.Optimization.SelfConcordantNewtonDecrement (28s)
+✔ [9191/9843] Built StatInference.Matching.FiniteCellIndicatorCovarianceCenteredBilinear (4.7s)
+✔ [9192/9843] Built StatInference.Optimization.FinitePinsker (32s)
+✔ [9193/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceMatrix (5.3s)
+✔ [9194/9843] Built StatInference.Optimization.MatrixLogDetFrechet (26s)
+✔ [9195/9843] Built StatInference.Optimization.Proposition1312 (30s)
+⚠ [9196/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayConditionalProductTowerKernel (17s)
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayConditionalProductTowerKernel.lean:599:2: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayConditionalProductTowerKernel.lean:987:12: This simp argument is unused:
+  Measure.dirac_apply
+
+Hint: Omit it from the simp argument list.
+  simp [M̵e̵a̵s̵u̵r̵e̵.̵d̵i̵r̵a̵c̵_̵a̵p̵p̵l̵y̵,̵ ̵hleft_mem]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayConditionalProductTowerKernel.lean:996:12: This simp argument is unused:
+  Measure.dirac_apply
+
+Hint: Omit it from the simp argument list.
+  simp [M̵e̵a̵s̵u̵r̵e̵.̵d̵i̵r̵a̵c̵_̵a̵p̵p̵l̵y̵,̵ ̵hmem tag htag]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayConditionalProductTowerKernel.lean:2513:4: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayConditionalProductTowerKernel.lean:2506:8: unused variable `selectedRow`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayConditionalProductTowerKernel.lean:6984:4: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/TriangularMartingaleArrayConditionalProductTowerKernel.lean:7304:41: unused variable `sample`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+✔ [9197/9843] Built StatInference.Matching.WDSM.ChenHanProcessRouteCompanion (31s)
+✔ [9198/9843] Built StatInference.Matching.WDSM.AverageRadiusBiasBridgeConstructors (32s)
+✔ [9199/9843] Built StatInference.Matching.WDSM.FiniteCellQuadraticVariationConvergence (29s)
+✔ [9200/9843] Built StatInference.Matching.WDSM.ChenHanSamplingCountPaperRouteInstantiation (34s)
+✔ [9201/9843] Built StatInference.Matching.WDSM.FiniteCellResidualThirdMoment (30s)
+✔ [9202/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorLLNEnvelopeBridge (16s)
+✔ [9203/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorMassEnvelopeInputs (28s)
+✔ [9204/9843] Built StatInference.Matching.WDSM.FiniteCellShareEnvelopeConvergence (31s)
+✔ [9205/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorLinearProjectionLindeberg (5.3s)
+✔ [9206/9843] Built StatInference.Optimization.FradeliziGuedonRestrictionLogConcavity (7.4s)
+✔ [9207/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorSimplexBounds (3.0s)
+✔ [9208/9843] Built StatInference.Matching.FiniteCellIndicatorCovarianceMatrix (3.3s)
+✔ [9209/9843] Built StatInference.Matching.FiniteCellIndicatorCLTInterfaces (3.2s)
+✔ [9210/9843] Built StatInference.Optimization.Theorem131Gradient (149s)
+✔ [9211/9843] Built StatInference.EmpiricalProcess.WeakConvergence (106s)
+✔ [9212/9843] Built StatInference.Matching.WDSM.FirstStepGodambeSandwichPrimitive (27s)
+✔ [9213/9843] Built StatInference.Optimization.SelfConcordantBarrierGradientBounds (18s)
+✔ [9214/9843] Built StatInference.Optimization.CenterOfGravityValue (28s)
+✔ [9215/9843] Built StatInference.Optimization.EntropicDomain (29s)
+✔ [9216/9843] Built StatInference.Optimization.SelfConcordantBarrierSum (23s)
+✔ [9217/9843] Built StatInference.Optimization.SinkhornFeasibility (31s)
+✔ [9218/9843] Built StatInference.Optimization.Proposition1311InfProjection (35s)
+✔ [9219/9843] Built StatInference.Matching.WDSM.ChenHanPaperRouteProcessAssembly (31s)
+✔ [9220/9843] Built StatInference.Matching.WDSM.ProspectiveResidualQVFromFiniteCells (33s)
+✔ [9221/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayQVStabilizationPrimitive (33s)
+✔ [9222/9843] Built StatInference.Matching.WDSM.FiniteCellVaryingMomentConvergence (29s)
+✔ [9223/9843] Built StatInference.Matching.WDSM.FiniteCellResidualThirdMomentEventually (26s)
+✔ [9224/9843] Built StatInference.Optimization.SelfConcordantBarrierAffinePreimage (42s)
+✔ [9225/9843] Built StatInference.Optimization.SelfConcordantBarrierInfProjection (48s)
+✔ [9226/9843] Built StatInference.Optimization.PolytopeLogBarrier (38s)
+✔ [9227/9843] Built StatInference.Optimization.VarianceReductionSource (67s)
+✔ [9228/9843] Built StatInference.Matching.WDSM.ResidualMartingaleDifferenceBridge (37s)
+✔ [9229/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorLinearProjectionLindebergRatio (9.3s)
+✔ [9230/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceKernelBounds (6.3s)
+✔ [9231/9843] Built StatInference.Optimization.PowerConcaveRestriction (10s)
+✔ [9232/9843] Built StatInference.Optimization.FradeliziGuedonAtomlessness (11s)
+✔ [9233/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightness (22s)
+✔ [9234/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessCoordinateNecessity (25s)
+✔ [9235/9843] Built StatInference.EmpiricalProcess.FiniteRestrictionCompactPreimage (29s)
+✔ [9236/9843] Built StatInference.Matching.WDSM.FiniteCellGeometryMomentEnvelopeBridge (40s)
+✔ [9237/9843] Built StatInference.Optimization.NewtonLocalQuadraticConvergence (33s)
+✔ [9238/9843] Built StatInference.Optimization.Theorem131Rate (34s)
+✔ [9239/9843] Built StatInference.EmpiricalProcess.AsymptoticMeasurabilityOuterConvergence (31s)
+✔ [9240/9843] Built StatInference.Matching.WDSM.FiniteCellMassEnvelopeApproximationConvergence (43s)
+✔ [9241/9843] Built StatInference.EmpiricalProcess.FiniteDimensional (71s)
+✔ [9242/9843] Built StatInference.Matching.WDSM.ChenHanContinuousSupportRadiusPrimitive (68s)
+✔ [9243/9843] Built StatInference.EmpiricalProcess.Theorem157 (81s)
+✔ [9244/9843] Built StatInference.Optimization.SelfConcordantBarrierObjectiveGap (77s)
+✔ [9245/9843] Built StatInference.ProbabilityMeasure.WeakConvergence (77s)
+✔ [9246/9843] Built StatInference.Matching.WDSM.BootstrapFiniteCellVarianceBridge (73s)
+✔ [9247/9843] Built StatInference.Matching.WDSM.FirstStepGodambeSandwichInterfaceBridge (77s)
+✔ [9248/9843] Built StatInference.EmpiricalProcess.SignedOuterExpectationBounds (81s)
+✔ [9249/9843] Built StatInference.Optimization.EntropicBoundary (77s)
+✔ [9250/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceKernelMatrixBounds (8.7s)
+✔ [9251/9843] Built StatInference.Optimization.FradeliziGuedonHalfLine (10s)
+✔ [9252/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessDiagonal (20s)
+✔ [9253/9843] Built StatInference.Matching.WDSM.ScoreCellPredictabilityBridge (23s)
+✔ [9254/9843] Built StatInference.Matching.WDSM.FiniteCellQVLoading (59s)
+✔ [9255/9843] Built StatInference.Matching.WDSM.ResidualMartingaleConcreteLindeberg (24s)
+✔ [9256/9843] Built StatInference.Optimization.AcceleratedVarianceReduction (29s)
+✔ [9257/9843] Built StatInference.EmpiricalProcess.ContinuousPathProcessLaw (27s)
+✔ [9258/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCLTInterfaces (29s)
+✔ [9259/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessWeightedNecessity (21s)
+✔ [9260/9843] Built StatInference.EmpiricalProcess.Theorem157Sufficiency (21s)
+✔ [9261/9843] Built StatInference.Matching.WDSM.FirstStepGodambeZEstimatorInterfaceInstantiation (21s)
+✔ [9262/9843] Built StatInference.Matching.WDSM.ChenHanLocalMassLowerPrimitive (36s)
+✔ [9263/9843] Built StatInference.Matching.WDSM.BootstrapFiniteCellConsistencyBridge (22s)
+✔ [9264/9843] Built StatInference.EmpiricalProcess.SemanticDonsker (36s)
+✔ [9265/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceKernelOperatorBounds (5.0s)
+✔ [9266/9843] Built StatInference.Optimization.FradeliziGuedonPrefix (9.5s)
+✔ [9267/9843] Built StatInference.ProbabilityMeasure.Basic (25s)
+✔ [9268/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessClosedCovers (13s)
+✔ [9269/9843] Built StatInference.Matching.WDSM.ScoreCellResidualMeanZeroBridge (15s)
+✔ [9270/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayQVFiniteCellRoute (15s)
+✔ [9271/9843] Built StatInference.Matching.FiniteCellIndicatorCLTApproximationBridge (7.7s)
+✔ [9272/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCLTApproximationBridge (8.3s)
+✔ [9273/9843] Built StatInference.EmpiricalProcess.FiniteCoordinateOuterApproximation (24s)
+✔ [9274/9843] Built StatInference.Matching.WDSM.ResidualMartingaleFiniteCellLindeberg (19s)
+✔ [9275/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceKernelOperatorIdentities (5.9s)
+✔ [9276/9843] Built StatInference.Optimization.FradeliziGuedonCDF (11s)
+✔ [9277/9843] Built StatInference.Optimization.PowerConcaveExtremalConstraint (13s)
+✔ [9278/9843] Built StatInference.Optimization.AcceleratedVarianceReductionHistory (51s)
+✔ [9279/9843] Built StatInference.AsymptoticStatistics.Basic (80s)
+✔ [9280/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessWeightedNecessityFiniteCover (57s)
+✔ [9281/9843] Built StatInference.Matching.WDSM.ChenHanDensityVolumeMassPrimitive (61s)
+✔ [9282/9843] Built StatInference.Matching.WDSM.FirstStepGodambeZEstimatorGodambeInterpretationFromFiniteSandwich (61s)
+✔ [9283/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorStochasticApproximationBridge (16s)
+✔ [9284/9843] Built StatInference.Matching.FiniteCellIndicatorStochasticApproximationBridge (19s)
+✔ [9285/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessFiniteSelector (57s)
+✔ [9286/9843] Built StatInference.ProbabilityMeasure (57s)
+✔ [9287/9843] Built StatInference.Matching.WDSM.BootstrapScoreCellContributionBridge (79s)
+✔ [9288/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceBilinearShift (9.3s)
+✔ [9289/9843] Built StatInference.Optimization.FradeliziGuedonDensity (15s)
+✔ [9290/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayCLTBridgeFromCharacteristic (108s)
+✔ [9291/9843] Built StatInference.Matching.WDSM.ScoreCellIntegrabilityBridge (111s)
+⚠ [9292/9843] Built StatInference.EmpiricalProcess.Theorem243 (329s)
+warning: StatInference/EmpiricalProcess/Theorem243.lean:128580:5: unused variable `hcardinalityMeasurable`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/EmpiricalProcess/Theorem243.lean:139081:5: unused variable `hcount`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [9293/9843] Built StatInference.EmpiricalProcess.FiniteDimensionalOuterConverse (97s)
+warning: StatInference/EmpiricalProcess/FiniteDimensionalOuterConverse.lean:91:11: unused variable `i`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/EmpiricalProcess/FiniteDimensionalOuterConverse.lean:113:11: unused variable `i`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/EmpiricalProcess/FiniteDimensionalOuterConverse.lean:323:11: unused variable `i`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+✔ [9294/9843] Built StatInference.Matching.WDSM.FiniteCellLoadingEnvelope (103s)
+✔ [9295/9843] Built StatInference.Optimization.AcceleratedVarianceReductionEpoch (97s)
+✔ [9296/9843] Built StatInference.AsymptoticStatistics.Contiguity (86s)
+✔ [9297/9843] Built StatInference.Matching.WDSM.ReferenceTheoremsResidualLindebergRefinement (105s)
+✔ [9298/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorKnownScoreAsymptoticBridge (12s)
+✔ [9299/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorPairedStochasticApproximationBridge (12s)
+✔ [9300/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceCenteredLoadings (4.3s)
+✔ [9301/9843] Built StatInference.Optimization.FradeliziGuedonSurvival (8.6s)
+✔ [9302/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessProbabilityNecessity (49s)
+✔ [9303/9843] Built StatInference.Matching.WDSM.ChenHanConcretePaperRouteAssembly (51s)
+⚠ [9304/9843] Built StatInference.Matching.WDSM.ChenHanRadiusEnvelopeSelectionPrimitive (50s)
+warning: StatInference/Matching/WDSM/ChenHanRadiusEnvelopeSelectionPrimitive.lean:420:6: unused variable `radiusSelection`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+✔ [9305/9843] Built StatInference.Matching.WDSM.FirstStepGodambeFiniteSandwichInterpretationFromZEstimatorMoments (48s)
+✔ [9306/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessCompactFiniteRestriction (49s)
+✔ [9307/9843] Built StatInference.Matching.WDSM.BootstrapScoreCellConsistencyBridge (56s)
+✔ [9308/9843] Built StatInference.EmpiricalProcess.L2BracketingEnvelope (77s)
+✔ [9309/9843] Built StatInference.Matching.WDSM.FiniteCellScaledLoading (74s)
+✔ [9310/9843] Built StatInference.Optimization.AcceleratedVarianceReductionOutput (74s)
+✔ [9311/9843] Built StatInference.Matching.WDSM.ScoreCellScoreVersionBridge (79s)
+✔ [9312/9843] Built StatInference.Matching.WDSM.TriangularMartingaleArrayCharacteristicBoundFromLindebergQV (83s)
+✔ [9313/9843] Built StatInference.EmpiricalProcess.ChainingMaximal (77s)
+✔ [9314/9843] Built StatInference.AsymptoticStatistics.MomentEstimators (202s)
+✔ [9315/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCovarianceCenteredCrossMoment (10s)
+✔ [9316/9843] Built StatInference.Matching.FiniteCellIndicatorKnownScoreAsymptoticBridge (11s)
+✔ [9317/9843] Built StatInference.Matching.FiniteCellIndicatorEstimatedScoreAsymptoticBridge (11s)
+✔ [9318/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorPairedKnownScoreAsymptoticBridge (12s)
+✔ [9319/9843] Built StatInference.Optimization.FradeliziGuedonGlobalDensity (9.4s)
+✔ [9320/9843] Built StatInference.Matching.WDSM.ReferenceTheoremsResidualScoreAdjustmentRefinement (97s)
+✔ [9321/9843] Built StatInference.AsymptoticStatistics.LAN (110s)
+✔ [9322/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessArbitraryNecessity (125s)
+✔ [9323/9843] Built StatInference.EmpiricalProcess.TightLawWeightedOscillation (126s)
+✔ [9324/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessFiniteRestrictionLaw (131s)
+✔ [9325/9843] Built StatInference.Matching.WDSM.FirstStepGodambeZEstimatorMomentCovarianceInstantiation (131s)
+✔ [9326/9843] Built StatInference.Matching.WDSM.ChenHanContinuousScoreLawMassPrimitive (131s)
+✔ [9327/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessCoordinateLaw (131s)
+✔ [9328/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorEstimatedScoreAsymptoticBridge (143s)
+✔ [9329/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorCLTCenteredTargets (18s)
+✔ [9330/9843] Built StatInference.Optimization.FradeliziGuedonIntervalDensity (17s)
+⚠ [9331/9843] Built StatInference.ProbabilityTheory.Basic (504s)
+warning: StatInference/ProbabilityTheory/Basic.lean:121138:4: `Measurable.ennreal_tsum` has been deprecated: Use `Measurable.tsum` from `Mathlib.MeasureTheory.Constructions.Polish.Basic` instead
+✔ [9332/9843] Built StatInference.EmpiricalProcess.TightLawOuterProbability (42s)
+✔ [9333/9843] Built StatInference.Matching.WDSM.FiniteCellScaledLoadingEventually (146s)
+✔ [9334/9843] Built StatInference.Matching.WDSM.ResidualMartingaleScaledFiniteCell (151s)
+✔ [9335/9843] Built StatInference.Matching.WDSM.FirstStepGodambeZEstimatorMomentGodambeFromAuditComponents (21s)
+✔ [9336/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorPairedEstimatedScoreAsymptoticBridge (63s)
+✔ [9337/9843] Built StatInference.Matching.WDSM.ScoreCellConditionalIdentificationBridge (70s)
+✔ [9338/9843] Built StatInference.Optimization.AcceleratedVarianceReductionRate (71s)
+✔ [9339/9843] Built StatInference.Optimization.PowerConcaveDensity (7.7s)
+✔ [9340/9843] Built StatInference.Optimization.FradeliziGuedonClipping (7.7s)
+✔ [9341/9843] Built StatInference.AsymptoticStatistics.ExperimentLimits (54s)
+✔ [9342/9843] Built StatInference.Matching.WDSM.ChenHanContinuousScoreLawConcreteRoute (22s)
+✔ [9343/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessCoordinateLimsup (23s)
+✔ [9344/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorEstimatedScoreStudentizedBridge (23s)
+✔ [9345/9843] Built StatInference.Matching.FiniteCellIndicatorEstimatedScoreStudentizedBridge (23s)
+✔ [9346/9843] Built StatInference.ProbabilityTheory.Shannon (22s)
+✔ [9347/9843] Built StatInference.AsymptoticStatistics.Efficiency (88s)
+✔ [9348/9843] Built StatInference.ProbabilityTheory.SymmetricPowerSeries (18s)
+✔ [9349/9843] Built StatInference.ProbabilityTheory.GammaConvolution (19s)
+✔ [9350/9843] Built StatInference.ProbabilityTheory.StrongLawTruncationMoment (25s)
+✔ [9351/9843] Built StatInference.ProbabilityTheory.StrongLawTruncationReduction (26s)
+✔ [9352/9843] Built StatInference.ProbabilityTheory.PiecewiseMomentSeries (22s)
+✔ [9353/9843] Built StatInference.ProbabilityTheory.TailEvents (26s)
+✔ [9354/9843] Built StatInference.ProbabilityTheory.VariablePowerMomentSeries (40s)
+✔ [9355/9843] Built StatInference.ProbabilityTheory.UniformCubeWeakLaw (30s)
+✔ [9356/9843] Built StatInference.ProbabilityTheory.PoissonStrongLaw (24s)
+✔ [9357/9843] Built StatInference.ProbabilityTheory.PositiveWeakLaw (26s)
+✔ [9358/9843] Built StatInference.ProbabilityTheory.UnfairFairGame (58s)
+✔ [9359/9843] Built StatInference.ProbabilityTheory.StrongLawInfiniteMean (32s)
+✔ [9360/9843] Built StatInference.ProbabilityTheory.InfiniteMeanStrongLawConverse (61s)
+✔ [9361/9843] Built StatInference.ProbabilityTheory.VaryingBernoulli (63s)
+✔ [9362/9843] Built StatInference.ProbabilityTheory.IndependentVarianceSeries (63s)
+✔ [9363/9843] Built StatInference.ProbabilityTheory.SecondMomentLowerBound (63s)
+✔ [9364/9843] Built StatInference.ProbabilityTheory.MonotoneVariance (62s)
+✔ [9365/9843] Built StatInference.ProbabilityTheory.LevyMaximalInequality (64s)
+✔ [9366/9843] Built StatInference.ProbabilityTheory.NormalizedIid (65s)
+⚠ [9367/9843] Built StatInference.ProbabilityTheory.NonnegativeIndependentSeries (65s)
+warning: StatInference/ProbabilityTheory/NonnegativeIndependentSeries.lean:53:22: `AEMeasurable.ennreal_tsum` has been deprecated: Use `AEMeasurable.tsum` from `Mathlib.MeasureTheory.Constructions.Polish.Basic` instead
+✔ [9368/9843] Built StatInference.Optimization.ASGD (194s)
+✔ [9369/9843] Built StatInference.EmpiricalProcess.TightLawNullEvent (41s)
+✔ [9370/9843] Built StatInference.ProbabilityTheory.GaussianSineSeries (47s)
+✔ [9371/9843] Built StatInference.ProbabilityTheory.CouponCollector (47s)
+⚠ [9372/9843] Built StatInference.Matching.WDSM.FirstStepGodambeAuditMomentEqualitiesFromConcreteDefinitions (47s)
+warning: StatInference/Matching/WDSM/FirstStepGodambeAuditMomentEqualitiesFromConcreteDefinitions.lean:59:0: automatically included section variable(s) unused in theorem `StatInference.Matching.WDSM.firstStepGodambe_referenceShareProductFacts_of_scoreCovarianceDiagonalOffDiagonalCarrier_and_covarianceFacts`:
+  [DecidableEq Param]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq Param] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Matching/WDSM/FirstStepGodambeAuditMomentEqualitiesFromConcreteDefinitions.lean:86:0: automatically included section variable(s) unused in theorem `StatInference.Matching.WDSM.firstStepGodambe_scoreCovarianceFacts_of_scoreCovarianceDiagonalOffDiagonalCarrier_and_referenceShareBounds`:
+  [DecidableEq Param]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq Param] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Matching/WDSM/FirstStepGodambeAuditMomentEqualitiesFromConcreteDefinitions.lean:491:0: automatically included section variable(s) unused in theorem `StatInference.Matching.WDSM.firstStepGodambe_parameter_mem_iff_of_endpoint_mem_and_subset`:
+  [DecidableEq Param]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq Param] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: StatInference/Matching/WDSM/FirstStepGodambeAuditMomentEqualitiesFromConcreteDefinitions.lean:612:2: Try `simp at hcard` instead of `simpa using hcard`
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/FirstStepGodambeAuditMomentEqualitiesFromConcreteDefinitions.lean:757:0: automatically included section variable(s) unused in theorem `StatInference.Matching.WDSM.firstStepGodambe_twoPointSupportSymmetry_determinant_and_contrastFacts_of_support_entries`:
+  [DecidableEq Param]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [DecidableEq Param] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+✔ [9373/9843] Built StatInference.Optimization.AcceleratedVarianceReductionOuterEpoch (29s)
+✔ [9374/9843] Built StatInference.ProbabilityTheory.AlternatingHeavyTailWeakLaw (47s)
+✔ [9375/9843] Built StatInference.ProbabilityTheory.ConditionalExpectation (47s)
+✔ [9376/9843] Built StatInference.Matching.WDSM.ResidualMartingaleEventuallyScaledFiniteCell (49s)
+✔ [9377/9843] Built StatInference.Optimization.FradeliziGuedonRemainder (11s)
+✔ [9378/9843] Built StatInference.ProbabilityTheory.Multivariate (73s)
+⚠ [9379/9843] Built StatInference.Matching.WDSM.DoubleScoreConditionalIdentificationBridge (85s)
+warning: StatInference/Matching/WDSM/DoubleScoreConditionalIdentificationBridge.lean:26746:5: unused variable `pateRepr`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/DoubleScoreConditionalIdentificationBridge.lean:26747:5: unused variable `pattRepr`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/DoubleScoreConditionalIdentificationBridge.lean:26748:5: unused variable `propensityCells`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/DoubleScoreConditionalIdentificationBridge.lean:26749:5: unused variable `treatedProgCells`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/DoubleScoreConditionalIdentificationBridge.lean:26750:5: unused variable `controlProgCells`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/DoubleScoreConditionalIdentificationBridge.lean:26751:5: unused variable `pattProgCells`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/DoubleScoreConditionalIdentificationBridge.lean:26752:5: unused variable `propensityLaw`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/DoubleScoreConditionalIdentificationBridge.lean:26753:5: unused variable `treatedProgLaw`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/DoubleScoreConditionalIdentificationBridge.lean:26754:5: unused variable `controlProgLaw`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/DoubleScoreConditionalIdentificationBridge.lean:26755:5: unused variable `pattProgLaw`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+✔ [9380/9843] Built StatInference.Matching.WDSM.ChenHanConcreteFieldInstantiationPrimitive (53s)
+✔ [9381/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessSourceBudget (56s)
+✔ [9382/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorEstimatedScorePositiveVarianceStudentizedBridge (53s)
+✔ [9383/9843] Built StatInference.Matching.FiniteCellIndicatorEstimatedScorePositiveVarianceStudentizedBridge (56s)
+✔ [9384/9843] Built StatInference.ProbabilityTheory.KochenStone (18s)
+✔ [9385/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorPairedEstimatedScoreStudentizedBridge (56s)
+✔ [9386/9843] Built StatInference.Matching.FiniteCellIndicatorEstimatedScoreWaldBridge (56s)
+✔ [9387/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorEstimatedScoreWaldBridge (52s)
+✔ [9388/9843] Built StatInference.AsymptoticStatistics.EfficientTests (32s)
+✔ [9389/9843] Built StatInference.AsymptoticStatistics.Bayes (64s)
+✔ [9390/9843] Built StatInference.EmpiricalProcess.TightLawNonUniformContinuity (67s)
+✔ [9391/9843] Built StatInference.ProbabilityTheory.RandomPermutationCycles (65s)
+✔ [9392/9843] Built StatInference.ProbabilityTheory.RecordCount (71s)
+✔ [9393/9843] Built StatInference.ProbabilityTheory.MomentConverse (73s)
+✔ [9394/9843] Built StatInference.ProbabilityTheory.LevyConvergence (73s)
+✔ [9395/9843] Built StatInference.ProbabilityTheory.PolynomialRateStrongLaw (73s)
+✔ [9396/9843] Built StatInference.ProbabilityTheory.HeavyTailWeakLaw (73s)
+✔ [9397/9843] Built StatInference.ProbabilityTheory.Renewal (73s)
+✔ [9398/9843] Built StatInference.ProbabilityTheory.RandomPowerSeries (77s)
+✔ [9399/9843] Built StatInference.Optimization.FradeliziGuedonGeometricRemainder (7.6s)
+✔ [9400/9843] Built StatInference.Optimization.ASGDEndpointCorrection (83s)
+✔ [9401/9843] Built StatInference.Matching.WDSM.RetrospectivePATEKnownScoreAsymptotic (23s)
+✔ [9402/9843] Built StatInference.Matching.WDSM.RetrospectivePATTKnownScoreAsymptotic (23s)
+✔ [9403/9843] Built StatInference.ProbabilityTheory.StPetersburg (24s)
+✔ [9404/9843] Built StatInference.ProbabilityTheory.OccupancyLimit (29s)
+✔ [9405/9843] Built StatInference.Matching.WDSM.FirstStepGodambeConcreteFields (25s)
+✔ [9406/9843] Built StatInference.Optimization.AcceleratedVarianceReductionRestart (25s)
+✔ [9407/9843] Built StatInference.Matching.WDSM.ChenHanManuscriptSupportDesignInstantiation (15s)
+✔ [9408/9843] Built StatInference.Matching.WDSM.DoubleScoreFinitePopulationBridge (17s)
+⚠ [9409/9843] Built StatInference.ProbabilityTheory.Martingale (84s)
+warning: StatInference/ProbabilityTheory/Martingale.lean:7632:16: `ofReal_norm_eq_enorm` has been deprecated: Use `ofReal_norm` instead
+warning: StatInference/ProbabilityTheory/Martingale.lean:7643:16: `ofReal_norm_eq_enorm` has been deprecated: Use `ofReal_norm` instead
+warning: StatInference/ProbabilityTheory/Martingale.lean:8431:10: `ofReal_norm_eq_enorm` has been deprecated: Use `ofReal_norm` instead
+warning: StatInference/ProbabilityTheory/Martingale.lean:10958:10: `ofReal_norm_eq_enorm` has been deprecated: Use `ofReal_norm` instead
+warning: StatInference/ProbabilityTheory/Martingale.lean:11081:8: `ofReal_norm_eq_enorm` has been deprecated: Use `ofReal_norm` instead
+warning: StatInference/ProbabilityTheory/Martingale.lean:11256:8: `ofReal_norm_eq_enorm` has been deprecated: Use `ofReal_norm` instead
+warning: StatInference/ProbabilityTheory/Martingale.lean:11695:10: `ofReal_norm_eq_enorm` has been deprecated: Use `ofReal_norm` instead
+warning: StatInference/ProbabilityTheory/Martingale.lean:11969:12: `ofReal_norm_eq_enorm` has been deprecated: Use `ofReal_norm` instead
+warning: StatInference/ProbabilityTheory/Martingale.lean:12088:12: `ofReal_norm_eq_enorm` has been deprecated: Use `ofReal_norm` instead
+warning: StatInference/ProbabilityTheory/Martingale.lean:12090:10: `ofReal_norm_eq_enorm` has been deprecated: Use `ofReal_norm` instead
+warning: StatInference/ProbabilityTheory/Martingale.lean:12107:14: `ofReal_norm_eq_enorm` has been deprecated: Use `ofReal_norm` instead
+warning: StatInference/ProbabilityTheory/Martingale.lean:12109:12: `ofReal_norm_eq_enorm` has been deprecated: Use `ofReal_norm` instead
+warning: StatInference/ProbabilityTheory/Martingale.lean:12792:14: `ofReal_norm_eq_enorm` has been deprecated: Use `ofReal_norm` instead
+✔ [9410/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorEstimatedScoreComponentPositiveVarianceStudentizedBridge (71s)
+✔ [9411/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessGeometricBudget (74s)
+✔ [9412/9843] Built StatInference.Matching.FiniteCellIndicatorEstimatedScoreVarianceWaldBridge (73s)
+✔ [9413/9843] Built StatInference.Matching.FiniteCellIndicatorEstimatedScorePositiveVarianceWaldBridge (74s)
+✔ [9414/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorPairedEstimatedScoreWaldBridge (73s)
+✔ [9415/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorEstimatedScoreVarianceWaldBridge (73s)
+✔ [9416/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorEstimatedScorePositiveVarianceWaldBridge (74s)
+✔ [9417/9843] Built StatInference.AsymptoticStatistics.LikelihoodRatioTests (73s)
+✔ [9418/9843] Built StatInference.EmpiricalProcess.TightLawOuterAlmostSureContinuity (15s)
+✔ [9419/9843] Built StatInference.Optimization.FradeliziGuedonRemainderClosure (5.8s)
+✔ [9420/9843] Built StatInference.Matching.WDSM.RetrospectivePATEKnownScoreVariance (11s)
+✔ [9421/9843] Built StatInference.Matching.WDSM.RetrospectivePATTKnownScoreVariance (11s)
+✔ [9422/9843] Built StatInference.Matching.WDSM.FirstStepGodambeZEstimatorSandwichGodambeBridge (11s)
+✔ [9423/9843] Built StatInference.ProbabilityTheory.LazyJanitor (13s)
+✔ [9424/9843] Built StatInference.ProbabilityTheory.IndependentVarianceCounterexample (15s)
+✔ [9425/9843] Built StatInference.ProbabilityTheory.LevyRunningMaximum (15s)
+⚠ [9426/9843] Built StatInference.Matching.WDSM.FirstStepGodambeActualFirstStepConstruction (19s)
+warning: StatInference/Matching/WDSM/FirstStepGodambeActualFirstStepConstruction.lean:368:8: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/FirstStepGodambeActualFirstStepConstruction.lean:369:8: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: StatInference/Matching/WDSM/FirstStepGodambeActualFirstStepConstruction.lean:8522:5: unused variable `construction`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+✔ [9427/9843] Built StatInference.Matching.WDSM.ChenHanDesignRecordDerivationPrimitive (14s)
+✔ [9428/9843] Built StatInference.Optimization.AcceleratedVarianceReductionCost (22s)
+✔ [9429/9843] Built StatInference.ProbabilityTheory.MartingaleLogNormalizer (14s)
+✔ [9430/9843] Built StatInference.ProbabilityTheory.Wald (15s)
+✔ [9431/9843] Built StatInference.Optimization.AcceleratedVarianceReductionRestartHistory (20s)
+✔ [9432/9843] Built StatInference.Matching.WDSM.DoubleScoreFiniteAEPopulationBridge (20s)
+✔ [9433/9843] Built StatInference.Optimization.ASGDL2Remainder (33s)
+✔ [9434/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorPairedEstimatedScorePositiveVarianceStudentizedBridge (18s)
+✔ [9435/9843] Built StatInference.ProbabilityTheory.Example4611 (20s)
+✔ [9436/9843] Built StatInference.Matching.WDSM.ProspectivePATEEstimatedScorePositiveVariance (19s)
+✔ [9437/9843] Built StatInference.Matching.WDSM.ProspectivePATTEstimatedScorePositiveVariance (18s)
+✔ [9438/9843] Built StatInference.ProbabilityTheory.FriedmanUrn (28s)
+✔ [9439/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessRetractionPartition (16s)
+✔ [9440/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessIncrementAUE (17s)
+✔ [9441/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorPairedEstimatedScoreVarianceWaldBridge (21s)
+✔ [9442/9843] Built StatInference.Optimization.FradeliziGuedonSlopeContinuity (7.9s)
+✔ [9443/9843] Built StatInference.EmpiricalProcess.PthMeanFiniteCover (12s)
+✔ [9444/9843] Built StatInference.Matching.WDSM.RetrospectivePATTEstimatedScoreAudit (13s)
+✔ [9445/9843] Built StatInference.Matching.WDSM.RetrospectiveKnownScorePaired (13s)
+✔ [9446/9843] Built StatInference.Matching.WDSM.RetrospectivePATEEstimatedScoreAudit (13s)
+✔ [9447/9843] Built StatInference.AsymptoticStatistics.ChiSquareTests (16s)
+✔ [9448/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorEstimatedScoreComponentPositiveVarianceWaldBridge (23s)
+✔ [9449/9843] Built StatInference.ProbabilityTheory.UniformBallContraction (15s)
+✔ [9450/9843] Built StatInference.ProbabilityTheory.LevyDyadicInterpolation (17s)
+✔ [9451/9843] Built StatInference.Matching.WDSM.ChenHanSupportMassExactInstantiation (13s)
+✔ [9452/9843] Built StatInference.Optimization.AcceleratedVarianceReductionAdaptiveHistory (13s)
+✔ [9453/9843] Built StatInference.Optimization.AcceleratedVarianceReductionParameters (15s)
+✔ [9454/9843] Built StatInference.ProbabilityTheory.RenewalFirstPassage (18s)
+⚠ [9455/9843] Built StatInference.Matching.WDSM.FirstStepGodambeConcreteGodambeIdentity (21s)
+warning: StatInference/Matching/WDSM/FirstStepGodambeConcreteGodambeIdentity.lean:5472:5: unused variable `inputs`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/FirstStepGodambeConcreteGodambeIdentity.lean:5841:5: unused variable `hcomponent`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/FirstStepGodambeConcreteGodambeIdentity.lean:5980:5: unused variable `hfield`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/FirstStepGodambeConcreteGodambeIdentity.lean:6092:5: unused variable `constructionInputs`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/FirstStepGodambeConcreteGodambeIdentity.lean:6097:5: unused variable `hfirst`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/FirstStepGodambeConcreteGodambeIdentity.lean:6098:5: unused variable `hscore`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/FirstStepGodambeConcreteGodambeIdentity.lean:6100:5: unused variable `hbreadInverse`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/FirstStepGodambeConcreteGodambeIdentity.lean:6105:5: unused variable `hcentralInverse`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+✔ [9456/9843] Built StatInference.Optimization.FradeliziGuedonCutSelection (11s)
+✔ [9457/9843] Built StatInference.EmpiricalProcess.PthMeanSequentialControl (20s)
+✔ [9458/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessFiniteIndexPartition (28s)
+✔ [9459/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorPairedEstimatedScoreComponentPositiveVarianceStudentizedBridge (31s)
+✔ [9460/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorPairedEstimatedScorePositiveVarianceWaldBridge (34s)
+✔ [9461/9843] Built StatInference.Matching.WDSM.ProspectiveEstimatedScorePositiveVariancePaired (30s)
+✔ [9462/9843] Built StatInference.ProbabilityTheory.BackwardMartingale (100s)
+✔ [9463/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorGCAdapter (44s)
+✔ [9464/9843] Built StatInference.Optimization.ASGDStepContraction (47s)
+✔ [9465/9843] Built StatInference.Matching.WDSM.RetrospectivePATTEstimatedScoreStudentized (30s)
+✔ [9466/9843] Built StatInference.Matching.WDSM.RetrospectivePATEEstimatedScoreStudentized (15s)
+✔ [9467/9843] Built StatInference.Matching.WDSM.RetrospectiveEstimatedScoreAuditPaired (16s)
+✔ [9468/9843] Built StatInference.Matching.WDSM.RetrospectivePATTEstimatedScorePositiveVariance (22s)
+✔ [9469/9843] Built StatInference.Matching.WDSM.RetrospectivePATEEstimatedScorePositiveVariance (18s)
+✔ [9470/9843] Built StatInference.Matching.WDSM.ChenHanContinuousScoreLawExactMassFromDensity (15s)
+✔ [9471/9843] Built StatInference.Optimization.NaturalPowerClippingSelection (8.3s)
+✔ [9472/9843] Built StatInference.Optimization.AcceleratedVarianceReductionTheorem1210 (14s)
+✔ [9473/9843] Built StatInference.Optimization.FradeliziGuedonPieceMass (7.0s)
+ℹ [9474/9843] Built StatInference.ProbabilityTheory.Investment (23s)
+info: StatInference/ProbabilityTheory/Investment.lean:496:10: Try this:
+  [apply] ring_nf
+  
+  The `ring` tactic failed to close the goal. Use `ring_nf` to obtain a normal form.
+    
+  Note that `ring` works primarily in *commutative* rings. If you have a noncommutative ring, abelian group or module, consider using `noncomm_ring`, `abel` or `module` instead.
+⚠ [9475/9843] Built StatInference.ProbabilityTheory.RenewalMeasure (15s)
+warning: StatInference/ProbabilityTheory/RenewalMeasure.lean:59:8: `Measurable.ennreal_tsum` has been deprecated: Use `Measurable.tsum` from `Mathlib.MeasureTheory.Constructions.Polish.Basic` instead
+✔ [9476/9843] Built StatInference.EmpiricalProcess.PthMeanControlEquivalence (12s)
+✔ [9477/9843] Built StatInference.AsymptoticStatistics.MetricSpaceConvergence (34s)
+✔ [9478/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessUniformEquicontinuity (14s)
+✔ [9479/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorPairedEstimatedScoreComponentPositiveVarianceWaldBridge (16s)
+✔ [9480/9843] Built StatInference.ProbabilityTheory.AlternatingHeavyTailWeakLawLimit (17s)
+✔ [9481/9843] Built StatInference.ProbabilityTheory.RandomSeriesProduct (20s)
+✔ [9482/9843] Built StatInference.ProbabilityTheory.FixedCutpointLeftProduct (16s)
+✔ [9483/9843] Built StatInference.ProbabilityTheory.FixedCutpointProduct (16s)
+✔ [9484/9843] Built StatInference.ProbabilityTheory.ProductLawProduct (18s)
+✔ [9485/9843] Built StatInference.ProbabilityTheory.FiniteCutpointProduct (16s)
+✔ [9486/9843] Built StatInference.ProbabilityTheory.EmpiricalLeftProduct (13s)
+⚠ [9487/9843] Built StatInference.Matching.WDSM.BootstrapActualVarianceConsistency (17s)
+warning: StatInference/Matching/WDSM/BootstrapActualVarianceConsistency.lean:960:5: unused variable `hunit_card`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/BootstrapActualVarianceConsistency.lean:961:5: unused variable `hdraw_card_eq_unit`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/BootstrapActualVarianceConsistency.lean:962:5: unused variable `hbase_numerator`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/BootstrapActualVarianceConsistency.lean:967:5: unused variable `hbase_denominator`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: StatInference/Matching/WDSM/BootstrapActualVarianceConsistency.lean:973:5: unused variable `htarget_eq`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+✔ [9488/9843] Built StatInference.Matching.WDSM.ProspectiveNormalizedCountGCAdapter (16s)
+✔ [9489/9843] Built StatInference.Matching.WDSM.IndicatorSumGCAdapter (17s)
+✔ [9490/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorGCWaldAdapter (18s)
+✔ [9491/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorGCVarianceWaldAdapter (18s)
+✔ [9492/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorGCSingleWaldAdapter (18s)
+✔ [9493/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorGCSingleVarianceWaldAdapter (20s)
+✔ [9494/9843] Built StatInference.ProbabilityTheory.MiddlePartitionProduct (38s)
+✔ [9495/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorGCSinglePositiveVarianceWaldAdapter (18s)
+✔ [9496/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorGCSingleComponentPositiveVarianceAdapter (16s)
+✔ [9497/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorGCPositiveVarianceWaldAdapter (20s)
+✔ [9498/9843] Built StatInference.Matching.WDSM.RetrospectivePATTWaldCoverage (15s)
+✔ [9499/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorGCComponentPositiveVarianceAdapter (19s)
+✔ [9500/9843] Built StatInference.Optimization.ASGDGeneral (24s)
+✔ [9501/9843] Built StatInference.Optimization.FradeliziGuedonNormalization (10s)
+⚠ [9502/9843] Built StatInference.Matching.WDSM.FirstStepGodambeZEstimatorMomentGodambeFromLocalInputs (91s)
+warning: StatInference/Matching/WDSM/FirstStepGodambeZEstimatorMomentGodambeFromLocalInputs.lean:9777:8: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+✔ [9503/9843] Built StatInference.EmpiricalProcess.PthMeanSemimetricDisplay (12s)
+✔ [9504/9843] Built StatInference.Matching.WDSM.ChenHanClosedBallDensityIntegralForScoreLaw (39s)
+✔ [9505/9843] Built StatInference.Matching.WDSM.RetrospectiveEstimatedScoreStudentizedPaired (48s)
+✔ [9506/9843] Built StatInference.Matching.WDSM.RetrospectivePATEEstimatedScorePositiveVariancePaired (44s)
+✔ [9507/9843] Built StatInference.Optimization.AcceleratedVarianceReductionRegularization (38s)
+✔ [9508/9843] Built StatInference.ProbabilityTheory.StationaryRenewal (21s)
+✔ [9509/9843] Built StatInference.Matching.WDSM.RetrospectivePATEWaldCoverage (47s)
+✔ [9510/9843] Built StatInference.Matching.WDSM.RetrospectiveEstimatedScorePositiveVariancePaired (41s)
+✔ [9511/9843] Built StatInference.Matching.WDSM.EstimatedScoreAuditScoreAdjustmentRefinement (49s)
+✔ [9512/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessWeightedIff (28s)
+✔ [9513/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorGCSingleComponentPositiveVarianceWaldAdapter (29s)
+✔ [9514/9843] Built StatInference.EmpiricalProcess.ArbitraryMapTightnessTotallyBounded (32s)
+✔ [9515/9843] Built StatInference.Matching.WDSM.EstimatedScoreTotalLoadingPATTWaldCompanion (29s)
+✔ [9516/9843] Built StatInference.ProbabilityTheory.EmpiricalProduct (32s)
+✔ [9517/9843] Built StatInference.Matching.WDSM.BootstrapActualScoreCellConsistencyBridge (33s)
+✔ [9518/9843] Built StatInference.Optimization.FradeliziGuedonCompactTransport (9.7s)
+✔ [9519/9843] Built StatInference.Matching.WDSM.FiniteCellIndicatorPairedEstimatedScoreComponentPositiveVarianceWaldCoverage (47s)
+✔ [9520/9843] Built StatInference.EmpiricalProcess.PthMeanMomentControl (18s)
+✔ [9521/9843] Built StatInference.AsymptoticStatistics.EmpiricalProcesses (56s)
+✔ [9522/9843] Built StatInference.Matching.WDSM.ChenHanScoreLawLocalRNDerivativeInstantiation (20s)
+✔ [9523/9843] Built StatInference.Optimization.AcceleratedVarianceReductionAdaptiveStage (21s)
+✔ [9524/9843] Built StatInference.ProbabilityTheory.RenewalEquation (20s)
+✔ [9525/9843] Built StatInference.Matching.WDSM.RetrospectivePATEWaldCoverageScoreAdjustmentRefinementPaired (14s)
+✔ [9526/9843] Built StatInference.Optimization.FradeliziGuedonExtremality (7.5s)

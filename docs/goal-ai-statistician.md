@@ -1,5 +1,8 @@
 # AI Statistician Objective
 
+Model and study policy updated 2026-10-03. The research objective is unchanged;
+archived experiments retain their original contracts and outcomes.
+
 Build a fully autonomous AI Statistical Theory Lab in this repository. It should
 ingest fresh JASA/AOAS/frontier-style questions or papers, develop rigorous new
 statistical theory, implement and stress-test methods in Python and R, formalize
@@ -19,16 +22,23 @@ remaining gaps honestly.
    weaken its own gate or promote its own proof.
 5. Confirmatory empirical authority is frozen before results. A failed candidate
    cannot revise its own threshold and reuse the same observations.
-6. Formal RAG reuses Mathlib, Statlib/StatInference,
-   `lean-stat-learning-theory`, `EmpericalProcessLEAN`, OpenProver, and
-   CodexProver conventions and declarations. Retrieved content is context, not
-   proof, until checked in the active project.
+6. Formal RAG uses the active pinned Mathlib, Statlib and StatInference project.
+   `lean-stat-learning-theory`, OpenProver and CodexProver remain useful sources
+   of design and candidate declarations. Cross-version discoveries require local
+   elaboration before use as premises; retrieved content is not proof evidence.
 7. Independent reviewers report findings but do not choose repair owners or
    routes. The source model revises locally; Architect routes globally.
-8. Only exact target-bound Lean kernel promotion proves the requested theorem.
-   Compiled helpers and weakened targets remain scoped candidate evidence.
-9. Tests and evaluations use exactly `claude-haiku-4-5-20251001`; production may
-   use Haiku or Sonnet, never Opus.
+8. Formal evidence requires exact target-bound, axiom-clean active-project Lean
+   verification. The kernel proves the encoded statement; correspondence to an
+   informal request requires separate statement review. Compiled helpers and
+   weakened targets remain scoped evidence, not closure of the requested theorem.
+9. Future model tests use the existing pinned local Qwen deployment. Official
+   publication studies start fresh with open-weight models. Direct Anthropic API
+   testing, Opus and automatic cloud escalation are forbidden. Historical Haiku
+   records remain immutable development evidence, not new-study baselines. Local
+   Claude Code host compatibility/user-workflow checks are separately authorized, not pooled
+   with scientific comparisons. Confirm availability and record exact weights,
+   quantization, runtime, chat template and sampling; unit tests do not call a model.
 10. Development uses multiple unrelated families. Held-out tasks remain sealed
     and cannot be used to create vocabulary, theorem, metric, or Lean rules.
 
@@ -56,11 +66,13 @@ task asks for an optional correctness audit, and nonblocking when frozen intent
 marks it not applicable. A formal failure cannot erase independently valid theory or
 empirical evidence, but it must remain visible in the evidence vector.
 
-Held-out evaluation begins only after the corresponding development tasks close at
-their frozen intent. Separate formal integration milestones require exact kernel
-closure on multiple unrelated formal tasks. Neither milestone alone establishes
-complete product readiness: broader paper ingestion, theory depth, replication,
-scientific computing, library growth, and cross-task learning still need evidence.
+The archived study's held-out evaluation begins only after its corresponding
+development tasks close at their frozen intent; its sealed pool remains untouched.
+New publication studies use their own prospectively qualified tasks and splits,
+not the historical Haiku development gate. Separate formal integration milestones
+require exact kernel closure on multiple unrelated formal tasks. Neither milestone
+alone establishes complete product readiness: broader paper ingestion, theory depth,
+replication, scientific computing, library growth and cross-task learning still need evidence.
 
 ## Current Status
 
@@ -75,6 +87,8 @@ tests or one evidence dimension is never promoted to full-task capability. The
 system must not be described as fully end to end until fresh cross-family tasks close
 under their frozen intent.
 
-The machine-readable frozen split is
+The archived machine-readable frozen split is
 [`benchmarks/autonomous_cross_family_e2e_protocol_20260713.json`](../benchmarks/autonomous_cross_family_e2e_protocol_20260713.json).
+The new studies are specified in [publication_experiments.md](publication_experiments.md);
+that design is not yet activated.
 The active architecture is [production_design.md](production_design.md).

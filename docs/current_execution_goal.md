@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-10-02, two evidence-backed publications and local Qwen testing.
+Updated: 2026-10-03, two evidence-backed publications and local Qwen testing.
 
 ## Operative Objective
 
@@ -227,6 +227,11 @@ question. Mathematical acceptance remains a separate expert-review obligation.
    on non-formal scientific experiments.
    TODO characterizations and functional causal definitions are not completed
    inference theorems or new agent proof evidence.
+   The [current reconstruction record](../benchmarks/publication_foundation_rebuild_20261003/README.md)
+   separates a failed cache-preparation check from the first unchanged-source root
+   build. Neither is agent capability or mathematical acceptance. Anonymous Lean
+   repository access is not established; resolve release access and source rights
+   rather than claim that configured operator Git access proves public installation.
 6. Use ERA-style candidate search only inside an existing exploratory workspace
    with a trustworthy executable score. No automatic search tree, model ensemble,
    extra reviewer, repair taxonomy, or fixed iteration ritual is required.

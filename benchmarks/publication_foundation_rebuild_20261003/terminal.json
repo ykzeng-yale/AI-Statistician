@@ -1,0 +1,18 @@
+{
+  "protocol_sha256": "5d7e7a0f2c0b3c186afa2fbecafa80165004ad0a79deb35819e07e9c28abbbb1",
+  "command": [
+    "lake",
+    "build",
+    "StatInference"
+  ],
+  "returncode": -15,
+  "timed_out": true,
+  "elapsed_seconds": 3600.372,
+  "source_commit": "db6c7718349f3c14a7e37905f3529675f1ebaa52",
+  "tracked_diff_after": "",
+  "manifest_sha256_after": "1a4a57144b4f871f233c42d125517b0598002e895e2e708779d646ee3ff2f65f",
+  "build_log_sha256": "c8f64a299c3480e46b313026138225780129525e82c17220f7186f6068e99e8a",
+  "guard_lock_path": "/private/tmp/statinference-lean-verifier-ef5e263895434102.lock",
+  "model_calls": 0,
+  "axiom_or_source_fidelity_acceptance": false
+}

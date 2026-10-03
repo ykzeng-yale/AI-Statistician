@@ -1,7 +1,7 @@
 # Pinned Foundation Reconstruction
 
 This release check rebuilds the active Lean 4.30.0 `StatInference` source in a
-fresh checkout of its exact public commit. It addresses the difference between
+fresh checkout of its exact repository commit. It addresses the difference between
 the existing incremental build and reconstruction without local-library build
 artifacts. The prospective [protocol](protocol.json) permits copied, revision-checked
 third-party dependency caches. It is not a cold dependency or clean-machine test.
@@ -33,4 +33,30 @@ permits only matching the copied repositories' Git file-mode setting to the nati
 clone. It does not change tracked files, toolchain, Lake configuration or dependency
 pins, and makes no permission-preservation claim. The original failed preparation
 is retained; no scientific evaluation is retried or rescored. The first root-build
-terminal result will be reported separately.
+terminal result is reported separately below.
+
+## Root Build Outcome
+
+The [first root build](observed_results.json) timed out after 3600.372 seconds;
+Lake was terminated with SIGTERM (return code -15; runner shell exit 241).
+Its [original output](root_build_output.txt), [initial state](build_initial_state.json)
+and [terminal record](terminal.json) are preserved byte-for-byte. The last reported
+completion was Lake job 9526/9843. No native `error:` diagnostic line was observed
+before termination; this does not establish success of the unfinished modules.
+The fixed source and manifest were unchanged, and no local-library build directory
+existed at startup. Copied third-party caches were used.
+
+This is an incomplete source reconstruction under the recorded host, storage and
+timeout, not a new proof rejection or a passing release test. It does not negate
+the earlier incremental build, establish public installability or confer agent
+credit. There was no retry, mathematical/source patch, dependency migration or
+model call. Do not make this optional release check a gate on non-formal studies
+or continue an infrastructure campaign in place of matched scientific experiments.
+
+## Repository Access
+
+The operator's configured Git access can fetch the pinned Lean source. On
+2026-10-03, anonymous requests to its GitHub repository page and repository API
+both returned 404. Public availability is therefore not established; this check
+does not prove that an unauthenticated researcher can install the foundation.
+No repository visibility or rights setting was changed.
