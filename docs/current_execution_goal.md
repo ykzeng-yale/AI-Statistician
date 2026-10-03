@@ -1,6 +1,9 @@
 # Current Execution Goal
 
 Updated: 2026-10-03 after the operator requested a complete progress reset.
+The item-level [publication delivery checklist](publication_programme.md#delivery-checklist)
+is the canonical roadmap for theory, simulations, case, main texts, appendices,
+release and review. Items close on their stated evidence, not a readiness score.
 
 ## Outcome, Not Infrastructure
 
@@ -30,7 +33,7 @@ contract without falsely completing or replacing that goal.
 | --- | --- | --- |
 | Product | One outer AgentRuntime and retained tool loop; Markdown/LaTeX Theory; source-owner Python/R/Lean feedback; separate role review; explicit native R executor validated with package/project/bound-estimator fixtures | Correct scientific research, autonomous native R use or useful collaboration |
 | Portable package | One skill and two references; host discovery; Kimi/local-Qwen body uptake and file access; separately labelled Claude Code compatibility | Scientific efficacy, broad clean-machine installation or researcher time savings |
-| Manuscripts | [Harness draft](../manuscripts/portable_harness.md) and [system draft](../manuscripts/collaborative_system.md), with distinct methods arguments | Submission-ready papers; official comparative results do not exist |
+| Manuscripts | [Harness draft](../manuscripts/portable_harness.md), [system draft](../manuscripts/collaborative_system.md), and [shared methods appendix](../manuscripts/supplementary_methods.md), with distinct contrasts and explicit mathematical/Monte Carlo definitions | Independently reviewed mathematics, complete case arguments or submission-ready papers; official comparative results do not exist |
 | Case inputs | Integrated B1/Card E.1 v2 distinguishes seven methods; explicit four-arm assembly; 76-file available-input capsule and native source-environment probe | Activated study, complete author replication, release reconstruction or mathematical gold; B1 helper and original data rights remain unresolved |
 | Qwen development | Four standalone known-result draws had no final selection; both native FDA draws failed; earlier native R draws failed without demonstrated skill uptake | A publication baseline, reliable theory development or a measured harness benefit |
 | Lean foundation | Active Lean 4.30.0 Mathlib/Statlib/StatInference pin; selected kernel checks and source-mapped retrieval | Complete textbook coverage, clean reconstruction or source-faithful public API |
@@ -197,6 +200,12 @@ notices and scoped Lean evidence. Optional Lean work does not block non-formal
 experiments. It is supporting material, not a third paper by default.
 
 ### 5. Assemble and Review the Submission Packages
+
+Use checklist groups W/A/R and the
+[manuscript placement map](../manuscripts/supplementary_methods.md#s8-manuscript-placement-and-result-material).
+The shared appendix is now a substantive methods draft, not a placeholder. Its
+standard calculations still need independent review against the final design;
+case arguments, official outcomes and release qualification remain missing.
 
 Complete each main paper's contribution, closest baselines, methods, results,
 case/application, discussion and limitations. Append full relevant derivations,

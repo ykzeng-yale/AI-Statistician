@@ -257,6 +257,9 @@ The shared analysis specification gives the exact conditional target and a
 conservative interval under independent paired blocks, not a population guarantee.
 Counts, weights, repetitions and the uncertainty method remain unfrozen. Native
 compatibility or deterministic repeats do not supply those missing assumptions.
+The complete expectation calculation and conditional interval derivation are in
+[Supplement S3](supplementary_methods.md#s3-fixed-benchmark-target-and-conditional-uncertainty);
+pending independent assessment is not silently graded as rejection.
 
 Within a statistical-method task, the generated experiment must describe its aim,
 DGP, estimand, methods and performance measures. Comparators must address the same
@@ -276,6 +279,11 @@ Monte Carlo precision, not a fixed count or a desired significance result.
 The reference, tolerances, handling of numerical failures and any valid stopping
 rule are fixed before assessment. Mechanism unit tests are not this simulation
 study, and operator-run reference scripts are not autonomous agent outcomes.
+Failure denominators, conditional bias/coverage, successful interval delivery
+and paired Monte Carlo uncertainty are defined in
+[Supplement S4](supplementary_methods.md#s4-inner-statistical-method-simulation).
+These prevent reporting performance only among valid fits as an unconditional
+method guarantee; no official simulation results are supplied by the formulas.
 
 All scheduled agent draws remain in the outer denominator. Missing final outputs,
 execution failures and timeouts are reported by cause, with complete observed
@@ -371,9 +379,10 @@ scheduled-draw accounting and actual final artifact references will support the
 main comparisons. Native host differences and operator interventions are disclosed;
 compatibility-only observations remain separate from scientific outcomes.
 
-The [analysis specification](../docs/publication_experiments.md#outcomes-and-analysis)
-provides the fixed-benchmark estimand, expectation calculation and conditional
-repeated-run interval requirements. Freeze them separately within each exact
+The [shared methods supplement](supplementary_methods.md) provides the
+fixed-benchmark estimand, complete expectation/interval calculations, mathematical
+assessment, inner simulation denominators and required result material. Freeze
+the design separately within each exact
 host/model/resource condition. The calculation addresses acceptance variability,
 not mathematical validity or generalization to a population of new tasks. Any
 different inferential method or task-population target needs its own prospective

@@ -164,7 +164,7 @@ Library reuse is a separate intervention; exclude target proofs and dependent
 aliases from retrieval. Compare against accessible ReProver/minimal-agent
 implementations only after environment and model compatibility are established.
 
-## Delivery Order And Manuscripts
+## Delivery Checklist
 
 The first methods drafts are [portable harness](../manuscripts/portable_harness.md)
 and [collaborative system](../manuscripts/collaborative_system.md). They distinguish
@@ -178,30 +178,204 @@ failed the full library build against the proposed Lean 4.33.1 dependencies.
 The active Lean/RAG pin is unchanged. Compatibility failure does not invalidate
 the old compiled foundation or block optional-Lean research tasks.
 
-1. Finish the scientific argument in each existing manuscript master: question,
-   contribution relative to the closest work, actual intervention, baselines,
-   mathematical authority, simulation design, case and complete supplement.
-   Current expanded methods are prospective; no results have been supplied.
-2. Qualify the study's paper families and case from their full papers, relevant
-   proof appendices, code and data. Review assumptions and the argument separately
-   from reference execution. Preselect cases by scientific purpose, not observed
-   agent success. Set scope, exclusions, endpoints, sample/precision rationale
-   and family-level analysis; do not keep replacing failed families with easy ones.
-3. Resolve actual arm/tool/source/confirmation/resource comparability. Test only
-   demonstrated mechanism blockers with deterministic fixtures first. Native
-   Qwen/host conformance, installation and a compact source-faithful Lean release
-   support these deliverables; they are not parallel open-ended side projects.
-4. Freeze and run fresh open-weight studies, collecting all scheduled outcomes,
-   resource use and interventions. Obtain independent scientific adjudication.
-   Existing consumed evaluations remain immutable development records. A source-only
-   reproduction does not measure specialist collaboration; inner Monte Carlo
-   repetitions do not increase the outer agent sample.
-5. Complete the results and substantive case accounts in both masters, with full
-   mathematical arguments and reproducible main/supplement tables and figures.
-   Report negative outcomes and uncertainty without changing the original claims.
-6. Finish clean installation and licensing/attribution, with a defined Lean
-   coverage inventory rather than declaration counts. Deposit each arXiv paper
-   only when its own release and scientific evidence support its contribution.
+This is the single paper-delivery checklist, not a runtime controller or a new
+capability scorecard. An unchecked item remains incomplete even when a draft or
+test exists. Checked items name their limited deliverable, not publication
+readiness. Update items when their evidence changes; do not count them into a
+readiness percentage. Work through the dependencies below without reopening broad
+literature inventories, unrelated numerical panels or infrastructure campaigns.
+
+### 1. Scientific Scope and Study Qualification
+
+- [x] **Q01. Distinct questions and attribution.** Paper H tests package uptake
+  within the same coding host; Paper S tests the standalone collaboration bundle.
+  The masters and this programme state the contrasts, overlap and limitations.
+- [ ] **Q02. Qualified multi-family roster and split.** For each primary task:
+  record the paper/edition, inferential domain, access condition, exact deliverable,
+  theoretical and computational obligations, reason for inclusion, reference and
+  rights. Keep families together; exclude exposed development families from the
+  official test pool. Freeze weights and counts with a precision rationale, not
+  an arbitrary large task count. Current roster remains unfrozen.
+- [ ] **Q03. Complete case inputs and source reconstruction.** Preserve the
+  [TSCI B1/Card candidate](../benchmarks/publication_case_candidates/tsci_b1_card/README.md),
+  paper/code/data identities and original sources. Available 76-file capsule is
+  prepared; missing `Source-otherRF-hetero.R`, original data rights and clean
+  reconstruction are unresolved. No silent replacement or operator implementation.
+- [ ] **Q04. Qualified executable references.** Execute the exact intended
+  producer/aggregation and application scopes, record discrepancies and failure
+  behavior, and fix numerical tolerances before draws. Existing package examples
+  and environment probes do not qualify B1/E.1 or a full-paper endpoint.
+- [ ] **Q05. Independent mathematical authority.** Freeze claim rubrics, valid
+  alternative arguments, negative/underspecified controls, assessor qualifications,
+  conflicts, blinding and adjudication. Obtain assessor appointments; none is
+  currently established. Missing authority cannot be replaced by Qwen voting.
+- [ ] **Q06. Comparable actual conditions.** Verify tool/source/data access,
+  execution profiles, effective model requests, revision opportunities, confirmation
+  exposure and resources across H's two arms and S's four. Record irreducible
+  differences; equal calls or arm names are not qualification.
+- [ ] **Q07. Prospective freeze.** Bind exact code/package, local Qwen weights,
+  quantization/runtime/template/decoding/hardware, task and authority versions,
+  schedule/RNG/order, stopping, all outcomes and analysis. Confirm the chosen
+  deployment is available. Freeze before the first official call; no study is
+  currently activated.
+
+### 2. Theory and Scientific Agreement
+
+- [x] **T01. Evaluation-method appendix draft.** The shared
+  [supplementary methods](../manuscripts/supplementary_methods.md) states the
+  benchmark estimand, expectation calculation, conditional interval assumptions
+  and simulation estimands. These are standard evaluation methods, not a new
+  statistics theorem, an agent result or independently certified mathematics.
+- [ ] **T02. System-produced case argument.** Obtain selected Markdown/LaTeX
+  definitions, estimand, assumptions, identification argument, estimator/inference
+  explanation and equation-level derivations from the actual research agents.
+  Distinguish invoked published results from independently derived claims;
+  preserve conditional conclusions, counterexamples and unresolved dependencies.
+- [ ] **T03. Independent argument assessment.** Assess every substantive claim
+  and its exact selected argument under Q05. Localize unsupported steps, changes
+  in assumptions, normalization and rate errors; retain disagreements and unresolved
+  claims. No complete gold-covered scientific task has been established.
+- [ ] **T04. Theory/code/report agreement.** Bind each assessed estimand and
+  method to actual source and data, variance/selection conventions, experiment
+  output and interpretation. Reject a correct number attached to a different claim.
+- [ ] **T05. Review the paper's evaluation mathematics.** Independently check
+  T01 against the final design, including independence, missing assessment,
+  weighting and uncertainty. Do not apply a bound merely because it is written.
+- [ ] **T06. Scoped optional Lean evidence.** For any formal claim made in either
+  paper, provide source correspondence, active imports/pins, kernel/axiom evidence
+  and human/agent attribution. Qualify zero-shot, compile-feedback and scoped-RAG
+  comparisons only if prover performance is claimed. No non-formal task must wait
+  for textbook coverage, a migration or a new proving benchmark.
+
+### 3. Experiments and Simulation
+
+- [ ] **E01. Frozen simulation designs.** For each method task specify aims,
+  DGP/scenarios, estimands, comparators, information access, performance measures,
+  RNG/streams, failures and Monte Carlo precision. Separate literal replication
+  from a justified extension. No universal 100-repetition or nominal-coverage gate.
+- [ ] **E02. Fresh Paper H comparison.** Run every scheduled bare/package draw
+  under Q07; verify actual body uptake and retain uptake failures, absent finals,
+  costs and interventions. Compatibility observations are not these outcomes.
+- [ ] **E03. Fresh Paper S comparison.** Run free planning, shared workflow,
+  no-reverse-revision and full collaboration on integrated tasks. Retain all
+  stopping causes. Source-only tasks cannot identify collaboration effects.
+- [ ] **E04. Confirmatory method execution.** Execute frozen exact source on
+  the specified fresh cohorts, retaining per-repetition results and failures.
+  Check MCSE and the declared stopping rule; do not alter metrics after outcomes.
+- [ ] **E05. Common final-artifact adjudication.** Evaluate the exact final
+  selections in all arms, including missing/unresolved material, with the same
+  qualified independent authority. Do not salvage intermediates, retry consumed
+  failures or rescore old Haiku/Qwen development draws.
+- [ ] **E06. Complete comparative analysis.** Produce family-by-arm counts,
+  prespecified paired contrasts and justified uncertainty, component outcomes,
+  failure causes and complete time/token/computation accounting. Distinguish
+  outer agent draws from inner datasets and purposive-roster results from
+  task-population claims. Release negative results; no official effect exists yet.
+
+### 4. Substantive Case Study
+
+- [x] **C01. Bounded case candidate.** The public question distinguishes B1's
+  seven methods and Card Appendix E.1's four basis analyses, oracle access,
+  theory/code/empirical intent and non-required Lean. It is a candidate, not a
+  selected passing case or an untouched held-out family.
+- [ ] **C02. Complete published B1 reconstruction.** Resolve Q03/Q04; account
+  for all 18 declared settings and 25 rounds per setting, the seven requested
+  methods, aggregation, uncertainty and unavailable/failed fits. One batch or
+  software example cannot stand for the full design.
+- [ ] **C03. Card E.1 application.** Execute all four specified basis analyses
+  with exact data, covariates, splits and aggregation. Explain the wage/schooling
+  estimand, instrument, comparison and assumption sensitivity. Do not relabel
+  E.1 as main Figure 4 or infer instrument validity from numerical agreement.
+- [ ] **C04. Independent scientific interpretation.** Connect T02--T04 and
+  C02--C03; separate reproduction, adaptation, reimplementation and new theory.
+  Clearly bound causal and asymptotic claims. Preserve the published proof/source
+  discrepancies until independently resolved, without operator proof repair.
+- [ ] **C05. Case selection and behavioral account.** Predeclare the case's role
+  in each paper. H reports the host intervention; S traces meaningful specialist
+  findings and same-owner revisions against external outcomes. Show failures and
+  human interventions, not just a successful vignette. Shared case material is
+  disclosed once, never counted as two independent efficacy results.
+
+### 5. Main Papers and Appendices
+
+The two Markdown files remain the manuscript masters. Use the common supplement
+for shared methods; per-task arguments and results remain separately attributed.
+The [placement map](../manuscripts/supplementary_methods.md#s8-manuscript-placement-and-result-material)
+names the required tables, figures and supplements without inventing their values.
+
+- [x] **W01. Methods masters.** H Sections 1--4 and S Sections 1--4 have draft
+  questions, closest-work discussion, implemented interventions, evaluation and
+  analysis. Native R scope and shared appendix are now aligned. This is drafting,
+  not independent review or a measured efficacy claim.
+- [ ] **W02. Paper H results.** Write qualified installation scope separately
+  from E02/E05/E06 scientific contrasts, with uncertainty, uptake, failures,
+  resource use and operator interventions. No time-saving claim without its own
+  researcher study.
+- [ ] **W03. Paper S results.** Write E03/E05/E06 with all four arms, exact
+  contrast interpretations and internal/external verdict disagreement. Do not
+  attribute a bundled difference solely to memory, review quality or parallelism.
+- [ ] **W04. Case sections.** Complete each paper's Section 5 from C02--C05,
+  with essential scientific results in the main text and full materials below.
+- [ ] **W05. Discussion, title and abstract.** Revise only after results;
+  address source/model/roster scope, contamination, grading authority, dependence,
+  negative findings, software limits and overlap. Remove unsupported superiority,
+  autonomous-discovery, theory or entire-textbook claims.
+- [ ] **A01. Task and assessment supplement.** Supply the roster, edition/access
+  mapping, split/exclusions, rubrics, reference qualification and assessor record.
+  Keep held gold out of author tools until assessment; release it afterward where
+  permitted, without exposing unused sealed tasks.
+- [ ] **A02. Complete mathematical supplement.** Include every assessed selected
+  case argument, definitions, assumptions, dependencies, full calculations and
+  localized assessments from T02--T04, plus independently reviewed T01/T05.
+  No equation snippets or finite numeric checks in place of a proof.
+- [ ] **A03. Protocol and trajectory supplement.** Release all scheduled draws,
+  exact final/source/input identities, prompts/tools, pins, budgets, RNG/order,
+  costs, interventions and stopping causes. Protect credentials/private reasoning;
+  report unavailable records rather than fabricate them.
+- [ ] **A04. Simulation and case supplement.** Release full ADEMP designs,
+  methods, per-repetition outcomes, aggregation scripts, failure/MCSE calculations,
+  application data/access and sensitivity analyses for E04/C02--C04.
+- [ ] **A05. Lean support supplement.** Provide the compact curated inventory,
+  source-statement maps, pins, dependencies, axiom checks and attribution for T06.
+  Shared library checks are not two independent agent-proving results.
+- [ ] **A06. Table/figure reproduction.** Connect every main/supplementary value
+  to exact permitted inputs and a reproduction command. Distinguish planned from
+  executed denominators, missing from zero, and mechanism from scientific evidence.
+
+### 6. Release, Review and Submission
+
+- [ ] **R01. Rights and attribution.** Resolve both root licenses, incorporated
+  software, textbook/source text and original-data rights; establish public access.
+  An author's request does not grant third-party redistribution rights.
+- [ ] **R02. Clean researcher release.** Test native host activation/reference
+  access and scientific Python/R workflows on a clean documented environment;
+  freeze minimal installation and exact reconstruction instructions. Prepared
+  operator environments and local unit tests are not clean-machine evidence.
+- [ ] **R03. Independent full-paper review.** Review both complete main texts,
+  appendices and scientific analyses for correctness, contribution, agreement,
+  reproducibility and claim scope. Correct all consequential findings.
+- [ ] **R04. Submission QA.** Supply authors/affiliations/contributions and
+  acknowledgments, checked bibliography, artifact access/rights, venue-specific
+  disclosure and overlap. Produce compiled, visually checked submission packages
+  with no missing references, placeholders or unsupported numbers.
+- [ ] **R05. Goal closure.** Verify both papers independently satisfy their
+  stated contributions, reproducible comparisons and releases. Only then mark
+  the native goal complete; do not infer readiness from this checklist count.
+
+### Immediate Execution Order
+
+Close Q03/Q04's named source/reference gaps; in parallel, finish the roster and
+Q05 assessor decisions without exposing held answers to product authors. Then
+qualify Q06, freeze Q07/E01 and execute E02/E03. Adjudicate before reporting an
+effect; assemble T02--T04, E04 and the case into the main texts and supplements.
+Release rights and clean reconstruction can advance while assessment is pending.
+Optional Lean supports scoped claims, not the non-formal study's critical path.
+
+The current native-R mechanism and shared appendix drafting advance prerequisites
+only. Missing author sources, data rights and qualified assessor appointments
+remain external decisions. Until resolved, advance unblocked items of this same
+programme; do not replace the case, invent authority or launch a knowingly
+unqualified official comparison.
 
 Likely venue fit is a later decision: a useful statistical software/research
 workflow contribution can fit a computational-statistics/software venue; a

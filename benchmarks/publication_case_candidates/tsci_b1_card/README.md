@@ -123,13 +123,16 @@ prospective resource values:
   --no-progress-turns "$NO_PROGRESS_TURNS"
 ```
 
-The complete native R source environment is also distinct from generated
-scientific execution. The default scientific R profile is WebR with its declared
-package surface, not the operator's native R reference library. A native
-`run_research_source` manifest does not make `ranger`, `ivmodel` or TSCI available
-inside Algorithm/Simulation's R sandbox. Resolve and verify that execution path,
-or explicitly qualify a Python reimplementation, before selecting the case's
-scientific configuration. Do not claim native R capability from operator runs.
+The source-execution manifest is distinct from the generated scientific profile.
+The default is still WebR. Product commit `8aabc10c` makes explicit local
+`scientific_native_r` available through the existing Algorithm/Simulation,
+Theory scratch and exact reviewer tools when `AI_STATISTICIAN_NATIVE_R_CONFIG`
+is configured. Qualify that exact configuration/library and actual case source
+execution across arms before selecting it; no automatic substitution occurs.
+Native fixtures establish installed-package/project/estimator execution, not
+autonomous TSCI reproduction, mathematical authority or clean reconstruction.
+Hidden evaluation must select its own frozen profile. No further package/version
+probe can replace the missing source/method/reference qualification.
 
 No fixed reasoning length, new retry taxonomy, statistical content patch or
 mandatory Lean gate is added. The methods and contrasts come from the declared

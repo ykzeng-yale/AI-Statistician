@@ -690,134 +690,42 @@ remains in the denominator under its predeclared handling.
 
 ### Target and Estimation
 
-The primary target is expected independently accepted output on the fixed,
-qualified benchmark under one frozen host/model/resource condition. For Paper H,
-the primary contrast is package minus bare host within the same host/model. For
-Paper S, it is full collaboration minus free planning. Do not pool hosts, model
-checkpoints or resource conditions into one effect without a separate declared
-target and weights.
+The complete fixed-benchmark target, weighting, estimator and expectation
+derivation now have one manuscript source in
+[Supplement S3](../manuscripts/supplementary_methods.md#s3-fixed-benchmark-target-and-conditional-uncertainty).
+Paper H's primary contrast is package minus bare host within the same host/model;
+Paper S's is full collaboration minus free planning. Freeze the roster, family
+aggregation/weights, scheduled draws, assessment and resources before calls.
+Do not pool hosts/checkpoints or claim a population effect from a purposive roster.
+Report family-by-arm results before the aggregate. Inner datasets, rubric items
+and tool calls are not outer observations.
 
-Let the roster contain $N$ families, with one prespecified primary task/access
-condition per family. Let $w_i>0$, $\sum_{i=1}^N w_i=1$, be frozen family
-weights; equal-family weighting uses $w_i=1/N$. Each family has $R_i\geq1$
-scheduled paired draws across arms. A variant-inclusive design must define its
-within-family aggregation before outcomes rather than count variants as new
-families. Let $Y_{ir}^a\in\{0,1\}$ indicate complete independent acceptance
-for arm $a$, family $i$, draw $r$. A missing final selection is not
-accepted; preserve the distinction between scientific rejection, incompletion
-and environment/evaluation failure in the reported causes. The endpoint measures
-accepted delivered research, not an unobserved error-free mathematical truth.
-
-Write $\mathcal B$ for this fixed benchmark and $\mathcal F$ for the frozen
-task, model, execution, access, adjudication and scheduling conditions. For arms
-$A$ and $B$, the schedule-averaged target and its estimator are
-
-$$
-\begin{aligned}
-\Delta_{\mathcal B}^{A,B}
-&=\sum_{i=1}^N\frac{w_i}{R_i}\sum_{r=1}^{R_i}
-  \mathbb E[Y_{ir}^A-Y_{ir}^B\mid\mathcal F],\\
-\widehat\Delta_{\mathcal B}^{A,B}
-&=\sum_{i=1}^N\frac{w_i}{R_i}\sum_{r=1}^{R_i}
-  (Y_{ir}^A-Y_{ir}^B).
-\end{aligned}
-$$
-
-Linearity alone, without an independence assumption, gives
-
-$$
-\begin{aligned}
-\mathbb E[\widehat\Delta_{\mathcal B}^{A,B}\mid\mathcal F]
-&=\sum_{i=1}^N\frac{w_i}{R_i}
-  \mathbb E\!\left[\sum_{r=1}^{R_i}(Y_{ir}^A-Y_{ir}^B)
-  \mid\mathcal F\right]
-  &&\text{(outer linearity)}\\
-&=\sum_{i=1}^N\frac{w_i}{R_i}\sum_{r=1}^{R_i}
-  \mathbb E[Y_{ir}^A-Y_{ir}^B\mid\mathcal F]
-  &&\text{(inner linearity)}\\
-&=\Delta_{\mathcal B}^{A,B}
-  &&\text{(target definition).}
-\end{aligned}
-$$
-
-Show family-by-arm counts, paired differences and failures before the weighted
-aggregate. Within-artifact datasets, rubric items and tool calls are not outer
-draws. Family-level resampling cannot turn a purposive roster into a probability
-sample of unseen problems. A task-population analysis requires its own declared
-sampling frame/design; do not present it as the fixed-benchmark analysis.
+Missing final selection is not an accepted delivery. Missing independent
+assessment remains pending, not an expert rejection or a silently graded zero;
+the final unresolved disposition follows the prospectively fixed endpoint.
+The exact-final-material assessment obligations are in
+[Supplement S2](../manuscripts/supplementary_methods.md#s2-mathematical-assessment-and-pending-authority).
 
 ### Conditional Repeated-Run Uncertainty
 
-Uncertainty about the fixed benchmark comes from the scheduled agent/assessment
-run mechanism. Its assumptions must be explicit. A conservative finite-sample
-interval below requires independent paired blocks $(Y_{ir}^A,Y_{ir}^B)$ across
-$(i,r)$, conditional on $\mathcal F$; dependence between arms within a
-block is allowed. It does not require identical means. Fresh contexts, no mutable
-cross-draw memory, a fixed qualified adjudication procedure and the actual model
-randomness/scheduling policy must support this assumption. A common server or
-rater can induce dependence; clean directories alone do not establish independence.
-If dependence is not resolved by the design, do not use this interval. A different
-uncertainty method and its assumptions must be fixed prospectively, or report
-descriptive outcomes without a calibrated interval.
+Supplement S3 supplies the full conditional bounded-sum derivation and simultaneous
+contrast radius, including the required cross-block independence and its limits.
+The current client supplies no per-request model seed; data seeds, clean
+directories and deterministic repeats do not establish independent agent draws.
+Qualify actual server RNG/scheduling and assessment behavior. If the assumptions
+are unsupported, use a separately justified prospective analysis or descriptive
+outcomes without a calibrated interval. Counts, weights and uncertainty remain
+unfrozen; the appendix is not an activated protocol.
 
-The current local model client sends temperature but no per-request model seed.
-Executor/data seeds therefore do not establish paired model randomness, and
-deterministic-decoding repeats do not automatically provide independent stochastic
-draws. Record the server's decoding/RNG behavior and arm order. The bound cannot
-certify these empirical design assumptions or correct grading bias.
+[Supplement S4](../manuscripts/supplementary_methods.md#s4-inner-statistical-method-simulation)
+separately defines inner bias, valid-interval coverage, successful covering-interval
+delivery, failure denominators, paired-method comparison and MCSE. Its equations
+do not turn successful fits into an unconditional method claim or numerical
+agreement into proof. Keep main agent comparisons, inner scientific simulations
+and mathematical assessment distinct.
 
-For $t>0$, each weighted paired difference lies in
-$[-w_i/R_i,w_i/R_i]$. Applying the independent bounded-sum inequality to the
-upper and lower tails and using a union bound yields
-
-$$
-\begin{aligned}
-\Pr\!\left(
- \left|\widehat\Delta_{\mathcal B}^{A,B}-\Delta_{\mathcal B}^{A,B}\right|
- \geq t\mid\mathcal F\right)
-&\leq2\exp\!\left\{
- -\frac{2t^2}{\sum_{i=1}^N\sum_{r=1}^{R_i}(2w_i/R_i)^2}
- \right\}
- &&\text{(two tails)}\\
-&=2\exp\!\left\{
- -\frac{2t^2}{\sum_{i=1}^N\sum_{r=1}^{R_i}4w_i^2/R_i^2}
- \right\}
- &&\text{(expand the square)}\\
-&=2\exp\!\left\{
- -\frac{2t^2}{\sum_{i=1}^N4w_i^2/R_i}
- \right\}
- &&\text{(sum over draws)}\\
-&=2\exp\!\left\{
- -\frac{t^2}{2\sum_{i=1}^Nw_i^2/R_i}
- \right\}
- &&\text{(cancel the common factor).}
-\end{aligned}
-$$
-
-This is a standard application of [Hoeffding (1963), Theorem 2, equation (2.6)](https://doi.org/10.1080/01621459.1963.10500830),
-not a new theoretical contribution or a proof of an agent's statistical argument.
-For $K\geq1$ prespecified confirmatory contrasts using this schedule and
-$0<\alpha<1$, a further union bound gives simultaneous coverage at least
-$1-\alpha$ with radius
-
-$$
-h_\alpha=\sqrt{2\log(2K/\alpha)\sum_{i=1}^Nw_i^2/R_i}.
-$$
-
-Intersect each interval $[\widehat\Delta_{\mathcal B}^{A,B}-h_\alpha,
-\widehat\Delta_{\mathcal B}^{A,B}+h_\alpha]$ with $[-1,1]$. Dependence among
-the contrasts does not invalidate the union bound. The interval is conservative;
-it may be uninformative. Planning for radius at most $\varepsilon>0$ under
-this method requires $\sum_i w_i^2/R_i\leq
-\varepsilon^2/\{2\log(2K/\alpha)\}$. This is a precision calculation, not
-power evidence or permission for outcome-dependent extra draws. A narrower
-prespecified method needs its own justified assumptions. No official weights,
-repeat counts, RNG policy or confidence procedure have yet been frozen.
-
-Report time-limit censoring for duration and quality-cost curves, not only cost
-among successful attempts. Keep confirmatory contrasts separate from exploratory
-ablations. Mathematical claim assessment and inner simulation uncertainty remain
-separate from this outer acceptance comparison.
+Report time-limit censoring and quality-resource curves for all draws, not only
+successful ones. Keep confirmatory contrasts separate from exploratory ablations.
 
 Human usability is an optional separate study, not a prerequisite for H1 or S1.
 A human-effort effect requires its own assignment, exposure/carryover and

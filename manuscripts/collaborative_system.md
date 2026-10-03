@@ -102,12 +102,14 @@ request, exact source and logs; identical computational inputs do not overwrite
 earlier failure evidence. The runtime does not infer a statistical answer from
 an error message or inject a hand-written fix into model-authored code.
 
-The current scientific executor uses pinned Pyodide and webR environments in
-bounded local subprocesses. An explicitly configured offline native project tool
-is separate. These tools do not establish arbitrary dependency reconstruction,
-clean-machine replication or the ability to run every published scientific
-package. Missing execution capabilities remain visible instead of silently
-falling back to an unrestricted interpreter.
+The default scientific executor uses pinned Pyodide and webR in bounded local
+subprocesses. An explicit native-R profile reuses the same R ABI and existing
+pinned local executor; installed packages come from the operator's environment,
+not task rules. Raw observations return to the source owner without automatic
+backend fallback. Native R currently requires macOS isolation, and package
+versions do not establish frozen package bytes. The offline native project tool
+is separate. Local execution fixtures establish these mechanism scopes, not
+autonomous use, arbitrary dependency reconstruction or clean-machine replication.
 
 ### 2.3. Review and Progressive Commitment
 
@@ -464,6 +466,11 @@ cannot be removed by that calculation. Planned weights, repetitions, contrasts,
 multiplicity and the actual RNG/scheduling design must be supplied before draws.
 Inference for a population of new tasks would require a separate sampling design.
 These are evaluation methods, not a new theorem about scientific correctness.
+The full calculations have one source in
+[Supplement S3](supplementary_methods.md#s3-fixed-benchmark-target-and-conditional-uncertainty).
+Its standard expectation identity requires no run independence; the confidence
+bound does. Pending external assessment is not silently treated as an adverse
+expert judgment or a completed official outcome.
 
 Scientific-code replication requires the exact generated source and support files,
 environment, DGP, comparator settings, random-number handling, Monte Carlo precision
