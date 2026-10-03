@@ -281,6 +281,8 @@ The current implementation audit finds material conditions that still require
 prospective qualification. Both shared controls now expose the production
 Python/R Theory scratch tools, but execution timeouts, exploratory data streams,
 private confirmation capacity and outcome exposure must be matched or declared.
+Simulation authoring intent and diagnostics now use the public research seed,
+not a transformation of the private confirmation seed.
 The product's default confirmation seed can equal its public exploratory seed;
 redacting cohort metadata does not make those data fresh or independent.
 Confirmation feedback also differs between a shared conversation and isolated

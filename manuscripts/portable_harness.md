@@ -1,7 +1,7 @@
 # A Portable Harness for Reviewable Statistical Research with Coding Agents
 
 Working methods draft, 2026-10-02. Not submission-ready. Authors and affiliations
-are not yet supplied. Comparative results, usability results and release rights
+are not yet supplied. Comparative results, installation qualification and release rights
 remain unresolved; this draft does not claim an efficacy result.
 
 ## Abstract
@@ -14,8 +14,8 @@ coding agent rather than supplying a second agent controller. The package keeps
 mathematics in reviewable Markdown or LaTeX, uses native file and execution tools
 for Python/R work, and selects Lean verification according to the research task.
 Its operating guidance distinguishes exploration, independent review, confirmation
-and exact formal evidence. We specify separate tests of native installation,
-scientific outcomes and researcher effort. Scientific comparisons are prospective
+and exact formal evidence. We specify separate tests of native installation
+and scientific outcomes. Scientific comparisons are prospective
 and use pinned open-weight models; their results are not yet available. Native
 compatibility observations alone do not establish improved research performance.
 
@@ -122,7 +122,8 @@ the active proof environment until a complete migration succeeds.
 
 ### 3.1. Host Comparison and Task Population
 
-Installation, scientific efficacy and human usability are distinct questions.
+Installation, scientific efficacy and human usability are distinct questions;
+the proposed primary study addresses the first two, not a human-effort effect.
 Native installation checks must demonstrate that the exact package body reaches
 the model and that relative references and requested tools work. Discovery or
 exit zero alone is insufficient. Version-dependent activation failures stay in
@@ -198,20 +199,21 @@ artifacts; it cannot acquire authority from agreement with the author model.
 PaperBench's separate JudgeEval is a relevant evaluation precedent, not a
 mathematical referee for this study. [PaperBench](https://arxiv.org/abs/2504.01848)
 
-### 3.3. Researcher Effort
+### 3.3. Installation and Effort
 
-A researcher-use study will separately measure setup and reproduction effort
-with counterbalanced assignment and independently judged correctness where
-feasible. Convenience demonstrations cannot substitute for that study. Claude
-Code's separately authorized compatibility checks are not pooled with the
+Installation qualification records the exact supported host, setup steps, body
+activation, reference access and actual requested tools in a clean workspace.
+Setup time and operator interventions describe those observed executions; they
+do not estimate how much effort the package saves a population of researchers.
+Claude Code's separately authorized compatibility checks are not pooled with the
 open-weight scientific comparison.
 
-The effort study records installation, intervention, diagnosis and completion
-time, together with whether the result is correct. A short but incorrect analysis
-is not a usability success. Researchers' expertise, prior task familiarity and
-training on the host/package are part of the design. Counterbalancing does not
-erase carryover when a participant has already seen a task's solution; distinct
-matched tasks and the exposure record are needed.
+A human-effort claim would require a separately designed researcher-use study,
+with independently judged correctness, participant expertise and task exposure
+recorded. Counterbalancing alone would not erase familiarity with a solution.
+That study is an optional extension, not an additional prerequisite for the
+present installation and scientific-outcome comparison. No human usability or
+time-saving effect is claimed here.
 
 ## 4. Simulation and Statistical Analysis
 
@@ -329,6 +331,11 @@ documented release and a clear advantage over existing guidance, or the claim mu
 be narrowed. An architecture description alone does not supply that advantage,
 and a new statistical theorem is not manufactured to make the software appear
 methodological. The appropriate venue depends on the demonstrated contribution.
+For a statistical-software venue, the empirical illustrations should support
+usefulness and comparison with similar-scope implementations, not create an
+unrelated simulation campaign. JSS explicitly discourages extensive simulation
+studies and requires reproducible manuscript results and a documented software
+release. [JSS author information](https://www.jstatsoft.org/authors)
 
 ## Appendix A. Mathematical and Experimental Materials
 

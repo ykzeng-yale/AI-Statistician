@@ -5,8 +5,9 @@ schedule or resource envelope has been frozen. No result is claimed here.
 
 ## Questions And Units
 
-H1: Does the portable package improve accepted scientific outputs and researcher
-reproduction effort over the same coding host without it?
+H1: Does the portable package improve independently accepted scientific outputs
+over the same coding host without it? Installation qualification is reported
+separately; a researcher-effort effect is not a primary endpoint of this study.
 S1: Does specialist collaboration improve full-task acceptance over one general
 agent with the same base model and tools at matched global resources?
 S2: What changes under shared-context workflow guidance and under the implemented
@@ -60,9 +61,11 @@ performance question; bundled frontier tasks follow, rather than define, the
 first capability test. Include honest invalid-claim and non-reproducible controls.
 Do not require Lean for non-formal tracks.
 
-The initial roster proposal is 24 distinct paper/problem families across at least
-six statistical domains, with a separate development pool. It is a purposive
-benchmark proposal, not a probability sample or preregistered sample size. Freeze
+The roster will contain distinct paper/problem families spanning different
+statistical domains, with a separate development pool. The earlier suggested
+24-family/six-domain count had no completed precision or qualification rationale
+and is not a study requirement. This is a purposive benchmark design, not a
+probability sample or preregistered sample size. Freeze
 the roster, family weights and repeated-run precision before opening test gold.
 Repeated runs can estimate expected acceptance on that fixed benchmark; they
 cannot qualify a population claim about unseen statistical problems. Such a
@@ -134,7 +137,7 @@ draw implementations; they must be resolved or declared before the study starts.
 | --- | --- | --- | --- |
 | Theory computation | The actual production Python/R scratch tools are enabled with public `seed`, `n_runs`, `timeout_s` | `theory_scratch_enabled`, `config.seed`, `config.n_runs`, `theory_scratch_timeout_seconds` | Enable scratch in both; match its runtime, count and timeout explicitly |
 | Scientific execution | `timeout_s` applies to estimator, Simulation, scratch and optional self-review probes | Algorithm, Simulation and code-review probes use `generated_simulation_timeout_seconds`; Theory scratch has its own timeout | Set both declared production timeouts to the control timeout; no special 60-second condition or new ceiling is imposed |
-| Exploratory data | Public `seed` is used by Theory, estimator and Simulation diagnostics | Theory and estimator use `config.seed`; source-first Simulation derives a separate task-bound diagnostic seed | Freeze and record each actual data stream and its exposure; source-specific random draws need not be numerically identical, but their access and opportunity must be comparable |
+| Exploratory data | Public `seed` is used by Theory, estimator and Simulation diagnostics | Theory, estimator and source-first Simulation diagnostics use `config.seed`; evaluator authoring intent also uses this public seed | Freeze and record each actual data stream and its exposure; source-specific random draws need not be numerically identical, but their access and opportunity must be comparable |
 | Product confirmation | A private, finite `confirmatory_seeds` schedule is distinct from the public seed; changed source consumes its next entry | The existing cohort machinery defaults to `config.seed` and advances by a deterministic increment; a separately initialized cohort can be supplied through `architect_context` | Default settings can reuse an exploratory seed. Do not label them fresh blinded confirmation; qualify the complete cohort/exposure path and attempt capacity before activation |
 | Confirmation feedback | Each consumed result returns to the shared conversation | Post-commit confirmation is outside the originating author session, but later graph feedback can expose results | This is an access/revision difference in the implemented bundle, not equal author feedback; prespecify its interpretation and retain every consumed attempt |
 | Role and source opportunities | One retained context; optional self-review uses the same model context | Isolated product reviewers; ordinary graph transitions and reverse revision depend on arm | Freeze available tools, allowed sources, candidate/revision opportunities, local/outer stopping and final-selection rules; equal calls do not equal equal opportunities |
@@ -144,9 +147,13 @@ The control scratch addition reuses production tool schemas and raw execution
 observations; it does not add a research recipe or evidence credit. Opaque
 transport tests cover Python/R success and failure, source preservation and
 accounted requests. Actual production-composition tests cover the declared
-Algorithm timeout in both production arms; its former implicit 60-second default
-no longer overrides the runtime setting. These are tool/configuration-conformance
-tests, not theory validation.
+Algorithm timeout and public Simulation seed in both production arms; the former
+implicit 60-second Algorithm default no longer overrides the runtime setting.
+Simulation authoring intent and diagnostics no longer derive their seed from the
+private confirmation seed. Callback tests vary the two seeds independently and
+retain the private executor's task-bound seed and unmodified raw observations.
+These are tool/configuration-conformance tests, not theory validation or evidence
+that all model-visible paths are blinded.
 
 The existing model-visible cohort projection now also withholds `base_seed` and
 typed transition `from_seed`/`to_seed`, including in Architect feedback routing.
@@ -766,9 +773,10 @@ among successful attempts. Keep confirmatory contrasts separate from exploratory
 ablations. Mathematical claim assessment and inner simulation uncertainty remain
 separate from this outer acceptance comparison.
 
-Human usability is a separate study: identical research material, randomized
-counterbalanced assignment where possible, observer-recorded setup/reproduction
-effort and blinded correctness. User satisfaction cannot replace correctness.
+Human usability is an optional separate study, not a prerequisite for H1 or S1.
+A human-effort effect requires its own assignment, exposure/carryover and
+correctness assessment. Observed installation time alone is not that effect;
+user satisfaction cannot replace correctness.
 
 ## Reproducible Release
 

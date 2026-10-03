@@ -63,6 +63,32 @@ alone do not map the final article's Section 6 results. The Maimonides script
 requires a local CSV path not supplied by that script. This is a dependency gap,
 not a finding about its statistical conclusions.
 
+### Paper-to-Code Mapping Follow-up
+
+The complete recursive tree at the same pin was inspected (`truncated=false`),
+along with the S1 and B1 aggregation scripts. This is static source inspection,
+not a new execution or replacement for the earlier attachment result.
+
+| Intended material | Actual source scope and unresolved issue |
+| --- | --- |
+| Section 6.1, S1 component of Figure 2 | `Simulation Codes/Section 5.1/Simulation-DML-S1.R` and its `read-` script form the producer/aggregator pair. The producer requests `Source-DML_helpers.R`, absent from the inspected tree. Its default `a=2.1` is outside the aggregator's `0.6:2.0` grid. A single unchanged invocation would not reproduce that figure. |
+| Section 6.2, B1, Table 1 and supplemental Table 8 | The B1 producer and coverage/bias/length readers enumerate batches and settings. The producer requests `Source-otherRF-hetero.R`, also absent from the tree. Oracle RF comparators are distinguished from data-selected TSCI; their access advantage must remain explicit. |
+| Section 7 versus Appendix E.1 | `RealData_Card_V1V2.R` writes four alternative-basis split results relevant to E.1. This does not by itself produce the main application figure or its multi-split interval. Full main-case aggregation remains unqualified. |
+
+The reference-paper mappings are Section 6.1/Figure 2, Section 6.2/Table 1,
+Section 7/Figure 4, and Appendix E.1; the repository's older folder numbering
+does not define those scopes. The documented weak/misspecified settings include
+undercoverage. A faithful reproduction is not required to make every method
+achieve nominal coverage, and a published undercoverage pattern is not evidence
+that the reproducing agent failed. Scientific interpretation and numerical
+reproduction remain separately assessed.
+
+Theorem 1's proof route passes through Theorem 6 in B.3 and its remainder
+dependencies, including Lemma 5/C.2. Feasible variance and selected-basis
+inference have additional obligations. The localized sign discrepancy already
+recorded above has not been resolved by this inspection or by a simulation.
+Do not insert a corrected proof into gold without an independently checked argument.
+
 ## Qualification Decision and Paper Consequences
 
 TSCI remains a substantive candidate, not an activated publication case. It
@@ -70,6 +96,19 @@ connects assumptions, first-stage learning, bias correction, model selection
 and an observational application. The source-only software example is usable
 only within its existing numerical-reference scope. Full-paper reproduction,
 theory gold, data rights and final-study result mappings are not qualified.
+
+Keep this one source family while finishing qualification; do not replace it
+with another easy numerical panel. The proposed bounded illustration is a
+published-method comparison under invalid instruments (B1), paired with the Card
+application and assumption-qualified mathematical explanation. It is not a
+request to rediscover the entire article or establish every asymptotic theorem.
+Access to paper, author code and data defines replication, not blind discovery.
+The final accessible assets, executable reference, mathematical claims/authority,
+aggregation and acceptance rules still need prospective qualification before
+this scope becomes a frozen task. Missing helpers are explicit source gaps;
+do not silently substitute a different script, package or repaired implementation
+and call it unchanged replication. Optional Lean is not a gate on this non-formal
+illustration.
 
 Keep distinct future deliverables: faithful reproduction of a specified version;
 assessment of an independently authored argument; and evaluation of collaboration

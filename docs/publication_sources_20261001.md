@@ -51,6 +51,12 @@ short software-paper route emphasizing usable, documented, licensed software.
 These sources do not impose one universal statistics-journal outline or require
 a fabricated new theorem. Our contribution and evidence determine venue fit;
 acceptance and current submission readiness are not established.
+The rechecked JSS guidance requires comparison to implementations of similar
+scope and explicitly discourages extensive simulation studies. The portable
+paper therefore separates installation qualification and scientific comparison
+from an optional human-effort study; no time-saving claim is made without that
+separate evidence. A large simulation campaign is not a publication requirement
+added by the software venue.
 
 The resulting changes are in the manuscript methods, simulation, case and
 appendix sections, not model prompts containing paper-specific proof repairs.

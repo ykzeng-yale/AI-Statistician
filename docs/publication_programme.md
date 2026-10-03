@@ -6,12 +6,13 @@ benchmark result. The native chat goal is active and covers both publications.
 ## Two Research Questions
 
 **Paper H: A Portable Harness for Reviewable Statistical Research.** Can a small,
-host-independent research workspace and evidence/tool layer improve the
-correctness, reproducibility and usability of statisticians' existing coding
+host-independent research guidance package improve the
+correctness and reproducibility of statisticians' existing coding
 agents? Researchers keep their host agent and model. Theory lives in
 Markdown/LaTeX; computation uses local Python/R; Lean is selected by task intent.
 The deliverable is an installable skill/tool package, reference workspaces and
-reproducible host conformance, followed by scientific and researcher-use studies.
+reproducible host conformance, followed by scientific comparison. A human-effort
+study is optional and required only for a separate researcher time-saving claim.
 Installing a skill alone does not establish either improvement or novelty.
 
 **Paper S: AI-Statistician, a Single-API Collaborative Statistical Research
@@ -60,7 +61,7 @@ does not establish novelty or mathematical truth.
 
 | Layer | Reuse now | Missing release requirement |
 | --- | --- | --- |
-| Portable host | Native host file/edit/search/execution tools and Agent Skills format | Clean installation, host discovery, tool access and real researcher usability |
+| Portable host | Native host file/edit/search/execution tools and Agent Skills format | Clean installation, actual body activation, reference/tool access and a substantive reproducible use case |
 | Retained research session | `client_tool_loop.py`, hash-bound files and raw observations | Local Qwen conformance for every workspace and long-session recovery |
 | Collaboration | `agent_runtime.py`, scoped roles and reference handoffs | Dependency-aware independent work, exact-input joins and evidence invalidation; current execution is serial/interleaved |
 | Scientific execution | Existing local Python/R tools and project snapshots | Native environment reconstruction and Python/R reproduction on clean machines |

@@ -57,7 +57,9 @@ their source/rubric qualification remains necessary before official theory draws
 
 The current arm audit restores the production Theory Python/R scratch tools to
 both shared controls, connects Algorithm execution to the existing declared
-timeout, and corrects the existing model-visible cohort metadata projection.
+timeout, corrects the existing model-visible cohort metadata projection, and
+uses the public research seed for Simulation authoring intent and diagnostics
+instead of deriving it from the private confirmation seed.
 The experiment design now records actual timeout, data-stream,
 confirmation-exposure, attempt and model-resource differences. These mechanism
 changes do not establish matched arms, fresh independent data or mathematical
