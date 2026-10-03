@@ -57,11 +57,12 @@ def _request() -> GeneratorRequest:
 
 
 def test_live_evaluation_model_resolver_pins_local_qwen() -> None:
+    assert resolve_live_evaluation_model("local") == "Qwen3-4B-Instruct-2507"
     assert resolve_live_evaluation_model(
         "local",
-        "claude-sonnet-4-6",
-        env={"AI_STATISTICIAN_CLAUDE_HAIKU_MODEL": "claude-haiku-old"},
-    ) == "Qwen3-4B-Instruct-2507"
+        "opaque-local-checkpoint",
+        env={"AI_STATISTICIAN_LOCAL_MODEL": "an-unselected-environment-model"},
+    ) == "opaque-local-checkpoint"
     for provider in ("anthropic", "openai"):
         with pytest.raises(ValueError, match="local Qwen"):
             resolve_live_evaluation_model(provider)

@@ -228,7 +228,6 @@ from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     DEFAULT_LIVE_GENERATOR_PROVIDER,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-    LIVE_EVALUATION_MODEL,
     LIVE_EVALUATION_MODEL_TIER,
     LIVE_EVALUATION_PROVIDER,
     SUPPORTED_GENERATOR_PROVIDERS,
@@ -240,6 +239,7 @@ from .model_backend import (
     llm_subsystem_expected_model_tier,
     normalize_generator_provider_name,
     resolve_generator_model,
+    resolve_live_evaluation_model,
 )
 from .formal_source_index import FormalSourceHit
 from .formal_source_prompt_context import (
@@ -407,7 +407,6 @@ def _normalized_runtime_evaluation_model_config(
     for field_name, expected in (
         ("evaluation_provider", LIVE_EVALUATION_PROVIDER),
         ("evaluation_model_tier", LIVE_EVALUATION_MODEL_TIER),
-        ("evaluation_model", LIVE_EVALUATION_MODEL),
     ):
         configured = str(getattr(config, field_name) or "").strip()
         if configured and configured != expected:
@@ -418,7 +417,9 @@ def _normalized_runtime_evaluation_model_config(
         config,
         evaluation_provider=LIVE_EVALUATION_PROVIDER,
         evaluation_model_tier=LIVE_EVALUATION_MODEL_TIER,
-        evaluation_model=LIVE_EVALUATION_MODEL,
+        evaluation_model=resolve_live_evaluation_model(
+            LIVE_EVALUATION_PROVIDER, config.evaluation_model,
+        ),
     )
 
 

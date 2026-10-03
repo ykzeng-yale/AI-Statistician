@@ -10,7 +10,7 @@ import pytest
 
 from ai_statistician.cli import (
     _apply_research_agent_runtime_evaluation_model_policy,
-    _build_theory_generator_backend, build_parser,
+    _build_theory_generator_backend, _runtime_evaluation_model_name, build_parser,
 )
 from ai_statistician.agent_runtime import (
     AgentRuntime, AgentStepResult, AgentTask, BlackboardState,
@@ -69,6 +69,23 @@ def test_server_cannot_substitute_model_identity(monkeypatch):
             model="Qwen3-4B-Instruct-2507",
         ))
     assert len(requests) == 1
+
+
+@pytest.mark.parametrize("mode", ["--research-eval", "--capability-eval"])
+def test_evaluation_honors_the_explicit_local_pin_without_role_substitution(mode):
+    args = build_parser().parse_args([
+        "research-agent-runtime", mode, "--llm-model", "opaque-local-checkpoint",
+    ])
+    _apply_research_agent_runtime_evaluation_model_policy(args)
+    assert args.evaluation_model == "opaque-local-checkpoint"
+    for configured in ("", "opaque-local-checkpoint"):
+        assert _runtime_evaluation_model_name(
+            args, provider_choice="same", configured_model=configured,
+        ) == "opaque-local-checkpoint"
+    with pytest.raises(ValueError, match="differs from the frozen evaluation model"):
+        _runtime_evaluation_model_name(
+            args, provider_choice="same", configured_model="an-unselected-local-checkpoint",
+        )
 
 
 @pytest.mark.parametrize("url", ["https://api.openai.com/v1", "http://example.org/v1",

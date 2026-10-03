@@ -380,14 +380,14 @@ def resolve_live_evaluation_model(
     requested_model: str = "",
     env: Mapping[str, str] | None = None,
 ) -> str:
-    """Pin new live evaluations to local Qwen; static fixtures remain offline."""
+    """Use an explicit local pin or the Qwen default, never a cloud fallback."""
 
     provider = str(provider_name or "").strip().lower()
     if provider in SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS:
         return requested_model or DEFAULT_STATIC_GENERATOR_MODEL
     if provider != LIVE_EVALUATION_PROVIDER:
         raise ValueError("future model evaluations require local Qwen; cloud escalation is forbidden")
-    return LIVE_EVALUATION_MODEL
+    return str(requested_model or "").strip() or LIVE_EVALUATION_MODEL
 
 
 def claude_model_tier_for_model(model: str) -> str:

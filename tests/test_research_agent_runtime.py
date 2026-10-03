@@ -217,10 +217,20 @@ def test_research_evaluation_is_pinned_to_local_qwen() -> None:
     assert normalized.evaluation_model_tier == "local"
     assert normalized.evaluation_model == "Qwen3-4B-Instruct-2507"
 
-    with pytest.raises(ValueError, match="requires evaluation_model"):
+    explicit = _normalized_runtime_evaluation_model_config(
+        ResearchAgentRuntimeConfig(
+            evaluation_mode="research_eval", evaluation_provider="local",
+            evaluation_model_tier="local", evaluation_model="opaque-local-checkpoint",
+        )
+    )
+    assert explicit.evaluation_model == "opaque-local-checkpoint"
+    assert explicit.evaluation_provider == explicit.evaluation_model_tier == "local"
+
+    with pytest.raises(ValueError, match="requires evaluation_provider"):
         _normalized_runtime_evaluation_model_config(
             ResearchAgentRuntimeConfig(
                 evaluation_mode="research_eval",
+                evaluation_provider="anthropic",
                 evaluation_model="claude-sonnet-4-5-20250929",
             )
         )

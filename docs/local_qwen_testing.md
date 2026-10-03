@@ -82,12 +82,26 @@ Theory, Python/R, Simulation, Lean and independent reviewers, use local Qwen;
 cloud selections fail before inference. The local server must report the requested
 model identity. A local error never falls back to Anthropic or another model.
 
-Hidden-gold schema 5 binds its reviewer to the same frozen provider/model policy.
+The development default remains `Qwen3-4B-Instruct-2507`, not a capacity ceiling.
+`--llm-model` selects an explicit local pin for the normal runtime CLI;
+publication draw configurations declare it in the deployment, role and runtime
+fields. Unspecified role models inherit the chosen CLI pin, while conflicting
+explicit role models fail instead of being silently overwritten. The four draw
+modes preserve the declared model in their frozen configuration and native
+requests. Alternate model IDs are covered by mocked transport tests only: no new
+weights were deployed or called. An ID match does not attest weights, template,
+sampling, resource parity or scientific capacity; those still require the
+prospective deployment checks. Do not select a stronger model after an outcome
+or automatically expand a run's resources.
+
+Hidden-gold schema 5 retains its original exact 4B evaluator policy.
 Semantic protocols 26/27 hash the actual requested model and native tool contract,
 and validate retained turn identity. Prior Haiku authority is readable for archival
 inspection and offline fixtures, not reusable qualification. Fresh scientific
 authority still needs prospective deployment/task/rubric pins and independent
-calibration. This change does not activate or qualify a scientific benchmark.
+calibration. Allowing an explicit researcher-model pin does not widen a frozen
+evaluator's qualification or alter any consumed result. This change does not
+activate or qualify a scientific benchmark.
 
 After this migration the same weights, binary and active chat-template hashes
 were rechecked. The opt-in local suite passed 24 tests in 2.09 seconds, including

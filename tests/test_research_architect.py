@@ -4309,16 +4309,16 @@ def test_live_evaluation_builders_are_pinned_to_local_qwen(
     )
     args.generated_code_semantic_reviewer_provider = "same"
     args.formal_target_semantic_reviewer_provider = "same"
-    args.llm_model = "claude-sonnet-4-6"
-    args.serious_theory_llm_model = "claude-sonnet-4-6"
-    args.architect_llm_model = "claude-sonnet-4-6"
-    args.algorithm_llm_model = "claude-sonnet-4-6"
-    args.simulation_llm_model = "claude-sonnet-4-6"
-    args.formalizer_llm_model = "claude-sonnet-4-6"
+    expected_model = "opaque-local-checkpoint"
+    args.llm_model = expected_model
+    args.serious_theory_llm_model = expected_model
+    args.architect_llm_model = expected_model
+    args.algorithm_llm_model = expected_model
+    args.simulation_llm_model = expected_model
+    args.formalizer_llm_model = expected_model
 
     _apply_research_agent_runtime_evaluation_model_policy(args)
 
-    expected_model = "Qwen3-4B-Instruct-2507"
     assert args.evaluation_provider == "local"
     assert args.evaluation_model_tier == "local"
     assert args.evaluation_model == expected_model

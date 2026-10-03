@@ -137,6 +137,7 @@ from .model_backend import (
     claude_model_tier_for_model,
     default_generator_model,
     default_generator_provider,
+    resolve_live_evaluation_model,
 )
 from .local_model_backend import LocalChatGeneratorBackend
 from .proof_state_feedback import (
@@ -768,7 +769,10 @@ def _runtime_evaluation_model_name(
         _runtime_evaluation_model_tier(args)
         and _runtime_resolved_provider_choice(args, provider_choice) == LIVE_EVALUATION_PROVIDER
     ):
-        return LIVE_EVALUATION_MODEL
+        pinned_model = str(getattr(args, "evaluation_model", "") or LIVE_EVALUATION_MODEL)
+        if configured_model and str(configured_model).strip() != pinned_model:
+            raise ValueError("configured role model differs from the frozen evaluation model")
+        return pinned_model
     return str(configured_model or "")
 
 
@@ -782,7 +786,9 @@ def _apply_research_agent_runtime_evaluation_model_policy(
         return
     args.evaluation_provider = LIVE_EVALUATION_PROVIDER
     args.evaluation_model_tier = evaluation_tier
-    args.evaluation_model = LIVE_EVALUATION_MODEL
+    args.evaluation_model = resolve_live_evaluation_model(
+        LIVE_EVALUATION_PROVIDER, getattr(args, "llm_model", ""),
+    )
     for field_name in _RUNTIME_EVALUATION_MODEL_TIER_FIELDS:
         if hasattr(args, field_name):
             setattr(args, field_name, evaluation_tier)
@@ -805,12 +811,13 @@ def _research_agent_runtime_evaluation_model_policy_errors(
             "live research evaluation model policy was not applied before "
             "runtime construction"
         )
-    if str(getattr(args, "evaluation_model", "") or "") != (
-        LIVE_EVALUATION_MODEL
-    ):
+    expected_model = resolve_live_evaluation_model(
+        LIVE_EVALUATION_PROVIDER, getattr(args, "llm_model", ""),
+    )
+    if str(getattr(args, "evaluation_model", "") or "") != expected_model:
         errors.append(
-            "live research evaluation model policy did not pin the current "
-            f"local Qwen model {LIVE_EVALUATION_MODEL}"
+            "live research evaluation model policy did not pin the declared "
+            f"local model {expected_model}"
         )
     if getattr(args, "evaluation_provider", "") != LIVE_EVALUATION_PROVIDER:
         errors.append("live evaluation provider policy was not applied")

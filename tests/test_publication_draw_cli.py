@@ -358,10 +358,12 @@ def replication_configuration(tmp_path, monkeypatch, mode, *, model_selected=Fal
 @pytest.mark.parametrize("mode", ["free_planning", "same_workflow", "full_collaboration", "no_cross_role_revision"])
 @pytest.mark.parametrize("failed", [False, True])
 @pytest.mark.parametrize("model_selected", [False, True])
-def test_source_only_draw_uses_existing_execution_and_exact_selected_report(tmp_path, monkeypatch, capsys, mode, failed, model_selected):
+@pytest.mark.parametrize("deployment_model", [MODEL, "opaque-local-checkpoint"])
+def test_source_only_draw_uses_existing_execution_and_exact_selected_report(tmp_path, monkeypatch, capsys, mode, failed, model_selected, deployment_model):
     from benchmarks.publication import draw_cli
     from benchmarks.publication.evaluate_final_artifacts import publication_material_from_submission
 
+    monkeypatch.setattr(sys.modules[__name__], "MODEL", deployment_model)
     config = replication_configuration(tmp_path, monkeypatch, mode, model_selected=model_selected)
     execution_calls = []
 
@@ -416,6 +418,10 @@ def test_source_only_draw_uses_existing_execution_and_exact_selected_report(tmp_
     assert summary["scientific_evaluation_performed"] is False
     assert summary["status"] == (("BLOCKED" if failed else "ACCEPTED") if collaborative else "REROUTE")
     assert len(requests) == (3 if collaborative else 4) and len(execution_calls) == 2
+    assert all(row["model"] == deployment_model for row in requests)
+    assert all(row["model"] == deployment_model for row in freezes[0]["role_configs"].values())
+    if collaborative:
+        assert freezes[0]["runtime_config"]["evaluation_model"] == deployment_model
     assert freezes[0]["study_provenance"]["source_execution_ref"]["sha256"] == config["source_execution_ref"]["sha256"]
     assert "run_research_source" in {row["function"]["name"].removeprefix(prefix) for row in requests[0]["tools"]}
     if collaborative:

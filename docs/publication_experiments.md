@@ -280,7 +280,10 @@ are `theory`, `algorithm`, `simulation`, `theory_reviewer`, `code_reviewer`,
 Theory's serious configuration and Architect's reviewer configuration must also
 be explicit/local. Role decoding settings remain those declared for the actual
 production agents. The runtime must declare `research_eval` and its same local
-evaluation model/tier/provider. The existing isolated reviewers and complete
+evaluation model/tier/provider. The explicit model pin is preserved; the 4B
+development default is not substituted for another declared local checkpoint.
+This is configuration support, not verification of a second deployment or
+scientific evidence about its capacity. The existing isolated reviewers and complete
 handoff policy run unchanged in the sole `AgentRuntime`; no acceptance receipts
 are fabricated or bypassed. Resolved runtime, role configs and context are frozen
 before the first call. Actual prompts/tools remain in production session contracts
