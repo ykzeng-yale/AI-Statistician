@@ -219,6 +219,30 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   deployment is available. Freeze before the first official call; no study is
   currently activated.
 
+#### Roster Qualification Evidence
+
+This table is the current candidate decision, not a frozen task list. A paper
+with runnable code is not automatically eligible for an integrated-theory endpoint.
+The actual question/access condition determines exposure and scientific scope;
+changing a version never rehabilitates a consumed problem family. Background
+overlap is recorded rather than treating every application of a shared statistical
+principle as an independent test or excluding all of statistics.
+
+| Candidate domain | Existing reference scope | Decision before Q02/Q04 can close |
+| --- | --- | --- |
+| TSCI invalid instruments | Separate JSS package example is numerically qualified; final JMLR B1/Card source inputs are prepared | Retain the substantive case. Missing B1 comparator helper, Card Table 15 aggregation/seed specification, exact case reference and independent theory assessment remain unresolved. |
+| Zero-inflated copula count regression, bizicount | Full unchanged main script executed, including 4,000 simulation slots | Discrepant standard errors, missing fits, optimizer codes and the source BIC convention prevent automatic use as scientific truth. Qualify a stated literal-reproduction or discrepancy-detection endpoint and rights separately. |
+| Empirical-Bayes normal means, ebnm | Unchanged default main-text run and exact finite numerical agreement within its inspected scope | Numerical-only reference exists; full timing/licensed appendix and independent theory do not. Existing James-Stein/Tweedie development exposure prevents calling a generic normal-means rederivation untouched. Exact source-task grouping still needs an explicit decision. |
+| Latent-class/profile models with external variables, StepMix | All six planned unchanged Python invocations finished, including the three full grids and GSS; Table 3 differs, selected other tables agree at displayed precision | Preserve emitted/suppressed convergence warnings, deleted extreme fits and absent per-repetition exports as limits. Existing Gaussian-mixture EM exposure excludes a generic EM rediscovery claim. Any distinct misclassification-correction task, rights, reference acceptance and split must still be qualified. |
+| RepliSims propensity-score matching, meta-analysis, ordinal factor analysis and mediation | Partial probes or discovery only; some source identities/rights unresolved | Do not present a human reimplementation as original author code or a narrow successful probe as a full reference. These are deferred, not selected primary tasks. |
+
+The [earlier qualification record](../benchmarks/publication_reference_qualification_20261002/README.md)
+and [new StepMix record](../benchmarks/publication_reference_qualification_20261003/README.md)
+bind these limits. DoubleML, CORE Type-M/Type-S, scikit-fda and fixed-K L2
+segmentation remain excluded from the fresh test pool because their development
+draws were consumed. None of the rows above is a new model result, official draw,
+independent mathematical acceptance or a reason to mark Q02/Q04 complete.
+
 ### 2. Theory and Scientific Agreement
 
 - [x] **T01. Evaluation-method appendix draft.** The shared
@@ -286,6 +310,11 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   with exact data, covariates, splits and aggregation. Explain the wage/schooling
   estimand, instrument, comparison and assumption sensitivity. Do not relabel
   E.1 as main Figure 4 or infer instrument validity from numerical agreement.
+  The inspected pin supplies the producer but no reader for its named output;
+  Table 15's exact aggregation and original RNG specification remain unresolved.
+  Original seeds are needed for exact historical replay, not for every stochastic
+  reproduction; qualify a declared new schedule separately without filling the
+  missing aggregation or comparator by numerical guesswork.
 - [ ] **C04. Independent scientific interpretation.** Connect T02--T04 and
   C02--C03; separate reproduction, adaptation, reimplementation and new theory.
   Clearly bound causal and asymptotic claims. Preserve the published proof/source

@@ -141,6 +141,22 @@ The immediate remaining blockers are source completeness and a qualified numeric
 reference/assessment contract, followed by matched arm/model/roster conditions.
 Native R execution is no longer a reason to repeat package/version probes.
 
+The checklist's candidate table now consolidates the inspected reference scopes.
+The [fixed StepMix execution](../benchmarks/publication_reference_qualification_20261003/README.md#completed-fixed-scope-execution)
+finished all six unchanged Python invocations, including all three 500-repetition
+grids and the five-method GSS application. Table 3 differs from the journal;
+application convergence warnings and absent per-repetition exports remain visible.
+This is a bounded author-code numerical reference, not an agent result or theory
+authority. No model call or official study was activated. Do not open more
+reference panels merely to increase the candidate count.
+
+The TSCI Card follow-up identifies the missing Table 15 aggregation in the inspected
+pin and absence of recorded historical seeds. New frozen streams can support
+stochastic reproduction; original seeds are not a universal requirement. Missing
+method/aggregation definitions still cannot be filled with cached numbers or an
+operator proof patch. Next close the actual task/access and endpoint decisions,
+obtain independent argument assessment, match the arms, and freeze the study.
+
 ### 2. Execute Fresh Open-Weight Comparisons
 
 Freeze code, tasks, authority and conditions before model calls.

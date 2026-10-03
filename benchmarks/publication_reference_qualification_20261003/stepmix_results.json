@@ -1,0 +1,205 @@
+{
+  "plan_sha256": "7779f644a250c9e8acf4e7ef32278dec2ff1fbb1ce3f100e875ea24f35134e45",
+  "ready_sha256": "01988051c2c1a5711d926767a51a754abfe890c235c1f2abcfe825393eec523b",
+  "driver_sha256": "c957db0f673376fec41bdbcd67ca72bd9b23860f83fb8927e056643c20326feb",
+  "terminal_path": "runs/publication_reference_qualification_20261003/stepmix/execution_1/terminal.json",
+  "terminal_sha256": "edb48255ce45e547d412a7d755f2b43779191b00ef717d1b91173d11505d9e24",
+  "complete_python_execution": true,
+  "wall_seconds": 3717.912161290995,
+  "input_and_installed_files_unchanged": true,
+  "installed_files_checked": 5638,
+  "stages": [
+    {
+      "stage": 1,
+      "returncode": 0,
+      "timed_out": false,
+      "wall_seconds": 41.56142504099989,
+      "script": "paper_examples.py",
+      "args": [],
+      "logs": [
+        {
+          "path": "runs/publication_reference_qualification_20261003/stepmix/execution_1/1.stdout.log",
+          "sha256": "b57a0c53b88a9bc28dd18a5ad639b95ea089068b266c8b1626b5276ce9b711ba",
+          "bytes": 6566
+        },
+        {
+          "path": "runs/publication_reference_qualification_20261003/stepmix/execution_1/1.stderr.log",
+          "sha256": "0a02fd633ec9cfef0b8974321f53c2d3e2cae14a012d622a4e269f5794683f4d",
+          "bytes": 4273
+        }
+      ],
+      "terminal_sha256": "0ccd067f7162883d3e4b0bacbf17f88f11bbd2a247fb5298a6f271adb09dbd7a"
+    },
+    {
+      "stage": 2,
+      "returncode": 0,
+      "timed_out": false,
+      "wall_seconds": 527.9133389580238,
+      "script": "run_bakk_simulation.py",
+      "args": [
+        "-s",
+        "500"
+      ],
+      "logs": [
+        {
+          "path": "runs/publication_reference_qualification_20261003/stepmix/execution_1/2.stdout.log",
+          "sha256": "36cbcd94c2c86f10ea9f28c9586f1f07416aa306e8473c7f14efeb4cc305b4f4",
+          "bytes": 1644
+        },
+        {
+          "path": "runs/publication_reference_qualification_20261003/stepmix/execution_1/2.stderr.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ],
+      "terminal_sha256": "fd54d80412530b9f252170eef44c87f9c4b2da9d2f2248408e4e129278a2f24e"
+    },
+    {
+      "stage": 3,
+      "returncode": 0,
+      "timed_out": false,
+      "wall_seconds": 655.5493224590027,
+      "script": "run_bakk_simulation.py",
+      "args": [
+        "-s",
+        "500",
+        "-c"
+      ],
+      "logs": [
+        {
+          "path": "runs/publication_reference_qualification_20261003/stepmix/execution_1/3.stdout.log",
+          "sha256": "ccef8beb461a8caf3fab6e1244cff1f6a30812282c21937a0789c19779867de4",
+          "bytes": 1644
+        },
+        {
+          "path": "runs/publication_reference_qualification_20261003/stepmix/execution_1/3.stderr.log",
+          "sha256": "1078335f9e1e14c33febfd7d9487427b7eb77f2c454912903b37a2e4389ebf43",
+          "bytes": 254
+        }
+      ],
+      "terminal_sha256": "87c3d487f50641e712e394b42860cb38db2152136453cac610785ad7317f2dc7"
+    },
+    {
+      "stage": 4,
+      "returncode": 0,
+      "timed_out": false,
+      "wall_seconds": 1439.784969542001,
+      "script": "run_bakk_simulation_complete.py",
+      "args": [
+        "-s",
+        "500"
+      ],
+      "logs": [
+        {
+          "path": "runs/publication_reference_qualification_20261003/stepmix/execution_1/4.stdout.log",
+          "sha256": "fcaaac7daa7c24d5c0fc60ef1f27371f787e7f710ee4a07d3b193ea25212a3b0",
+          "bytes": 1560
+        },
+        {
+          "path": "runs/publication_reference_qualification_20261003/stepmix/execution_1/4.stderr.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ],
+      "terminal_sha256": "c07f03a0ee7d149dbf7dd59a6b5ffb475cc044834b3ac327f544576e1bad12fa"
+    },
+    {
+      "stage": 5,
+      "returncode": 0,
+      "timed_out": false,
+      "wall_seconds": 1051.165284083021,
+      "script": "run_real_example.py",
+      "args": [
+        "--n_repetitions",
+        "100",
+        "--max_iter",
+        "10000"
+      ],
+      "logs": [
+        {
+          "path": "runs/publication_reference_qualification_20261003/stepmix/execution_1/5.stdout.log",
+          "sha256": "5753f096e578bb39bf95a3fbf195c328bf279f9444dc8ff9cc536ca1647fd078",
+          "bytes": 3595
+        },
+        {
+          "path": "runs/publication_reference_qualification_20261003/stepmix/execution_1/5.stderr.log",
+          "sha256": "1e05c55ab4e4ac45dcb4120168cb9e8d1d9e8c597b8fbf9a67e0eff7587b4765",
+          "bytes": 142068
+        }
+      ],
+      "terminal_sha256": "531fe03e7cf2a3ec987cc50290db07b135d28e004c360ad825b880d67de9dc48"
+    },
+    {
+      "stage": 6,
+      "returncode": 0,
+      "timed_out": false,
+      "wall_seconds": 1.9253043750068173,
+      "script": "run_package_comparison.py",
+      "args": [],
+      "logs": [
+        {
+          "path": "runs/publication_reference_qualification_20261003/stepmix/execution_1/6.stdout.log",
+          "sha256": "c4881f20db4b307abb41e67c65a88799c66a0c3e3a3eebd264ec318018b78bc2",
+          "bytes": 336
+        },
+        {
+          "path": "runs/publication_reference_qualification_20261003/stepmix/execution_1/6.stderr.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ],
+      "terminal_sha256": "ba2a4264280e0905e45f973f955b2bf57c111939e22700816b4d81d2296dcbe1"
+    }
+  ],
+  "record_type": "unchanged_author_reference_execution",
+  "recorded_on": "2026-10-03",
+  "prospective_plan_commit": "1fe75176",
+  "prospective_readiness_and_driver_commit": "8e39a1486caf5a96735ba061009e78817aa43804",
+  "model_calls": 0,
+  "study_activated": false,
+  "source_edits": false,
+  "reference_reruns": 0,
+  "identity_verification_scope": "All 14 readiness-bound script/data/README files in source and execution copy, plus all 5638 pre-execution installed inventory files, remain byte-identical. Runtime-created pycache is excluded from the installed inventory; this checks bound files, not absence of extra unbound files.",
+  "observed_warnings": {
+    "covariate_simulation_degeneracy_messages": 1,
+    "application_convergence_messages": 4,
+    "interpretation": "Emitted messages are not a complete count of failed fits. Simulation scripts suppress convergence warnings, and the complete-model script also suppresses UserWarning. Retained denominators and per-fit convergence records are unavailable."
+  },
+  "paper_comparison": [
+    {
+      "scope": "Table 3 outcome simulation, page 23",
+      "observation": "Not all displayed values agree. At class separation 0.7 and n=500, the PDF one-step bias is 0.10 and the unchanged script prints 0.01. The displayed one-step RMSE is 0.6 while the script prints 0.16. These examples were checked visually in the journal PDF.",
+      "limit": "No cause established, source repair, replacement acceptance threshold or full-table success claim."
+    },
+    {
+      "scope": "Tables 5 and 7, pages 25 and 27",
+      "observation": "The inspected rounded bias/RMSE tables agree visually, treating signed zero as the same numeric value.",
+      "limit": "Read-only visual inspection, not an independently adjudicated cell-level endpoint, optimizer convergence check or MCSE qualification."
+    },
+    {
+      "scope": "GSS Tables 8 and 9, page 28",
+      "observation": "The inspected printed measurement probabilities/class weights and bootstrap means/standard deviations agree visually at their displayed precision.",
+      "limit": "The application prints bootstrap-averaged parameters, not simply original-sample estimates. Numerical agreement does not establish true latent classes or inferential validity."
+    },
+    {
+      "scope": "GSS Table 10, page 29",
+      "observation": "The inspected mean differences, standard errors and Z scores agree visually. The article gives some p values as inequalities; the script rounds to three decimals, so these displays are not byte-identical.",
+      "limit": "Do not treat a rounded 0.000 as a probability of zero or infer a strict threshold from rounded 0.001."
+    },
+    {
+      "scope": "StepMix row of Table 11, page 30",
+      "observation": "All six printed StepMix log-likelihoods agree at three decimals. Local fit times are retained, not compared with original hardware timing.",
+      "limit": "No other package was executed; this does not reproduce the cross-software comparison."
+    }
+  ],
+  "qualification_limits": [
+    "67500 source-planned simulation fit slots are not 67500 certified converged fits; extreme fits are deleted before aggregation.",
+    "No per-repetition estimates, retained simulation denominators or Monte Carlo uncertainty were exported by the unchanged scripts.",
+    "The period-compatible environment is adapted, not a recovered historical author lock; the journal package is 2.2.3 while the paper lists 2.1.3.",
+    "R wrapper/Appendix B and other-software execution are excluded.",
+    "All scripts have byte-identical MIT-package counterparts; original-data rights remain separate and their bytes/logs are not redistributed here.",
+    "Existing Gaussian-mixture EM development exposure excludes a generic EM rediscovery claim; no new task-family/split decision is made.",
+    "No model, mathematical assessor, hidden full-task authority or official publication study was invoked."
+  ],
+  "next_decision": "Fix the exact source-task/access condition and reference acceptance rule prospectively. This local execution supplies a bounded numerical reference with a documented paper discrepancy; it does not close Q02/Q04, replace TSCI B1/Card or justify another exploratory reference panel."
+}

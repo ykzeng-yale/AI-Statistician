@@ -309,7 +309,7 @@ This supplement contains no operator-authored replacement proof or numerical gol
 | B1 inputs | Exact producer, comparators, settings, batch schedule and aggregation | Heteroskedastic comparator helper absent from inspected author sources |
 | B1 methods | Oracle TSCI, comparison/robust-selected TSCI, TSLS, oracle RF-Init/Plug/Full; preserve each method's information access | No complete qualified seven-method run or reference |
 | B1 output | Declared 18 settings and 25 rounds per setting, each source batch containing 20 repetitions; performance, failures and uncertainty | Source-declared grid/counts, not executed observations |
-| Card E.1 | Exact data/covariates, four alternative bases, split/aggregation and interpretation | Original-data rights and complete execution/reference unresolved |
+| Card E.1 | Exact data/covariates, four alternative bases, split/aggregation and interpretation | Original-data rights, aggregate definition and complete execution/reference unresolved; the inspected producer does not record its original RNG sequence |
 | Theory | Complete selected explanation with stated assumptions and dependency scope | Independent authority unappointed; source proof findings unresolved |
 | Environment | Explicit native scientific R configuration and exact package/library reconstruction across arms | Local mechanism is verified, not autonomous use or clean release |
 
@@ -321,6 +321,9 @@ number or independently written helper becomes unchanged author replication.
 Lower-than-nominal published performance is not a replication failure merely
 because it is unfavorable. Numerical tolerances and scientific interpretation
 are qualified separately before draws.
+Missing historical seeds restrict exact replay, not a prospectively specified
+stochastic reproduction with its own recorded streams and suitable uncertainty.
+A new seed schedule does not supply a missing estimator or aggregation rule.
 
 The application describes log-wage and schooling units, instrument and covariate
 choices, its estimand, uncertainty and sensitivity to violation spaces. E.1 is

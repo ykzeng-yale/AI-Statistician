@@ -200,3 +200,37 @@ scientific endpoint and independent authority before calls. The review stays
 outside blinded author context and product RAG. Do not hold ordinary code
 replication behind a claim that every upstream theorem has been proved; instead
 state exactly which scientific claims that replication can and cannot assess.
+
+## Card E.1 Aggregation Follow-up
+
+The 2026-10-03 checklist follow-up read the final article's E.1/Table 14/Table 15
+and the complete 94-line `RealData_Card_V1V2.R` at the same existing pin. This is
+static qualification, not another source execution or a revised old result.
+The producer fixes `round = 1` (commented range 1--25), runs 20 splits, fits all
+four basis choices and writes `results-RealData_Card_largerVio-round1.rds`.
+It sets no explicit R seed. The Table 15 selection proportions instead describe
+500 splits, alongside aggregate estimates, intervals and IV-strength quantities.
+
+A filename/readRDS search across the pinned R files found the producer, two
+separate Card invalidity-test producers and a variable-importance reader, but no
+reader for `results-RealData_Card_largerVio-round*.rds`. This does not prove that
+the authors never supplied an aggregation program elsewhere. It means the
+inspected pin does not yet specify the exact Table 15 calculation or original
+RNG sequence. Published aggregate numbers alone cannot supply those missing
+choices. The paper's general multi-split discussion and software defaults must
+not silently become an unchanged source aggregation.
+
+C03 therefore needs the original aggregation/RNG material or an explicitly
+attributed, prospectively justified reconstruction with independent assessment.
+One 20-split batch cannot establish the 500-split endpoint; an operator-created
+pooling formula is not original author code. This finding adds no product rule,
+source patch, numerical gold or replacement case. The B1 helper gap and all
+previous execution/assessment boundaries remain unchanged.
+
+Absence of the original RNG sequence limits exact historical replay, not every
+scientific replication. A newly frozen seed/stream schedule can support an
+explicitly attributed stochastic reproduction, with suitable Monte Carlo
+uncertainty and the same declared estimands and methods. It cannot resolve the
+missing aggregation definition or comparator implementation. Do not demand the
+author's seed as a universal capability gate, infer original seeds from results,
+or label a new schedule an exact historical replay.
