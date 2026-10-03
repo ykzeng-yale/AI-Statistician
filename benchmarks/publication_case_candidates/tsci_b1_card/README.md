@@ -79,13 +79,17 @@ reconstruction instructions.
 
 ## Preparatory Theory Work
 
-The [prospective preparation plan](theory_preparation_plan.json) uses the unchanged
+The [prospective preparation plan](theory_preparation_plan_v2.json) uses the unchanged
 case question and existing 76-file capsule to obtain a candidate TheoryDeveloper
 argument through its current Markdown/LaTeX, source and scratch tools. Missing
 replication inputs do not prohibit this preparatory research; they still prevent
 complete replication and qualified publication comparisons. The stage exposes no
-operator proof findings, repaired comparator or hidden numerical results. It does
-not rerun the fixed environment probe or invoke Lean.
+operator proof findings, repaired comparator or hidden numerical results. The
+original [preflight plan](theory_preparation_plan.json) was rejected before any
+model call because required replication needs an execution binding. It is retained,
+not rewritten. The amended preparation supplies the existing environment-probe
+candidate; this authorizes no original statistical producer and is not replication.
+The model chooses its actions; no operator-directed repeat probe or Lean is added.
 
 `prepare_theory.py` is experiment assembly over the existing AgentRuntime and
 retained Theory loop, not a new product agent or controller. It saves actual

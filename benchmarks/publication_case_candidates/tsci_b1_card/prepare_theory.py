@@ -15,7 +15,7 @@ from ai_statistician.packet_validation import PacketValidationError
 from ai_statistician.research_agent_runtime import _runtime_architect_context_with_requested_evidence_contract
 from ai_statistician.research_architect import LLMTheoryDeveloperAgent, ResearchArchitectConfig
 from ai_statistician.research_schema import load_open_research_questions
-from ai_statistician.research_source_library import load_research_source_snapshot
+from ai_statistician.research_source_library import load_research_source_execution_spec, load_research_source_snapshot
 from ai_statistician.theory_workspace import TheoryScratchpadConfig
 from benchmarks.publication_deployment_qualification_20261003.observe import digest, write_json
 
@@ -43,6 +43,12 @@ def main():
     if (sources.identity_errors() or sources.manifest_sha256 != plan["source_manifest_sha256"]
             or sources.snapshot_hash != plan["source_snapshot_hash"]):
         raise ValueError("case source identity mismatch")
+    execution = None
+    if plan.get("source_execution_path"):
+        execution_path = Path(plan["source_execution_path"])
+        if digest(execution_path) != plan["source_execution_sha256"]:
+            raise ValueError("source execution identity mismatch")
+        execution = load_research_source_execution_spec(execution_path, research_sources=sources)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     for endpoint, filename in (("/props", "props.json"), ("/v1/models", "models.json")):
         with opener.open("http://127.0.0.1:8081" + endpoint, timeout=10) as response:
@@ -74,7 +80,8 @@ def main():
         theory_workspace_max_turns=plan["max_model_turns"], theory_workspace_max_tool_calls=plan["max_tool_calls"],
         theory_workspace_max_no_progress_turns=plan["max_no_progress_turns"],
     )
-    agent = LLMTheoryDeveloperAgent(provider=backend, config=config, research_sources=sources)
+    agent = LLMTheoryDeveloperAgent(provider=backend, config=config, research_sources=sources,
+        research_source_execution=execution)
     workspace = agent.prepare_workspace(
         question, architect_context=context, theory_workspace_root=out / "workspaces",
         theory_scratchpad=TheoryScratchpadConfig(sandbox_dir=out / "scratch", seed=plan["scratch_seed"],
