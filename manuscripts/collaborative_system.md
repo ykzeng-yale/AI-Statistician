@@ -203,6 +203,14 @@ uses its request limit. These values must be matched explicitly. This corrects
 an initial context difference; it does not make whole prompts, confirmation
 exposure or realized resources identical.
 
+The unactivated case candidate now aligns required-tool turns across the shared
+session and retained specialist workspaces. This controls an avoidable request
+policy difference, not the research sequence. Integrated production first requests
+a structured Architect plan; the shared session can plan through its ordinary
+tools. Shared turns permit batching, while scientific-source specialists use
+single-call turns. These transport and opportunity differences remain part of
+the declared product bundle, not an isolated test of role separation.
+
 Evaluator-owned cohort and transition metadata have a separate model-visible
 projection, used by the Architect, code reviewer and Theory feedback files.
 The same projection is applied to scientific-owner context and observation views.

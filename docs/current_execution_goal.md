@@ -37,15 +37,15 @@ contract without falsely completing or replacing that goal.
 | Case inputs | Integrated B1/Card E.1 v2 distinguishes seven methods; explicit four-arm assembly; 76-file available-input capsule and native source-environment probe | Activated study, complete author replication, release reconstruction or mathematical gold; B1 helper and original data rights remain unresolved |
 | Qwen development | Four standalone known-result draws had no final selection; both native FDA draws failed; earlier native R draws failed without demonstrated skill uptake | A publication baseline, reliable theory development or a measured harness benefit |
 | Lean foundation | Active Lean 4.30.0 Mathlib/Statlib/StatInference pin; selected kernel checks and source-mapped retrieval | Complete textbook coverage, clean reconstruction or source-faithful public API |
-| Verification | Latest default full suite: 2139 passed, 30 skipped and one existing xfail; installed Python/R WASM fixtures executed separately; earlier failed/interrupted attempts retained | Mathematical correctness, skipped opt-in checks, matched experimental arms or publication readiness |
+| Verification | Latest default full suite: 2141 passed, 30 skipped and one existing xfail; installed Python/R WASM fixtures executed separately; earlier failed/interrupted attempts retained | Mathematical correctness, skipped opt-in checks, matched experimental arms or publication readiness |
 
-AI code checkpoint and tested code: 53839f1d.
+AI code checkpoint and tested code: df160156.
 Lean pin: db6c7718349f3c14a7e37905f3529675f1ebaa52.
 The [status record](main_worker_status.json) links detailed immutable evidence.
 Historical mixed-scope Haiku credits are archived, not forward baselines.
 Historical strict-development exact-theorem closure remains 0/2.
 
-The latest [installation record](../benchmarks/publication_release_qualification_20261003/results.json)
+The earlier [installation record](../benchmarks/publication_release_qualification_20261003/results.json)
 binds the committed wheel and source to fresh-environment CLI/Python/R observations.
 Its complete default regression records 2139 passed, 30 skipped and one existing
 xfail in 1443.32 seconds, exit zero. JUnit:
@@ -59,6 +59,24 @@ The shared controls now receive the same research-evaluation Theory policy as
 production, through its existing task/evidence constructor. Actual-request tests
 cover the initial policy, scratch tools and effective output limits. This closes
 one comparison confound, not complete study qualification or scientific efficacy.
+
+The [request alignment record](../benchmarks/publication_case_candidates/tsci_b1_card/arm_request_alignment.json)
+also removes the candidate controls' `auto` selection difference and binds their
+complete request in the protocol identity. Two redundant named reviewer selectors
+now use the existing required-tool policy when submit is their only exposed tool.
+No server adapter, retry, source repair or additional scheduler was introduced.
+The real integrated production entry begins with a structured Architect request;
+controls start with tools. Batching, context, review, cohorts and revision
+opportunities still differ and are disclosed as bundle contrasts, not isolated
+role effects. Eight opaque Theory-stage fixtures do not qualify the complete case.
+The exact committed code's full regression completed once: 2141 passed, 30 skipped,
+one existing xfail, 1965.94 seconds, exit zero. JUnit SHA-256:
+`d6eb54d7c100281d166da1f549bf083223e951a281701a32b27f489eaa11b7ba`.
+No model call, actual case arm configuration, official activation, scientific
+assessment or consumed-result change occurred. The earlier deployment record
+keeps its original named-selector limitation; it was not rerun or reinterpreted.
+The 76-file input identity still matches; the missing B1 helper remains absent.
+Q06/Q07 and all scientific delivery items remain open.
 
 The preceding TSCI configuration follow-up changed no product mechanism. Its 116 focused
 deterministic tests include all four existing draw entries with mocked transport;

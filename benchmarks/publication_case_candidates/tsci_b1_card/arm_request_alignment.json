@@ -1,0 +1,76 @@
+{
+  "scope": "Prospective request alignment and deterministic mechanism verification, not scientific arm qualification.",
+  "base_commit": "a7d87f22e7cbc9f63bce7b6ba708bb75716a4450",
+  "tested_code_commit": "df1601564af1f14f0ab9ff2552ab002a3e03f3e0",
+  "changes": [
+    "The unactivated shared controls now use any, serialized as required, rather than auto. The entire control request, including prompt and selection policy, is bound in the candidate protocol identity.",
+    "Two redundant reviewer named selectors now use any when submit is the sole exposed tool. The tool, review content and accepted result are unchanged; no provider adapter, retry, prompt repair or source patch was added."
+  ],
+  "actual_request_scope": {
+    "fixture_only": true,
+    "integrated_case_first_turn": "Shared controls expose native tools with required selection and batching. Production starts with a tool-free Architect JSON-schema planning request. This is not stage equivalence.",
+    "theory_stage": "Eight opaque Theory-only fixtures cover the four existing modes and research-evaluation policy, effective output limit and scratch tools. They do not cover the complete integrated task.",
+    "remaining_differences": "Shared and Theory turns permit batching; scientific-source specialists and final metric review disable it. Context, role review, confirmation feedback, revision opportunities and realized resources differ. Equal call caps do not establish equality or isolate role separation."
+  },
+  "preparation_failure": {
+    "exit_code": 1,
+    "passed": 128,
+    "failed": 2,
+    "skipped": 1,
+    "seconds": 27.52,
+    "cause": "Operator-authored test incorrectly expected an initial tool request from both integrated production modes. Assertions were corrected to describe the actual Architect stage, not by changing production to satisfy the test.",
+    "record": "Tool transcript only; no raw-file hash is claimed."
+  },
+  "verification": {
+    "focused": {
+      "passed": 130,
+      "skipped": 1,
+      "seconds": 30.38,
+      "exit_code": 0,
+      "junit": "runs/publication_arm_qualification_20261003/focused.xml",
+      "junit_sha256": "11c7973a4827c39aea906419931a6ea856e1569bb6b6a904ac9410575d021c67"
+    },
+    "pre_delivery": {
+      "passed": 218,
+      "skipped": 2,
+      "seconds": 42.61,
+      "exit_code": 0,
+      "junit": "runs/publication_arm_qualification_20261003/pre_delivery.xml",
+      "junit_sha256": "a29900cc37167449a49c8f6e0a25860535880250069024a909675cd0417edb0f"
+    },
+    "full_regression": {
+      "status": "completed",
+      "passed": 2141,
+      "skipped": 30,
+      "existing_xfailed": 1,
+      "seconds": 1965.94,
+      "exit_code": 0,
+      "junit": "runs/publication_arm_qualification_20261003/full_regression.xml",
+      "junit_sha256": "d6eb54d7c100281d166da1f549bf083223e951a281701a32b27f489eaa11b7ba",
+      "stdout": "runs/publication_arm_qualification_20261003/full_regression.stdout",
+      "stdout_sha256": "585191cd975ec442f072e78f993d8cdc67a7d1c8de9e1baa3abe873a48d4fff8",
+      "stderr": "runs/publication_arm_qualification_20261003/full_regression.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "compileall_exit_code": 0,
+    "real_model_calls": 0,
+    "scope": "Mocked transport and deterministic execution/identity checks only. Skipped opt-in tests are not credited. The earlier live named-selector observation is unchanged and not rerun."
+  },
+  "case_input_identity": {
+    "record": "runs/publication_arm_qualification_20261003/capsule_identity.json",
+    "record_sha256": "b12db60b6a65afd5f337f5a8945e1c2732beac435917bd5a998f4807c47a3c04",
+    "manifest_sha256": "cddc9ce610ef42e83cd0ee8abab480f77b20af0cc2dac682f087fb5a9e0d0dd7",
+    "snapshot_hash": "395685d426ed87e24ab4b178e5229aada1bc3ebfa4cf002bd6be0d354bf6f28e",
+    "document_count": 76,
+    "matches_prepared_manifest": true,
+    "identity_errors": [],
+    "missing_b1_helper_present_in_capsule": false,
+    "scope": "Current byte identity only; no source execution or scientific reassessment."
+  },
+  "official_study_activated": false,
+  "actual_case_arm_configs_materialized": false,
+  "scientific_questions_consumed": 0,
+  "consumed_evaluations_modified": false,
+  "proof_credit": false,
+  "remaining": "Q06/Q07 stay open. Complete source/method/aggregation and numerical authority, independent argument assessment, roster/split, prospective conditions and rights before official comparisons. This record closes no scientific checklist item."
+}

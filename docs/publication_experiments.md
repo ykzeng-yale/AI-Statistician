@@ -149,6 +149,7 @@ draw implementations; they must be resolved or declared before the study starts.
 | Confirmation feedback | Each consumed result returns to the shared conversation | Post-commit confirmation is outside the originating author session, but later graph feedback can expose results | This is an access/revision difference in the implemented bundle, not equal author feedback; prespecify its interpretation and retain every consumed attempt |
 | Role and source opportunities | One retained context; optional self-review uses the same model context | Isolated product reviewers; ordinary graph transitions and reverse revision depend on arm | Freeze available tools, allowed sources, candidate/revision opportunities, local/outer stopping and final-selection rules; equal calls do not equal equal opportunities |
 | Model resources | Shared request/role configuration and one global request meter | Seven declared role configurations and the same global meter | Match the actual checkpoint, decoding and request/output limits; record context lengths, usage, cache and hardware conditions rather than infer parity from a cap |
+| Native request policy | The candidate shared tool turns now request `any`, serialized as `required`, with batch tool calls permitted | Retained role workspaces use the same required-tool policy; scientific source turns disable batching, whereas Theory and several reviewers permit it; integrated tasks first use an Architect JSON-schema planning request | Match stage-specific declarations and disclose remaining policies. The initial planning transport and batching differ; one global cap or first-request check is not complete request equivalence |
 
 Output matching must use effective requests, not merely the role dictionaries.
 Production research-evaluation Theory uses `roles.theory.serious_max_tokens`,
@@ -178,6 +179,25 @@ private confirmation seed. Callback tests vary the two seeds independently and
 retain the private executor's task-bound seed and unmodified raw observations.
 These are tool/configuration-conformance tests, not theory validation or evidence
 that all model-visible paths are blinded.
+
+The unactivated case assembler formerly selected `auto` for shared controls while
+the retained production workspaces selected `any/required`. It now uses the latter
+and binds the full shared request, including its policy and prompt, into the
+candidate protocol identity. This does not impose a statistical method or action
+sequence: the model still chooses its workspace tools, derivations and final
+selection. The [scoped alignment record](../benchmarks/publication_case_candidates/tsci_b1_card/arm_request_alignment.json)
+separates the case's actual first Architect request from the shared first tool
+request, and covers Theory-only stage matching with opaque transport fixtures.
+These are not live draws. No real case arm files or official study were activated.
+
+Two redundant reviewer selectors also now use `any` when only their submit tool
+is exposed, removing the named-object request used by the inline Critic and the
+metric review without scratch. The allowed tool and review contents are unchanged;
+no server-specific adapter, prompt repair or automatic retry is introduced. This
+addresses the supported wire syntax without rerunning the earlier setup response.
+It is mechanism evidence, not demonstrated reviewer correctness or full local
+provider conformance. Remaining batching, context, cohort/feedback, opportunities
+and resource differences must be qualified or attributed to the bundle.
 
 The existing model-visible cohort projection now also withholds `base_seed` and
 typed transition `from_seed`/`to_seed`, including in Architect feedback routing.

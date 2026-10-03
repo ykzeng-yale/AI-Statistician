@@ -103,10 +103,24 @@ confirmation expose feedback differently; that bundle difference remains in the
 experiment design. The workflow control receives fixed conceptual guidance, not
 a claim of byte-identical workflow equivalence.
 
-The deployment candidate records newly checked local weights and binary hashes,
-not a running server or an activated model condition. Its proposed decoding follows
-the [Qwen model card](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507#best-practices);
-the longer proposed context still needs actual startup/memory/template checks.
+The [request-alignment follow-up](arm_request_alignment.json) removes an avoidable
+candidate difference: shared turns now use the same `any/required` policy as the
+retained production workspaces, rather than `auto`. The complete shared request
+is part of the candidate protocol identity. No research sequence or mathematical
+content is prescribed. The actual integrated production entry first requests an
+Architect plan using JSON schema; shared controls start with tools. Theory-only
+fixtures test the common workspace policy separately. Production scientific-source
+turns disable batch calls, while the shared session permits them; this is still a
+declared bundle difference, not complete arm matching. No actual case configurations
+or model draws were materialized by these fixtures.
+
+The unchanged deployment candidate records the preceding offline asset checks,
+not a running server or an activated study. Its proposed decoding follows the
+[Qwen model card](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507#best-practices).
+The subsequent [availability check](../../publication_deployment_qualification_20261003/README.md)
+recovered identical weights after the old cache disappeared and observed one
+proposed startup/short tool turn, with an explicit API limitation. No service was
+left running. Long-input quality and study-specific conditions remain unqualified.
 Consumed 32k/temperature-zero development runs retain their original conditions.
 
 Run the assembler only after supplying those qualified input paths and selected
@@ -138,7 +152,7 @@ No fixed reasoning length, new retry taxonomy, statistical content patch or
 mandatory Lean gate is added. The methods and contrasts come from the declared
 published case; models remain responsible for researching and authoring them.
 
-Verification: 116 focused deterministic tests passed, including 11 configuration
+Preceding verification: 116 focused deterministic tests passed, including 11 configuration
 tests. Opaque fixtures validate file identities, explicit settings, rejected
 incomplete preparation and all four existing draw entries reaching mocked
 transport. They do not validate the TSCI source environment, live model condition,

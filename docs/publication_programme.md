@@ -213,6 +213,10 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   execution profiles, effective model requests, revision opportunities, confirmation
   exposure and resources across H's two arms and S's four. Record irreducible
   differences; equal calls or arm names are not qualification.
+  The [candidate request follow-up](../benchmarks/publication_case_candidates/tsci_b1_card/arm_request_alignment.json)
+  aligns required-tool policy and binds the complete shared request. The observed
+  initial Architect transport and differing batch policies remain explicit; opaque
+  fixtures are not live full-arm qualification, so Q06 stays open.
 - [ ] **Q07. Prospective freeze.** Bind exact code/package, local Qwen weights,
   quantization/runtime/template/decoding/hardware, task and authority versions,
   schedule/RNG/order, stopping, all outcomes and analysis. Confirm the chosen
