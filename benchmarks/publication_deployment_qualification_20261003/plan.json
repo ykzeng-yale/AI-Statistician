@@ -1,0 +1,71 @@
+{
+  "check_id": "publication_deployment_qualification_20261003",
+  "scope": "Prospective deployment prerequisite only; no scientific question, official draw, hidden evaluation or capability score.",
+  "base_code_commit": "20d3b2cb425f38299f0281ba095cb6fa15d4da55",
+  "candidate": "benchmarks/publication_case_candidates/tsci_b1_card/deployment_candidate.json",
+  "historical_availability_observation": "On 2026-10-03 the prior Hugging Face hub directory and recorded weight path were absent, port 8081 had no listener, and no llama/ollama/mlx/vllm process was found. Historical availability records remain unchanged.",
+  "model": "Qwen3-4B-Instruct-2507",
+  "weights_revision": "a06e946bb6b655725eafa393f4a9745d460374c9",
+  "weights_sha256": "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
+  "quantization": "Q4_K_M",
+  "download_url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/a06e946bb6b655725eafa393f4a9745d460374c9/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+  "download": {
+    "authentication": "none; curl --disable first argument, empty environment apart from PATH; no Hugging Face SDK or token/config access",
+    "attempt_limit": 1,
+    "connect_timeout_seconds": 30,
+    "total_timeout_seconds": 900,
+    "partial_path": "runs/publication_deployment_qualification_20261003/assets/Qwen3-4B-Instruct-2507-Q4_K_M.gguf.part",
+    "verified_path": "runs/publication_deployment_qualification_20261003/assets/Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+  },
+  "server_binary": "/Users/yukangzengcmac/DTR-MultiRoundLLM/work/bin/llama-server",
+  "server_sha256": "f124807ba31de5a65ea22fd624f33fd4dfe3c837d1c014dcf4a516b66812ffd7",
+  "server_version": "0.4.1-dev, build 1, commit 4fea119, Darwin arm64",
+  "library_directory": "/Users/yukangzengcmac/DTR-MultiRoundLLM/work/bin",
+  "library_sha256": {
+    "libggml-base.0.24.0.dylib": "69a7e516de840f55acaecd47fa797961d157325058f5773ebc51ffc10bfcaf14",
+    "libggml-blas.0.24.0.dylib": "c67e9a6dac662a8681ce54571b2e24de3dac8094cffb19346fdf994c7a5708b0",
+    "libggml-cpu.0.24.0.dylib": "dbed91cd24d48a26b72448310eba013d9598a3a274a8efb617f65bf99c13c0f7",
+    "libggml-metal.0.24.0.dylib": "f3495bdc5cc70dac71d0d2bc2e9ffac5f9ea235825fe89cd8ca0807e00cbb992",
+    "libggml.0.24.0.dylib": "d83d853734a44ba28e9ac14dd9e8c8a7e2fb73ade825071778471db118afb5ce",
+    "libllama-common.0.4.1.dylib": "50653baff9b32ec38cecb25c39d972fe8e02260d3e2edff2071bf41356bd0dae",
+    "libllama-server-impl.dylib": "2b1a935d0f8451a5c61e414f390c982868345506caf94dc1b1b5b42c36e2bda8",
+    "libllama.0.4.1.dylib": "3d6f39611cb8c8baa595efe98f8aa1d5e503848bb86eb9c30d608f8e0c7ca4b2",
+    "libmtmd.0.4.1.dylib": "ef5f680825f16a450d53a4c7ac4e766d6f4d87f61108a8603a7ee026af4baaf0"
+  },
+  "expected_chat_template_sha256": "c979e0e71a3e21b8f208e6ab120d5cb29327885f29d2a8b18fda67a723798e18",
+  "server_arguments": [
+    "--model", "{verified_weights}",
+    "--alias", "Qwen3-4B-Instruct-2507",
+    "--host", "127.0.0.1", "--port", "8081",
+    "--ctx-size", "131072", "--parallel", "1",
+    "--threads", "4", "--threads-batch", "4",
+    "--n-gpu-layers", "99", "--flash-attn", "on",
+    "--cache-type-k", "q8_0", "--cache-type-v", "q8_0",
+    "--no-warmup", "--no-context-shift", "--jinja",
+    "--seed", "20261003", "--temp", "0.7",
+    "--top-k", "20", "--top-p", "0.8", "--min-p", "0.0"
+  ],
+  "launch_environment": "env -i; PATH=/usr/bin:/bin:/usr/sbin:/sbin; fresh check HOME; DYLD_LIBRARY_PATH exactly library_directory",
+  "startup_limit_seconds": 180,
+  "startup_attempt_limit": 1,
+  "request_attempt_limit": 1,
+  "request_timeout_seconds": 120,
+  "request": {
+    "system_prompt": "This is an environment transport check, not a research task. Use the supplied tool once to record the exact marker provided by the user. Do not add analysis or perform any other work.",
+    "user_prompt": "Call record_environment_receipt with marker deployment-check-20261003.",
+    "tool": {
+      "name": "record_environment_receipt",
+      "description": "Record one opaque transport marker. This tool does not execute research or change files.",
+      "input_schema": {"type": "object", "properties": {"marker": {"type": "string"}}, "required": ["marker"], "additionalProperties": false},
+      "strict": true
+    },
+    "tool_choice": "record_environment_receipt",
+    "max_tokens": 16384,
+    "temperature": 0.7,
+    "parallel_tool_calls": false
+  },
+  "pre_call_checks": "Verify weights, server and library hashes, observed model alias/path, template hash, one slot, 131072 context and server decoding values. Save /props and /v1/models before the single request. A mismatch stops without a model call.",
+  "records": "Plan, request dataclass, native parsed response, observations and stdout/stderr hashes. Parsed native JSON is not a raw HTTP byte capture. Failed preparation/start/request remains recorded with no automatic retry.",
+  "cleanup": "Terminate only the server started for this check; verify its PID and port listener are gone. Leave peer processes, caches and historical records untouched; retain the verified ignored weight file.",
+  "limitations": "Allocation and a short forced-tool request do not validate a 131k-token input, free tool selection, long-session recovery, scientific capacity, matched arms, a study RNG schedule or publication efficacy. The setup seed is not a main-study seed. Source completeness, independent authority, task roster, actual arm matching and release rights remain open."
+}
