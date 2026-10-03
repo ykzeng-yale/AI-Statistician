@@ -612,13 +612,15 @@ def test_full_cli_does_not_salvage_absent_or_changed_terminal_material(tmp_path,
 
 
 @pytest.mark.parametrize("mode", ["full_collaboration", "no_cross_role_revision"])
-def test_cli_actual_runtime_uses_declared_revision_policy_before_a_second_author_invocation(tmp_path, monkeypatch, capsys, mode):
+@pytest.mark.parametrize("timeout_s", [17, 143])
+def test_cli_actual_runtime_uses_declared_revision_policy_before_a_second_author_invocation(tmp_path, monkeypatch, capsys, mode, timeout_s):
     from dataclasses import replace
     from ai_statistician.agent_runtime import AgentStepResult, AgentTask, agent_task_reference, load_persisted_runtime_result, materialize_agent_task_continuation
     from ai_statistician import research_agent_runtime as runtime
 
     config = collaborative_configuration(tmp_path, monkeypatch)
     config["mode"] = mode
+    config["runtime"]["generated_simulation_timeout_seconds"] = timeout_s
     calls, producer = [], []
 
     def theory(self, task, board):
@@ -627,6 +629,7 @@ def test_cli_actual_runtime_uses_declared_revision_policy_before_a_second_author
             next_task=AgentTask("algorithm", "AlgorithmEngineer", "Opaque source.", inputs={"question": task.inputs["question"]}))
 
     def algorithm(self, task, board):
+        assert self.timeout_s == timeout_s
         calls.append("algorithm")
         if producer:
             return AgentStepResult(status="BLOCKED", rationale="Opaque revised source, no scientific acceptance.",

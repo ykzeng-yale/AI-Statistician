@@ -20048,6 +20048,7 @@ def run_research_agent_runtime(
                 out_dir=out_dir / "algorithm_sandbox",
                 n_runs=config.n_runs,
                 seed=config.seed,
+                timeout_s=config.generated_simulation_timeout_seconds,
                 proposal_agent=algorithm_engineer,
                 semantic_reviewer_available=(
                     generated_code_semantic_reviewer is not None

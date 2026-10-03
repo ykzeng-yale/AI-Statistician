@@ -944,7 +944,7 @@ def build_architect_feedback_route_prompt(
         "BLOCK would suppress required evidence reporting and is invalid.\n"
         "7. Choose BLOCK only when no available subsystem can produce the next evidence. "
         "Return only one JSON object matching required_output.\n\n"
-        + json.dumps(bounded_payload, separators=(",", ":"), default=str)
+        + json.dumps(withhold_confirmatory_evaluation_seed(bounded_payload), separators=(",", ":"), default=str)
     )
 
 

@@ -124,6 +124,43 @@ arm more hidden attempts. Equal calls alone is not equal cost; record tokens,
 wall time, model load/prefill time and scientific computation. Hardware and
 decoding pins accompany all local results.
 
+### Access And Resource Qualification
+
+Freeze the actual preparation parameters and tool contracts, not just four arm
+names or equal request caps. The following boundaries are present in the current
+draw implementations; they must be resolved or declared before the study starts.
+
+| Condition | Shared controls | Production arms | Qualification obligation |
+| --- | --- | --- | --- |
+| Theory computation | The actual production Python/R scratch tools are enabled with public `seed`, `n_runs`, `timeout_s` | `theory_scratch_enabled`, `config.seed`, `config.n_runs`, `theory_scratch_timeout_seconds` | Enable scratch in both; match its runtime, count and timeout explicitly |
+| Scientific execution | `timeout_s` applies to estimator, Simulation, scratch and optional self-review probes | Algorithm, Simulation and code-review probes use `generated_simulation_timeout_seconds`; Theory scratch has its own timeout | Set both declared production timeouts to the control timeout; no special 60-second condition or new ceiling is imposed |
+| Exploratory data | Public `seed` is used by Theory, estimator and Simulation diagnostics | Theory and estimator use `config.seed`; source-first Simulation derives a separate task-bound diagnostic seed | Freeze and record each actual data stream and its exposure; source-specific random draws need not be numerically identical, but their access and opportunity must be comparable |
+| Product confirmation | A private, finite `confirmatory_seeds` schedule is distinct from the public seed; changed source consumes its next entry | The existing cohort machinery defaults to `config.seed` and advances by a deterministic increment; a separately initialized cohort can be supplied through `architect_context` | Default settings can reuse an exploratory seed. Do not label them fresh blinded confirmation; qualify the complete cohort/exposure path and attempt capacity before activation |
+| Confirmation feedback | Each consumed result returns to the shared conversation | Post-commit confirmation is outside the originating author session, but later graph feedback can expose results | This is an access/revision difference in the implemented bundle, not equal author feedback; prespecify its interpretation and retain every consumed attempt |
+| Role and source opportunities | One retained context; optional self-review uses the same model context | Isolated product reviewers; ordinary graph transitions and reverse revision depend on arm | Freeze available tools, allowed sources, candidate/revision opportunities, local/outer stopping and final-selection rules; equal calls do not equal equal opportunities |
+| Model resources | Shared request/role configuration and one global request meter | Seven declared role configurations and the same global meter | Match the actual checkpoint, decoding and request/output limits; record context lengths, usage, cache and hardware conditions rather than infer parity from a cap |
+
+The control scratch addition reuses production tool schemas and raw execution
+observations; it does not add a research recipe or evidence credit. Opaque
+transport tests cover Python/R success and failure, source preservation and
+accounted requests. Actual production-composition tests cover the declared
+Algorithm timeout in both production arms; its former implicit 60-second default
+no longer overrides the runtime setting. These are tool/configuration-conformance
+tests, not theory validation.
+
+The existing model-visible cohort projection now also withholds `base_seed` and
+typed transition `from_seed`/`to_seed`, including in Architect feedback routing.
+Outside evaluator records/contexts it leaves researcher `seed`, `base_seed`,
+`from_seed` and `to_seed` fields unchanged; it does not edit source or diagnostic
+strings.
+This is a bounded metadata projection, not full-system secrecy or statistical
+independence: executed source can print its seed, future arithmetic cohorts can
+be predictable, and an unchanged default exploratory/confirmatory root is still
+the same root. Operator records remain unchanged. Hidden external evaluation
+after final selection is a separate authority and must not be confused with
+product confirmation. No completed arm qualification or scientific draw is
+claimed by these mechanism tests.
+
 The legacy `evaluate_research_gold_benchmark` full-task endpoint is not the
 common outcome measure for System S: it requires internal runtime acceptance
 and accepted role handoffs. Applying those prerequisites to a control without
@@ -475,7 +512,8 @@ not promoted into usable checkpoints.
 
 Each frozen source/input identity executes once, including failures; rebinding
 cannot replay it. A distinct source consumes the next prospectively fixed seed,
-never an outcome-selected seed. Future seeds remain outside model context.
+never an outcome-selected seed. Its declared tool context omits the private
+schedule; this does not prove future seeds are unrecoverable.
 Configured controls now use the production source-first evaluator ABI and the
 same existing small authoring diagnostic, `min(n_runs, 128)`, before freezing.
 They and production source-owner sessions receive one shared execution description,

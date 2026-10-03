@@ -55,6 +55,15 @@ there is no verdict fallback, product referee or repair loop. Opaque transport
 tests do not qualify the authority. Selecting independent assessors and completing
 their source/rubric qualification remains necessary before official theory draws.
 
+The current arm audit restores the production Theory Python/R scratch tools to
+both shared controls, connects Algorithm execution to the existing declared
+timeout, and corrects the existing model-visible cohort metadata projection.
+The experiment design now records actual timeout, data-stream,
+confirmation-exposure, attempt and model-resource differences. These mechanism
+changes do not establish matched arms, fresh independent data or mathematical
+acceptance. Complete that existing qualification before activating the study;
+do not respond with another scientific case or additional control framework.
+
 The unconsumed curvature-IV development panel added on 2026-10-02 was withdrawn
 before any model call or protocol activation. Its finite reference checks were
 numerical implementation diagnostics, not mathematical proof or agent outcomes.

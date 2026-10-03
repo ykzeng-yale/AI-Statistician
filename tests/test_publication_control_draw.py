@@ -17,6 +17,8 @@ from ai_statistician.model_backend import ClientToolTurnRequest
 from ai_statistician.research_architect import LLMTheoryDeveloperAgent, ResearchArchitectConfig
 from ai_statistician.research_schema import OpenResearchQuestion, research_question_payload
 from ai_statistician.simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
+from ai_statistician.scientific_sandbox import discover_scientific_sandbox_runtime
+from ai_statistician.theory_workspace import theory_scratchpad_client_tool
 
 
 MODEL = "Qwen3-4B-Instruct-2507"
@@ -106,6 +108,49 @@ def test_control_final_selection_uses_graph_accounting_without_scientific_accept
     with pytest.raises(FileExistsError):
         run_single_context_research_draw(**options)
     assert len(requests) == count and all(path.read_bytes() == data for path, data in original.items())
+
+
+@pytest.mark.parametrize("workflow", ["", "Use the same declared research workflow."])
+@pytest.mark.parametrize("language", ["python", "r"])
+@pytest.mark.parametrize("failed", [False, True])
+def test_control_theory_uses_production_scratch_tools_and_keeps_raw_results_in_its_own_context(tmp_path, monkeypatch, workflow, language, failed):
+    runtime = discover_scientific_sandbox_runtime()
+    if not (runtime.python_available if language == "python" else runtime.r_available):
+        pytest.skip("pinned scientific runtime is not installed")
+    options = draw_options(tmp_path, monkeypatch, workflow=workflow, limit=3)
+    source = ("print('opaque-scratch-observation', seed, replicates)\n" if language == "python" else
+              'cat("opaque-scratch-observation", seed, replicates, "\\n")\n')
+    if failed:
+        source += ('raise RuntimeError("opaque-scratch-failure")\n' if language == "python" else
+                   'stop("opaque-scratch-failure")\n')
+    requests = mock_wire(monkeypatch, options, [
+        ("theory__run_theory_scratchpad", {"language": language, "dependencies": [], "code": source}),
+        ("theory__read_theory_scratch", {"scratch_run": 1}),
+        ("submit_research_result", {"selected_checkpoints": {}, "report_markdown": "# Unresolved mechanism fixture\n"}),
+    ])
+    result, submission = run_single_context_research_draw(**options)
+    assert result.status == "REROUTE" and submission["selected_checkpoints"] == {}
+    assert result.local_model_usage["attempted_requests"] == len(requests) == 3
+    assert len(result.traces) == 1 and result.blackboard.evidence_ledger == []
+    scratch_tool = theory_scratchpad_client_tool()
+    wire_tool = next(row["function"] for row in requests[0]["tools"]
+                     if row["function"]["name"] == "theory__" + scratch_tool.name)
+    assert wire_tool["description"] == scratch_tool.description
+    assert wire_tool["parameters"] == scratch_tool.input_schema
+    observations = [json.loads(json.loads(message["content"])["content"])
+                    for message in requests[-1]["messages"] if message["role"] == "tool"]
+    executed, read = observations
+    assert executed["status"] == ("FAILED" if failed else "EXECUTED")
+    assert "opaque-scratch-observation 7 3" in executed["stdout_summary"]
+    if failed:
+        assert "opaque-scratch-failure" in executed["stderr_summary"]
+    assert executed["runtime_edited_source"] is False and executed["runtime_edited_theory"] is False
+    assert executed["metrics"] == {} and "not theorem proof evidence" in executed["boundary"]
+    assert read["source"] == source and read["result"]["stdout"] == executed["stdout_summary"]
+    assert read["request"]["seed"] == options["seed"]
+    assert read["request"]["replicates"] == options["n_runs"]
+    assert read["request"]["timeout_s"] == options["timeout_s"]
+    assert read["result"]["ok"] is (not failed)
 
 
 @pytest.mark.parametrize("failure", ["budget", "http", "model"])

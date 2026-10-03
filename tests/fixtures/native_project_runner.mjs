@@ -13,7 +13,7 @@ let bytes = 0;
 function terminate() {
   if (child?.pid) {
     try { process.kill(-child.pid, "SIGKILL"); }
-    catch (error) { if (error.code !== "ESRCH") throw error; }
+    catch (error) { if (error.code !== "ESRCH") result.errors.push(String(error.stack ?? error)); }
   }
 }
 

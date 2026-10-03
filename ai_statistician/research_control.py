@@ -468,7 +468,10 @@ def prepare_single_context_research_workspace(
         raise ValueError("comparison estimator identity differs from the frozen question ABI")
     sources = theory_agent.research_sources
     discovery = theory_agent.research_source_discovery
-    theory = theory_agent.prepare_workspace(question, theory_workspace_root=session_dir / "theory")
+    theory = theory_agent.prepare_workspace(
+        question, theory_workspace_root=session_dir / "theory",
+        theory_scratchpad=TheoryScratchpadConfig(session_dir / "theory_scratch_sandbox", seed, n_runs, timeout_s),
+    )
 
     def source_artifact(scope, payload):
         draft = payload["code_draft"]

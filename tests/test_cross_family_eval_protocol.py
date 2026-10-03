@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from argparse import Namespace
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from ai_statistician.cross_family_eval_protocol import (
     resolve_cross_family_eval_panel,
     summarize_candidate_gate_independence,
     validate_cross_family_eval_protocol,
+    withhold_confirmatory_evaluation_seed,
 )
 from ai_statistician.cli import _cross_family_eval_protocol_selection
 from ai_statistician.research_agent_runtime import _runtime_input_context_summary
@@ -20,6 +22,33 @@ from ai_statistician.research_lab import load_open_research_questions
 PROTOCOL_PATH = Path(
     "benchmarks/autonomous_cross_family_e2e_protocol_20260713.json"
 )
+
+
+def test_model_seed_projection_recognizes_owned_cohorts_and_transitions_not_researcher_seed_fields() -> None:
+    context = {"cross_family_evaluation_protocol": {
+        "protocol_fingerprint": "opaque-prospective-protocol-not-qualified",
+        "candidate_gate_independence_required": True,
+        "post_outcome_fresh_cohort_required": True,
+    }}
+    cohort, errors = resolve_confirmatory_evaluation_cohort(context, question_id="opaque", execution_seed=918007)
+    assert errors == []
+    context["runtime_confirmatory_evaluation_cohort"] = cohort
+    next_cohort, transition, errors = advance_confirmatory_evaluation_cohort(context, question_id="opaque",
+        confirmatory_outcome={"question_id": "opaque", "feedback_id": "opaque-outcome", "confirmatory_evaluation_cohort": cohort})
+    assert errors == []
+    public_research = {"seed": 31, "base_seed": 37, "from_seed": 41, "to_seed": 43,
+                       "code": "print('unmodified opaque source')", "stderr": "opaque raw observation"}
+    original = copy.deepcopy((cohort, next_cohort, transition, public_research))
+    for value in (cohort, next_cohort, transition, {"opaque_container": [cohort, next_cohort, transition]}):
+        view = withhold_confirmatory_evaluation_seed(value)
+        text = json.dumps(view)
+        assert str(cohort["seed"]) not in text and str(next_cohort["seed"]) not in text
+        assert "EVALUATOR_WITHHELD" in text
+    view = withhold_confirmatory_evaluation_seed({"research": public_research, "opaque_cohort": cohort})
+    assert view["research"] == public_research
+    assert view["opaque_cohort"]["cohort_id"] == cohort["cohort_id"]
+    assert view["opaque_cohort"]["cohort_index"] == cohort["cohort_index"]
+    assert (cohort, next_cohort, transition, public_research) == original
 
 
 def test_frozen_cross_family_protocol_resolves_disjoint_panels() -> None:

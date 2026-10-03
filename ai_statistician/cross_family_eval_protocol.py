@@ -20,6 +20,7 @@ from .task_family import (
 CROSS_FAMILY_EVAL_PROTOCOL_SCHEMA_VERSION = 1
 CROSS_FAMILY_EVAL_PROTOCOL_KIND = "CrossFamilyEndToEndEvaluationProtocol"
 CONFIRMATORY_EVALUATION_COHORT_KIND = "RuntimeConfirmatoryEvaluationCohort"
+CONFIRMATORY_EVALUATION_COHORT_TRANSITION_KIND = "RuntimeConfirmatoryEvaluationCohortTransition"
 CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY = "runtime_confirmatory_evaluation_cohort"
 CONFIRMATORY_EVALUATION_SEED_MODULUS = 2_147_483_647
 
@@ -455,7 +456,7 @@ def advance_confirmatory_evaluation_cohort(
         trigger_outcome_id=outcome_id,
     )
     transition_body = {
-        "artifact_kind": "RuntimeConfirmatoryEvaluationCohortTransition",
+        "artifact_kind": CONFIRMATORY_EVALUATION_COHORT_TRANSITION_KIND,
         "question_id": question_id,
         "trigger_outcome_id": outcome_id,
         "from_cohort_id": current["cohort_id"],
@@ -489,12 +490,17 @@ def withhold_confirmatory_evaluation_seed(
     """Project evaluator-owned seeds out of model-visible material."""
 
     if isinstance(value, Mapping):
+        private_fields = set()
+        if value.get("artifact_kind") == CONFIRMATORY_EVALUATION_COHORT_KIND:
+            private_fields = {"seed", "base_seed"}
+        elif value.get("artifact_kind") == CONFIRMATORY_EVALUATION_COHORT_TRANSITION_KIND:
+            private_fields = {"from_seed", "to_seed"}
         return {
             str(key): (
                 "EVALUATOR_WITHHELD"
-                if str(key) == "runtime_seed"
+                if str(key) in private_fields or str(key) == "runtime_seed"
                 or (
-                    str(key) == "seed"
+                    str(key) in {"seed", "base_seed"}
                     and parent_key
                     in {
                         "actual_runtime_arguments",

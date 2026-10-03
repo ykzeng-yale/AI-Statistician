@@ -38,6 +38,7 @@ from ai_statistician.generated_metric_contract import (
     generated_metric_requirement_set_id,
 )
 from ai_statistician.cross_family_eval_protocol import (
+    advance_confirmatory_evaluation_cohort,
     resolve_confirmatory_evaluation_cohort,
 )
 from ai_statistician.model_backend import GeneratorResponse
@@ -304,6 +305,7 @@ def test_full_architect_prompt_withholds_confirmatory_evaluator_seed() -> None:
             "runtime_confirmatory_evaluation_cohort": {
                 "cohort_id": "cohort:1",
                 "seed": 1042,
+                "base_seed": 1042,
                 "cohort_index": 1,
             },
             "runtime_execution_plan": {"seed": 1042, "replicates": 12},
@@ -319,9 +321,42 @@ def test_full_architect_prompt_withholds_confirmatory_evaluator_seed() -> None:
     assert context["runtime_confirmatory_evaluation_cohort"]["seed"] == (
         "EVALUATOR_WITHHELD"
     )
+    assert context["runtime_confirmatory_evaluation_cohort"]["base_seed"] == "EVALUATOR_WITHHELD"
     assert context["runtime_execution_plan"]["seed"] == "EVALUATOR_WITHHELD"
     assert context["runtime_execution_plan"]["replicates"] == 12
     assert payload["runtime_config"]["seed"] == "EVALUATOR_WITHHELD"
+
+
+def test_initial_and_feedback_routing_requests_hide_private_cohort_seeds_but_retain_raw_findings() -> None:
+    question = _question()
+    context = {"cross_family_evaluation_protocol": {
+        "protocol_fingerprint": "opaque-prospective-protocol-not-qualified",
+        "candidate_gate_independence_required": True,
+        "post_outcome_fresh_cohort_required": True,
+    }}
+    cohort, errors = resolve_confirmatory_evaluation_cohort(context, question_id=question.id, execution_seed=918007)
+    assert errors == []
+    context["runtime_confirmatory_evaluation_cohort"] = cohort
+    outcome = {"question_id": question.id, "feedback_id": "opaque-outcome", "confirmatory_evaluation_cohort": cohort}
+    next_cohort, transition, errors = advance_confirmatory_evaluation_cohort(context, question_id=question.id, confirmatory_outcome=outcome)
+    assert errors == []
+    context["runtime_confirmatory_evaluation_cohort"] = next_cohort
+    context["cohort_transition"] = transition
+    feedback = {"source_subsystem": "SimulationEvaluator", "opaque_cohort": next_cohort,
+                "opaque_history": [cohort, transition], "stderr": "opaque raw observation",
+                "researcher_method": {"seed": 31, "code": "print('unmodified opaque source')"}}
+    original = deepcopy((context, feedback))
+    initial = build_architect_coordinator_prompt(question=question, architect_context=context, runtime_config={})
+    route = build_architect_feedback_route_prompt(question=question, architect_context=context, environment_feedback=feedback)
+    for prompt in (initial, route):
+        assert str(cohort["seed"]) not in prompt and str(next_cohort["seed"]) not in prompt
+        assert "EVALUATOR_WITHHELD" in prompt
+    routed = json.loads(route.rsplit("\n\n", 1)[1])
+    assert routed["environment_observations"]["stderr"] == feedback["stderr"]
+    assert routed["environment_observations"]["researcher_method"] == feedback["researcher_method"]
+    assert routed["environment_feedback_fingerprint"] == stable_hash(feedback)
+    assert routed["environment_observations"]["opaque_cohort"]["cohort_id"] == next_cohort["cohort_id"]
+    assert (context, feedback) == original
 
 
 def test_compact_architect_decision_builds_runtime_workspace_topology() -> None:

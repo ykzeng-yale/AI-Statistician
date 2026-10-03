@@ -113,9 +113,11 @@ author/reviewer failure.
 
 Exploratory implementation can begin before all theory is settled and can return
 counterexamples or interface findings to TheoryDeveloper. Stable claims and exact
-source then receive review. Confirmatory execution freezes source, relevant
-parents, protocol and a fresh cohort before outcomes. A result cannot repair its
-own acceptance criteria. The simulation design must specify the scientific aim,
+source then receive review. The intended confirmatory contract freezes source,
+relevant parents, protocol and fresh data before outcomes. Current default seed
+initialization does not itself establish data freshness; Section 4.1 records the
+qualification still needed. A result cannot repair its own acceptance criteria.
+The simulation design must specify the scientific aim,
 DGP, estimand, method, measure and Monte Carlo uncertainty rather than use a
 universal repetition count. [Morris et al.](https://pmc.ncbi.nlm.nih.gov/articles/PMC6492164/)
 
@@ -274,6 +276,17 @@ context, generated tokens, computation or review effort. Report measured model,
 tool and scientific execution costs for every scheduled draw and disclose any
 remaining mismatch. A secondary quality-resource study, if undertaken, fixes its
 conditions beforehand; post-outcome cap changes are not part of the same comparison.
+
+The current implementation audit finds material conditions that still require
+prospective qualification. Both shared controls now expose the production
+Python/R Theory scratch tools, but execution timeouts, exploratory data streams,
+private confirmation capacity and outcome exposure must be matched or declared.
+The product's default confirmation seed can equal its public exploratory seed;
+redacting cohort metadata does not make those data fresh or independent.
+Confirmation feedback also differs between a shared conversation and isolated
+source-owner sessions. The operational settings and remaining differences are
+listed in `docs/publication_experiments.md`; arm names and equal request caps do
+not establish comparability. No study is activated by this tool-conformance work.
 
 Failure reporting distinguishes an invalid derivation, an implementation error,
 an unmet task condition, missing final selection and environmental interruption.
