@@ -194,6 +194,13 @@ computation. Resource curves require frozen global conditions and complete
 measurement, including failed and usage-unknown requests. No cap or stronger
 model is added after seeing a draw's outcome.
 
+All four preparations now supply the research-evaluation Theory policy and the
+same Python/R scratch tool schemas. Effective output limits still depend on the
+entry: production Theory uses its serious-mode limit, while the shared session
+uses its request limit. These values must be matched explicitly. This corrects
+an initial context difference; it does not make whole prompts, confirmation
+exposure or realized resources identical.
+
 Evaluator-owned cohort and transition metadata have a separate model-visible
 projection, used by the Architect, code reviewer and Theory feedback files.
 The same projection is applied to scientific-owner context and observation views.

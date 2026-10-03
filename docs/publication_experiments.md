@@ -151,6 +151,15 @@ only `roles.theory.max_tokens` does not do so. Freeze temperatures and the actua
 server sampling/RNG configuration as well. No new resource controller is needed,
 and a configuration declaration still needs checking against observed requests.
 
+The initial Theory workspace in all four modes now uses the existing
+research-evaluation task/evidence context, rather than giving the shared controls
+the compact default while production receives serious Theory mode. Eight opaque
+draw-entry cases observe the actual initial authoring policy, identical scratch
+tool schemas, declared temperature and effective output limits, including an
+intentionally unmatched output setting. This is a corrected context confound,
+not byte-identical whole prompts, complete arm qualification or scientific
+evidence. It adds no research sequence or model-specific mathematical rule.
+
 The control scratch addition reuses production tool schemas and raw execution
 observations; it does not add a research recipe or evidence credit. Opaque
 transport tests cover Python/R success and failure, source preservation and

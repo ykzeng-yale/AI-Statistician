@@ -1,6 +1,6 @@
 # TSCI Scientific Source Qualification
 
-Checked 2026-10-02. Evaluator-side source review, not an agent task, proof
+Checked 2026-10-02; source-input follow-up 2026-10-03. Evaluator-side source review, not an agent task, proof
 certificate or numerical experiment. Earlier reference executions remain unchanged.
 
 ## Editions and Examined Material
@@ -88,6 +88,58 @@ dependencies, including Lemma 5/C.2. Feasible variance and selected-basis
 inference have additional obligations. The localized sign discrepancy already
 recorded above has not been resolved by this inspection or by a simulation.
 Do not insert a corrected proof into gold without an independently checked argument.
+
+### Tool-Readable Official Code Input
+
+The 2026-10-03 follow-up cloned the full advertised official history: 32 commits,
+with only `main` advertised and no tags. Neither missing helper appeared under
+its exact path in that history. This does not establish that the authors never
+distributed it elsewhere. An exact-filename search of this workspace and the
+operator-provided `AI for Math Resources` collection also found neither file.
+No source, generated result or old evaluation changed.
+
+The existing product CLI froze all 66 commit files, preserving paths and bytes:
+
+```sh
+git clone https://github.com/zijguo/TSCI-Replication "$FRESH_CHECKOUT"
+.venv/bin/ai-statistician freeze-research-source-project \
+  --repository "$FRESH_CHECKOUT" \
+  --revision ca73f039b5666b579150921d467d245802b7e2b7 \
+  --snapshot-id tsci-jmlr-official-source-ca73f039 \
+  --source-horizon 2026-10-03 \
+  --repository-url https://github.com/zijguo/TSCI-Replication \
+  --license MIT --out "$FRESH_SNAPSHOT"
+```
+
+The local snapshot is `runs/publication_case_assets_20261003/source_snapshot`.
+Its snapshot hash is
+`10e8dfdfb80b410e7228bb70e2b36d546ff73c1bc203a15eb2b22a15c6eb6cb3`;
+its manifest SHA-256 is
+`234876ae17e14738874b839f9f7140bd703622d4be580679bfd587bb06423922`.
+An exact rebuild at another path can have different path-bound metadata; verify
+the commit and file identities rather than assume its manifest bytes match.
+The production snapshot loader returned no identity errors. Its actual list/read
+tools listed the seven `Source Codes` entries and read the B1 producer's first
+four lines unchanged. This was tool access, with zero model calls and no R run;
+it is not autonomous reproduction or a qualified execution environment.
+
+| Input | SHA-256 |
+| --- | --- |
+| `Simulation Codes/Section 5.2&D.4&D.5/Simulation-TSCI-invalidIV-B1.R` | `fbc3a89d638231521aeb5016692c355e4ff6e493c440242ca4dd48773de3fef0` |
+| `Real-Data/RealData_Card_V1V2.R` | `9e1415d29b7cdaaab78f9fe9e0644c13888b3d03c8f72bedfb7dd6233b95411b` |
+| `Source Codes/Source-RF-hetero2.R` | `f148d6dea810a674aabced3b56b15f35f560d57a76be023bb969844b63f7840c` |
+
+B1's reader grid has 18 settings and 25 rounds, requiring 450 batch files and
+500 Monte Carlo observations per setting when every 20-observation batch is
+complete. These are source-declared counts, not executed or successful results.
+The producer fixes one setting and round in its source; running it once is not
+the full grid. Its heteroskedastic comparator functions are not supplied by the
+available homoskedastic helper. Card's four alternative bases likewise remain
+the E.1 scope, not the main-case multi-split analysis. Paper text, input data,
+environment locks, complete execution/aggregation, scientific tolerances and
+mathematical assessment are still separate unresolved inputs. The frozen code
+can be supplied through the existing `source_snapshot_ref`; this evaluator-side
+review and reference outputs must not be included as author hints.
 
 ## Qualification Decision and Paper Consequences
 

@@ -31,15 +31,21 @@ contract without falsely completing or replacing that goal.
 | Product | One outer AgentRuntime and retained tool loop; Markdown/LaTeX Theory; source-owner Python/R/Lean feedback; separate role review | Correct scientific research or useful collaboration |
 | Portable package | One skill and two references; host discovery; Kimi/local-Qwen body uptake and file access; separately labelled Claude Code compatibility | Scientific efficacy, broad clean-machine installation or researcher time savings |
 | Manuscripts | [Harness draft](../manuscripts/portable_harness.md) and [system draft](../manuscripts/collaborative_system.md), with distinct methods arguments | Submission-ready papers; official comparative results do not exist |
+| Case inputs | Official TSCI commit frozen as 66 exact files and checked through production source tools | Executable B1 study, complete input/environment package or mathematical gold; missing helpers remain unresolved |
 | Qwen development | Four standalone known-result draws had no final selection; both native FDA draws failed; earlier native R draws failed without demonstrated skill uptake | A publication baseline, reliable theory development or a measured harness benefit |
 | Lean foundation | Active Lean 4.30.0 Mathlib/Statlib/StatInference pin; selected kernel checks and source-mapped retrieval | Complete textbook coverage, clean reconstruction or source-faithful public API |
-| Verification | Last pushed mechanism revision passed 2095 tests, with 18 skips and one existing xfail | Mathematical correctness, matched experimental arms or publication readiness |
+| Verification | Final full suite passed 2103 tests, with 18 skips and one existing xfail; earlier storage failure and fixture follow-ups retained separately | Mathematical correctness, matched experimental arms or publication readiness |
 
-AI checkpoint: c5306f4e; tested code: 9bafb9cf.
+AI code checkpoint and tested code: 202b534e.
 Lean pin: db6c7718349f3c14a7e37905f3529675f1ebaa52.
 The [status record](main_worker_status.json) links detailed immutable evidence.
 Historical mixed-scope Haiku credits are archived, not forward baselines.
 Historical strict-development exact-theorem closure remains 0/2.
+
+The shared controls now receive the same research-evaluation Theory policy as
+production, through its existing task/evidence constructor. Actual-request tests
+cover the initial policy, scratch tools and effective output limits. This closes
+one comparison confound, not complete study qualification or scientific efficacy.
 
 The previous workflow over-prioritized conformance audits and local fixes while
 official studies stayed unactivated. Stop that pattern. Do not manufacture success
