@@ -33,11 +33,38 @@ findings, hidden reference values or mathematical acceptance rubric. The adjacen
 evaluator-side [source review](../../publication_reference_qualification_20261002/tsci_scientific_source_review.md)
 must not be added to the author source snapshot.
 
+## Available Input Capsule
+
+[Input preparation](input_preparation.json) records a newly materialized 76-file
+local source snapshot: all 66 unedited author-code files, the final CC-BY-4.0
+article and unedited text extraction, original Card data/documentation from the
+exact CRAN `ivmodel` 1.9.1 archive, a mechanical CSV serialization, and native R
+environment metadata. The CSV permits existing hash-bound scientific file import;
+it is a derived input, not a fitted result or bitwise-equivalence claim. Prior
+reference fits, numeric outcomes and operator proof findings are excluded.
+
+The existing loader validates every document identity. The original code commit
+and Git blob identities remain attached to each code file, now under
+`author_code/`; the composite capsule is not falsely labelled one upstream Git
+tree. The local capsule is not yet a redistribution release or complete author
+replication. Original survey-data rights remain unresolved.
+
+[Source execution candidate](source_execution_candidate.json) uses the existing
+model-selected native source executor. Its final standard Rscript environment
+probe passed with the pinned interpreter, launcher dependencies and scoped
+read-only library; two failed pre-science startup observations remain recorded.
+This establishes package/version startup only. No author statistical entrypoint,
+full agent session, generated scientific R execution or reference/gold was run.
+The lock records the R engine hash; the execution candidate additionally binds
+Rscript and its launcher chain. Its machine-specific paths still need release
+reconstruction instructions.
+
 ## Inputs Still Required Before A Draw
 
 1. Freeze a complete public input capsule with the exact final paper, the official
-   code pin, permitted application data and their licenses/identities. The existing
-   66-file code snapshot alone is not that capsule.
+   code pin, permitted application data and their licenses/identities. The new
+   available-input capsule supplies exact assets but does not resolve missing
+   author dependencies, original data rights or release reconstruction.
 2. Recover or explicitly resolve the missing B1 heteroskedastic comparator helper.
    An independently authored implementation is not unchanged author replication.
    The contract permits honest unavailable/failed fits but does not count them as
@@ -63,7 +90,9 @@ replication without that manifest before inference, whereas production can first
 ask Architect to plan. Do not let a study spend calls in only one arm because
 preparation knowingly omitted the other's prerequisite. The assembler verifies
 the existing manifest before writing any arm file; it does not relax that gate.
-No real TSCI arm files have been generated because this input remains unqualified.
+No real TSCI arm files have been generated. The new execution candidate now passes
+the loader and environment probe, but case-source closure and scientific
+qualification remain incomplete.
 
 The shared public diagnostic seed differs from the initialized production cohort
 and the controls' confirmation schedule. Initial cohort seed, arithmetic schedule,
@@ -111,3 +140,11 @@ tests. Opaque fixtures validate file identities, explicit settings, rejected
 incomplete preparation and all four existing draw entries reaching mocked
 transport. They do not validate the TSCI source environment, live model condition,
 full arm comparability or scientific outcomes. Product code was not changed.
+
+Subsequent source preparation exposed a shared file-import bug: text-mode reads
+normalized CRLF bytes before hash verification. The source importer now decodes
+the raw bytes as UTF-8 instead. Both LF and CRLF source-import/execution regressions
+pass; no line-ending rewrite or language-specific rule is introduced. Full suite
+for product commit `813f627b`: 2115 passed, 18 skipped, one existing xfail in
+1294.31 seconds. Compileall passed. The preceding 116-test result remains scoped
+to the configuration follow-up; neither run is scientific capability evidence.

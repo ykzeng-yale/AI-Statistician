@@ -1,0 +1,50 @@
+{
+  "schema_version": 4,
+  "artifact_kind": "ResearchSourceExecutionSpec",
+  "execution_id": "tsci-jmlr-source-execution-candidate-20261003-v1",
+  "benchmark_id": "tsci-b1-card-integrated-preparation",
+  "source_snapshot_id": "tsci-jmlr-b1-card-public-inputs-20261003-v1",
+  "source_snapshot_hash": "395685d426ed87e24ab4b178e5229aada1bc3ebfa4cf002bd6be0d354bf6f28e",
+  "source_manifest_sha256": "cddc9ce610ef42e83cd0ee8abab480f77b20af0cc2dac682f087fb5a9e0d0dd7",
+  "source_commit": "ca73f039b5666b579150921d467d245802b7e2b7",
+  "entrypoint_document_id": "repository-file:15d8f48ca79cff2d2aa2b3da",
+  "environment_lock_document_id": "tsci-environment-lock",
+  "environment_probe_document_id": "tsci-environment-probe",
+  "environment_root": "/Users/yukangzengcmac/.local/share/R-4.4.2",
+  "runtime_language": "r",
+  "interpreter_executable_relative_path": "R.framework/Resources/bin/Rscript",
+  "interpreter_executable_sha256": "4ef8524bfe2f7f4459f39ef50f0406b0e5c11f655884df711c38c711e9337754",
+  "interpreter_arguments": ["--vanilla"],
+  "runtime_read_roots": [
+    "/Users/yukangzengcmac/AI-Statistician/runs/publication_reference_qualification_20261002/tsci/reference_3_0_5/library",
+    "/private/var/select"
+  ],
+  "runtime_executables": {
+    "/Users/yukangzengcmac/.local/share/R-4.4.2/R.framework/Versions/4.4-arm64/Resources/bin/R": "6f5813989c33ab10263dffa1fc56f20afafc248af14fbf5e4971f92dcf56db04",
+    "/Users/yukangzengcmac/.local/share/R-4.4.2/R.framework/Versions/4.4-arm64/Resources/bin/exec/R": "008da84fabf3113927dfe4159a5b9795b41773928038ca47e8f19b3e787a1bd5",
+    "/bin/bash": "fde343ee184953c1fa1185abddeaa8be61c6acbebae4eb54db5d6b55b09a5755",
+    "/bin/rm": "0e7aa0987cecc8d8ca629e1c61857321e8e281a6c1d0711b21163a15e454dc9d",
+    "/bin/sh": "ad5c194b05f83bc5e793c1cd67b148a4b680467b5a5730ab1a31fe4e6460ee9f",
+    "/usr/bin/sed": "abd2eb945442a8ab1d210e58edb153f34870ee6d7c359f0f6d8385b1f7fc50fc",
+    "/usr/bin/uname": "c189136263d277786f29a16eb3137de7bcf4512d2282d0036f440022f325bfc4",
+    "/usr/bin/which": "4d76dacf6a59904694cfd4c4a5660cbca67e957069660b6377a561a54e1133a2"
+  },
+  "runtime_environment": {
+    "R_HOME": "/Users/yukangzengcmac/.local/share/R-4.4.2/R.framework/Resources",
+    "RHOME": "/Users/yukangzengcmac/.local/share/R-4.4.2/R.framework/Resources",
+    "R_LIBS_USER": "/Users/yukangzengcmac/AI-Statistician/runs/publication_reference_qualification_20261002/tsci/reference_3_0_5/library",
+    "R_LIBS_SITE": "/nonexistent"
+  },
+  "working_directory_relative": "author_code/Source Codes",
+  "arguments": [],
+  "package_distributions": {
+    "ivmodel": "ivmodel", "ranger": "ranger", "MASS": "MASS", "jsonlite": "jsonlite"
+  },
+  "timeout_seconds": 1800,
+  "max_output_bytes": 16777216,
+  "execution_workspace_mode": "staged_copy_on_write",
+  "result_artifact_paths": [
+    "author_code/Source Codes/results-RealData_Card_largerVio-round1.rds"
+  ],
+  "command_selection_mode": "model_selected"
+}

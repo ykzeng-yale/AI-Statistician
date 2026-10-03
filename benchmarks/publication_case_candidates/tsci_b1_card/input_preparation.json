@@ -1,0 +1,82 @@
+{
+  "scope": "available_public_input_and_source_environment_preparation",
+  "study_activated": false,
+  "model_calls": 0,
+  "author_science_executed": false,
+  "gold_qualified": false,
+  "scientific_generated_r_qualified": false,
+  "mechanism_verification": {
+    "product_commit": "813f627bfe92ca4ea8d47e25ac1a7a3d10bef318",
+    "fix": "Decode original UTF-8 bytes on frozen-file import without newline normalization; no source rewrite or statistical patch",
+    "focused": "LF and CRLF frozen-file import/execution: 2 passed, 47 deselected",
+    "full_suite": "2115 passed, 18 skipped, one existing xfail in 1294.31 seconds",
+    "junit_path": "runs/publication_case_inputs_20261003/full-regression.xml",
+    "junit_sha256": "640575d7b80ccbb48377db639be6969a7c7922a37db13195d71f94f277c57cda",
+    "compileall": "passed",
+    "boundary": "Mechanism regressions, not autonomous research or mathematical correctness"
+  },
+  "capsule": {
+    "manifest_path": "runs/publication_case_inputs_20261003/capsule/sources.json",
+    "manifest_sha256": "cddc9ce610ef42e83cd0ee8abab480f77b20af0cc2dac682f087fb5a9e0d0dd7",
+    "snapshot_hash": "395685d426ed87e24ab4b178e5229aada1bc3ebfa4cf002bd6be0d354bf6f28e",
+    "document_count": 76,
+    "scope": "Exact available inputs, not a complete author replication or a public redistribution release",
+    "excludes": ["old fitted objects", "reference results", "operator mathematical review", "hidden evaluation artifacts"]
+  },
+  "code": {
+    "repository_url": "https://github.com/zijguo/TSCI-Replication",
+    "commit": "ca73f039b5666b579150921d467d245802b7e2b7",
+    "tracked_files": 66,
+    "tracked_bytes": 394707,
+    "git_tree_index_hash": "6fe6260a1d285012e29087cd6f2241e000693c516a41002aa3463ecba9d671c1",
+    "capsule_prefix": "author_code/",
+    "license": "MIT, upstream notice retained",
+    "content_edits": false,
+    "crlf_documents": 6,
+    "missing_b1_helper": "Source Codes/Source-otherRF-hetero.R"
+  },
+  "paper": {
+    "url": "https://www.jmlr.org/papers/v27/24-0515.html",
+    "pdf_sha256": "77f7d170bcfbcd6ad3cc2cbb02d4e047898b047a81b97f9db22b4d04c5f100ed",
+    "text_sha256": "0cc39ac399cac12d83f669fce913d679077a4ab55f1cad58d878fe65a49a345d",
+    "license": "CC-BY 4.0, stated on the final PDF first page",
+    "text_conversion": "Existing unedited pdftotext layout extraction; not a semantic reconstruction or corrected proof"
+  },
+  "data": {
+    "upstream_archive_url": "https://cran.r-project.org/src/contrib/ivmodel_1.9.1.tar.gz",
+    "archive_sha256": "14689135b0b4b915f2e2a3f978f43dc4616ba9c643c465c75efcfb4fb92595be",
+    "original_member": "ivmodel/data/card.data.rda",
+    "original_member_sha256": "e5656a4ea03e0f40937ca07f169a1c5b4c4505ff05cdbe75954079d5f06f704a",
+    "original_member_matches_upstream_md5": "bffc7c448708886f3462b2ee913b3e3c",
+    "csv_sha256": "c6b6935a355dd458f5eba3b9f9201350cc1a00268bbdf6eb3f1fa37f15e64e89",
+    "csv_bytes": 313196,
+    "rows": 3010,
+    "columns": 35,
+    "serialization": "R 4.4.2 load into an empty environment; write.csv(row.names=FALSE, na=\"NA\", fileEncoding=\"UTF-8\"). CSV is a derived input, not byte-identical R serialization or verified bitwise numeric equivalence.",
+    "notices": "Original card.data.Rd, DESCRIPTION, LICENSE and MD5 retained from the exact archive. Package declares GPL-2 | file LICENSE; LICENSE contains an MIT notice. Original survey-data redistribution rights are not independently resolved.",
+    "public_release": "Publish acquisition instructions and identities; do not infer permission to redistribute original survey data."
+  },
+  "source_environment": {
+    "runtime": "R version 4.4.2 (2024-10-31)",
+    "status": "Observed adapted environment, not recovered historical author environment",
+    "library_inventory_files": 5478,
+    "library_inventory_hash": "79bd1e9ec7b3682a2c7541e3949974bba4e089f278919d37e6aed65806f7db83",
+    "execution_candidate_path": "benchmarks/publication_case_candidates/tsci_b1_card/source_execution_candidate.json",
+    "execution_candidate_sha256": "0bc42ccbfd58ba747442cdd35cc47e8da0e186b52797afa8d13a2be2117b1439",
+    "probe_package_versions": {"ivmodel": "1.9.1", "ranger": "0.18.0", "MASS": "7.3.65", "jsonlite": "2.0.0"},
+    "probe_boundary": "Package/version probe only, through existing local pinned executor with network denied. It does not run an author statistical entrypoint or qualify scientific source closure.",
+    "preparation_failures_retained": [
+      {"path": "runs/publication_case_inputs_20261003/pinned_environment_probe/observation.json", "sha256": "180713c3e686b87ccc91c153af086a293d59635549409dcb5cbbc485ee4f5b0a", "exit_code": -6, "reason": "Direct R engine lost the relocated dynamic-library setting at sandbox startup"},
+      {"path": "runs/publication_case_inputs_20261003/pinned_rscript_probe/observation.json", "sha256": "e8566ca1321040c404dc12a0923ead39faf5238b291218d69bd24f28e217c92f", "exit_code": 1, "reason": "Standard launcher required declared sed execution and its complete R installation root"}
+    ],
+    "successful_probe": {"path": "runs/publication_case_inputs_20261003/pinned_rscript_environment_probe/observation.json", "sha256": "2efe6bb9886c71d75d3497c499ae6f24e75eea5b850c2f40a3c62d0503771cf8", "exit_code": 0},
+    "observation_limit": "Final execution candidate is retained. Earlier failed observations bind their attempted candidate hashes, but those transient candidate files were not separately frozen. No full replayability claim for those preparation attempts."
+  },
+  "remaining": [
+    "Resolve missing B1 comparator helper or explicitly qualify independent reimplementation; do not label it unchanged replication",
+    "Qualify scientific execution of the methods; native source R and generated WebR are separate",
+    "Qualify producer/aggregation, application reference, numerical tolerances and independent assessment of submitted mathematical arguments",
+    "Complete roster/split, live deployment, arm/resource/exposure qualification and prospective analysis before study activation",
+    "Complete public acquisition/reconstruction instructions and resolve release rights"
+  ]
+}
