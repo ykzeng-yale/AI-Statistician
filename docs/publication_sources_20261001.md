@@ -118,6 +118,12 @@ and no study or test split was activated. The already consumed
 DoubleML paper family is excluded from the fresh test pool. This preparation is
 evaluator work, not product research autonomy or a new runtime dependency.
 
+The subsequent [TSCI scientific-source review](../benchmarks/publication_reference_qualification_20261002/tsci_scientific_source_review.md)
+pins the final JMLR theory edition and its separate MIT-licensed code repository.
+It records selected proof dependencies, localized written discrepancies and the
+limits of the existing software example. No full-paper reproduction or independent
+theory gold is qualified, and no model or numerical experiment was added.
+
 The seventh source is Truong, Oudre and Vayatis,
 [Selective review of offline change point detection methods](https://doi.org/10.1016/j.sigpro.2019.107299),
 Signal Processing 167:107299 (2020). Its pinned arXiv v3 objective, quadratic-cost

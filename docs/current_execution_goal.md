@@ -36,6 +36,14 @@ Next qualify the full source-paper/proof/code/data basis of the study tasks and
 case, settle the actual arm comparability and analysis, then freeze and execute.
 Do not substitute further toy panels or operator numerical checks for this work.
 
+The [TSCI source qualification](../benchmarks/publication_reference_qualification_20261002/tsci_scientific_source_review.md)
+now distinguishes the final theory edition, software example and full published
+study. Its localized discrepancies remain unresolved; it is not mathematical gold
+or a completed case. Finish the task-scope/authority decision before executing
+that candidate, without turning its findings into product instructions or a new
+proof-repair pipeline. Code replication and mathematical assessment retain their
+separate endpoints; neither substitutes for the other.
+
 The unconsumed curvature-IV development panel added on 2026-10-02 was withdrawn
 before any model call or protocol activation. Its finite reference checks were
 numerical implementation diagnostics, not mathematical proof or agent outcomes.

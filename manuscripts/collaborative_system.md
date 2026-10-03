@@ -282,6 +282,16 @@ has been reproduced and what extension is actually attempted. A new theoretical
 claim requires a complete argument; a reproduced table is not such a claim.
 No case currently meets the full publication contract.
 
+The current invalid-instrument candidate illustrates why task scope matters.
+Its [source qualification](../benchmarks/publication_reference_qualification_20261002/tsci_scientific_source_review.md)
+distinguishes software-output reproduction, independent argument assessment and
+a substantive research task using specialist feedback. Only the last can test
+the proposed collaboration mechanism. A TheoryDeveloper-only reproduction does
+not become a multi-agent experiment by changing its arm label. If this candidate
+is selected, actual specialist inputs, source-owner revisions and common external
+assessment must be specified before runs. The shared source review is preparation
+for both papers, not two independent results or completed case evidence.
+
 The main scientific account will connect the actual derivation to the generated
 method, simulation or data analysis, comparisons, uncertainty and interpretation.
 It will retain unresolved assumptions and sensitivities that affect the result.

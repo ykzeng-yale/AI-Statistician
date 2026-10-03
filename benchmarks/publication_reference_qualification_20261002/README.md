@@ -269,6 +269,14 @@ weak-IV non-testability is not evidence of instrument validity. Future family
 grouping and external task checks remain unfrozen; attachment redistribution
 rights remain unresolved. No model was called or historical evaluation revisited.
 
+The subsequent [TSCI scientific-source review](tsci_scientific_source_review.md)
+examines the final 2026 JMLR edition, selected proof dependencies and its separate
+replication repository. It identifies localized written-algorithm/proof
+inconsistencies and a different experiment scope; it does not invalidate or
+upgrade the earlier attachment's numerical-reference result. No model or new
+numerical experiment was run. TSCI is not yet a qualified publication case or
+mathematical gold source.
+
 ## RepliSims Probes
 
 Unchanged RepliSims Austin code was probed under native R 4.4.2 with a fixed seed. Its

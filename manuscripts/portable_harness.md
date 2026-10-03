@@ -256,6 +256,15 @@ then connect the argument to the executed method and its diagnostic or sensitivi
 analysis. A published-method reproduction is labelled as reproduction rather than
 novel theory. No qualifying case has yet been completed for this paper.
 
+One current candidate is a source-grounded invalid-instrument analysis, but its
+[qualification record](../benchmarks/publication_reference_qualification_20261002/tsci_scientific_source_review.md)
+does not yet support a full case. The examination separates an executable software
+example from the final theory article, the application and the complete published
+experiments. Their scopes cannot be merged into one success. Reproducing a
+specified analysis and assessing its scientific justification are distinct
+endpoints. This review is evaluator preparation, not a portable-agent achievement
+or a selected successful case.
+
 The case report will show the actual package and bare-host deliverables, the
 decisions that matter scientifically, errors or unresolved conditions, and human
 interventions. A retrospective success vignette can illustrate behavior but cannot
