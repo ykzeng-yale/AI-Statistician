@@ -1,304 +1,187 @@
 # Current Execution Goal
 
-Updated: 2026-10-03, two evidence-backed publications and local Qwen testing.
+Updated: 2026-10-03 after the operator requested a complete progress reset.
 
-## Operative Objective
+## Outcome, Not Infrastructure
 
-Prepare AI-Statistician and EmpericalProcessLEAN for two distinct arXiv-first
-publications and reproducible releases: a portable statistical-research harness
-for researchers' existing coding agents, and a complete collaborative
-AI-Statistician driven through a single model API. Preserve the original
-model-led statistical research objective: prior-work investigation, baseline
-reproduction, reviewable theory, Python/R implementation and simulation,
-independent validation, intent-selected Lean and disjoint-task artifact reuse.
+Deliver two distinct, evidence-backed arXiv-first manuscripts and reproducible
+releases from AI-Statistician and EmpericalProcessLEAN:
 
-The [publication programme](publication_programme.md) defines separate research
-questions and release requirements. The [experiment design](publication_experiments.md)
-requires comparable baselines, family-grouped tasks and independent authority;
-it is not yet an activated experiment. The [current source review](publication_sources_20261001.md)
-records inspected primary work, code pins and reuse boundaries. Publication
-readiness requires working releases and comparative scientific evidence, not
-documents, a renamed architecture, model consensus or a compiled support library.
+1. **Paper H:** an installable statistical-research skill/harness for researchers'
+   existing coding agents, evaluated against the same host without the package.
+2. **Paper S:** a standalone collaborative AI-Statistician driven by one model API,
+   evaluated against capable same-model, comparable-resource research agents.
 
-This restores the complete [original product goal](goal-ai-statistician.md).
-One accepted task is a milestone, not the goal. Repeatedly substituting another
-easy benchmark, extending a scorecard, or collecting more repositories cannot
-stand in for scientific capability or completion of this roadmap.
+Restore the complete [original product goal](goal-ai-statistician.md): investigate
+prior work, reproduce relevant baselines, develop reviewable statistical theory,
+implement Python/R methods, validate scientifically, select Lean by task intent,
+and reuse qualified artifacts across disjoint tasks. A toy success, test count,
+literature inventory, model verdict or support lemma is not completion. The two
+studies answer different questions; do not double-count experiments as independent
+evidence for both.
 
-### Immediate Work Sequence
+The native chat goal remains **active** and retains the two-publication objective.
+Its API cannot edit an unfinished objective. This file refines the execution
+contract without falsely completing or replacing that goal.
 
-Complete the two manuscript arguments before starting another scientific draw:
-distinct contributions and closest baselines, qualified mathematical assessment,
-outer agent comparison versus inner statistical simulation, and a prespecified
-scientifically meaningful case with complete supplementary materials. The main
-drafts now contain these methods and evidence obligations, not completed results.
-The arm descriptions and analysis now distinguish a bundled product comparison
-from the blocking/early-stop revision ablation, and fixed-benchmark run variability
-from task-population generalization. These corrections do not qualify matched
-arms or activate a study. Complete source-paper/proof/code/data and mathematical
-authority qualification, actual access/tool/confirmation/resource matching and
-the run-randomness design; then freeze and execute. Do not substitute further toy
-panels or operator numerical checks for this work.
+## Verified Checkpoint
 
-The [TSCI source qualification](../benchmarks/publication_reference_qualification_20261002/tsci_scientific_source_review.md)
-now distinguishes the final theory edition, software example and full published
-study. Its localized discrepancies remain unresolved; it is not mathematical gold
-or a completed case. Finish the task-scope/authority decision before executing
-that candidate, without turning its findings into product instructions or a new
-proof-repair pipeline. Code replication and mathematical assessment retain their
-separate endpoints; neither substitutes for the other.
+| Work | What exists | What it does not establish |
+| --- | --- | --- |
+| Product | One outer AgentRuntime and retained tool loop; Markdown/LaTeX Theory; source-owner Python/R/Lean feedback; separate role review | Correct scientific research or useful collaboration |
+| Portable package | One skill and two references; host discovery; Kimi/local-Qwen body uptake and file access; separately labelled Claude Code compatibility | Scientific efficacy, broad clean-machine installation or researcher time savings |
+| Manuscripts | [Harness draft](../manuscripts/portable_harness.md) and [system draft](../manuscripts/collaborative_system.md), with distinct methods arguments | Submission-ready papers; official comparative results do not exist |
+| Qwen development | Four standalone known-result draws had no final selection; both native FDA draws failed; earlier native R draws failed without demonstrated skill uptake | A publication baseline, reliable theory development or a measured harness benefit |
+| Lean foundation | Active Lean 4.30.0 Mathlib/Statlib/StatInference pin; selected kernel checks and source-mapped retrieval | Complete textbook coverage, clean reconstruction or source-faithful public API |
+| Verification | Last pushed mechanism revision passed 2095 tests, with 18 skips and one existing xfail | Mathematical correctness, matched experimental arms or publication readiness |
 
-The common publication evaluator can now record a prospective external Theory
-assessment, bound to the frozen authority/protocol and exact final material.
-Missing adjudication stays pending and model grading is separately labelled;
-there is no verdict fallback, product referee or repair loop. Opaque transport
-tests do not qualify the authority. Selecting independent assessors and completing
-their source/rubric qualification remains necessary before official theory draws.
+AI checkpoint: c5306f4e; tested code: 9bafb9cf.
+Lean pin: db6c7718349f3c14a7e37905f3529675f1ebaa52.
+The [status record](main_worker_status.json) links detailed immutable evidence.
+Historical mixed-scope Haiku credits are archived, not forward baselines.
+Historical strict-development exact-theorem closure remains 0/2.
 
-The current arm audit restores the production Theory Python/R scratch tools to
-both shared controls, connects Algorithm execution to the existing declared
-timeout, corrects the existing model-visible cohort metadata projection, and
-uses the public research seed for Simulation authoring intent and diagnostics
-instead of deriving it from the private confirmation seed.
-The experiment design now records actual timeout, data-stream,
-confirmation-exposure, attempt and model-resource differences. These mechanism
-changes do not establish matched arms, fresh independent data or mathematical
-acceptance. Complete that existing qualification before activating the study;
-do not respond with another scientific case or additional control framework.
-The 2026-10-03 inspection additionally demonstrated evaluator-metadata leaks
-in Theory's feedback files and shared scientific-owner views. Both now reuse the
-existing cohort projection before externalization. Model-visible history reads
-also reuse that projection; full stored observations and terminal payloads remain
-unchanged for checkpoint recovery and final selection. The operator's originals,
-committed checks, mathematical
-documents and raw diagnostic strings are unchanged. Opaque regression tests do
-not establish full-system seed secrecy or qualify scientific outcomes.
-Ordinary `runtime_seed` fields now stay visible outside explicit evaluator-owned
-records/contexts rather than receive blanket masking. Complete
-the actual cohort/exposure and resource matching through the existing configuration;
-do not add another scheduler or hard-coded source correction.
+The previous workflow over-prioritized conformance audits and local fixes while
+official studies stayed unactivated. Stop that pattern. Do not manufacture success
+by changing tasks, weakening claims or repairing generated answers.
 
-The unconsumed curvature-IV development panel added on 2026-10-02 was withdrawn
-before any model call or protocol activation. Its finite reference checks were
-numerical implementation diagnostics, not mathematical proof or agent outcomes.
-No consumed evaluation, historical outcome or proof ledger is changed. The native
-publication goal remains active; there is no new capability credit.
+## Remaining Work, in Delivery Order
 
-Use the existing single outer `AgentRuntime` and shared retained model/tool loop.
-Improve or consolidate their actual tools, context, collaboration and authority
-mechanisms; do not rebuild working workspaces or add a second scheduler. The
-[local-literature and implementation audit](original_goal_harness_redesign_20260909.md)
-records what was inspected, what is already implemented, and what remains design
-rather than capability. [Production design](production_design.md) is the canonical
-implementation contract; the older Architect goal is now only a role map.
+### 1. Close the Experiment Decisions
 
-The [deeper comparative reuse review](research_harness_reuse_strategy.md) informs
-selective adoption, not a new infrastructure roadmap. Codex improves the product harness; the
-product researcher must do literature selection, environment preparation,
-derivation, implementation, and interpretation. Operator-prepared paper answers,
-install commands, or error-specific repairs cannot count as product autonomy.
-Do not prioritize VM, proxy, package-registry, or container engineering without
-evidence that a required scientific workflow is blocked by the existing tools.
-The proposed network extension was withdrawn before commit. Existing optional
-offline native execution remains available, not a prerequisite for research.
+Use the existing [programme](publication_programme.md),
+[experiment design](publication_experiments.md), manuscripts and draw entries.
+Do not open another design framework or benchmark service.
 
-### Native Goal Record
+- Freeze a multi-family published-result roster and development/test split.
+  Begin with replication and bounded known-theory rederivation. Historical
+  rediscovery and open problems follow demonstrated capability. Exclude exposed
+  development families from the official test pool; preserve all consumed failures.
+- Finish the existing substantive TSCI case qualification: edition, code/data,
+  missing dependencies, environment, producer/aggregation, endpoint and authority.
+  The [source review](../benchmarks/publication_reference_qualification_20261002/tsci_scientific_source_review.md)
+  identifies unresolved gaps, not a corrected proof or full-paper reference.
+  Do not silently repair sources, substitute an example for the published study,
+  or replace this work with another easy panel.
+- Qualify common final-artifact assessment. Executable references can assess
+  numerical reproduction; mathematical claims need independent mathematical
+  assessment. Numerical agreement and same-model voting are not theorem authority.
+  Assessor appointment and release rights need the owner's decisions. Missing
+  authority remains explicit, not invented; it does not prohibit separately
+  justified numerical-only reproduction endpoints.
+- Match actual tools, permitted sources, effective requests, data access,
+  confirmation exposure, stopping, revision opportunities and resources through
+  existing configuration. Freeze model/runtime/template/sampling, scheduling and
+  run-randomness conditions. Declare irreducible differences. Equal call caps
+  or configuration names alone do not establish fair comparisons.
 
-The goal API returned no existing goal on 2026-10-01. A new native goal was
-successfully created for both publications, tested releases, reproducible
-comparative evidence and evidence-backed manuscripts. It is active. This is not
-a claim that an unfinished goal was renamed or marked achieved. The operator's
-subsequent instruction changes future model testing to locally deployed Qwen;
-the publication objective itself is unchanged. Prior Task114, pilot,
-qualification and standalone outcomes remain immutable historical records.
-The subsequent clarification excludes these Haiku development runs from official
-publication results and baselines: start both studies fresh with open-weight
-models. Do not keep pursuing their scores or make their old gates a prerequisite
-for the new studies. Claude Code is authorized as a local portable-harness host
-for separately labelled compatibility/user-workflow tests, not a direct API
-scientific experiment.
+**Next deliverable:** an executable prospective study package with public tasks,
+separate evaluation authority, exact arm configurations and an analysis plan.
+Resolve a named missing dependency or advance another part of this same package;
+do not restart broad literature collection or an infrastructure campaign.
 
-## Scientific Operating Model
+### 2. Execute Fresh Open-Weight Comparisons
 
-```text
-question / paper + explicit source horizon and evidence requirements
-  -> inspect literature, code, data and reusable declarations as needed
-  -> reproduce a pinned baseline when relevant and permitted
-  -> durable Markdown/LaTeX theory <-> exploratory Python/R and simulation
-       <-> optional light Lean investigation of definitions and stable lemmas
-  -> independent review of stable claims and their exact implementation
-  -> freeze confirmatory protocol, metrics and precision/stopping rule
-  -> confirmatory computation and intent-selected deep Lean work
-  -> evidence report, remaining gaps and reusable verified artifacts
-```
+Freeze code, tasks, authority and conditions before model calls.
 
-This is a dependency policy, not a mandatory waterfall. An executable estimand,
-DGP and procedure interface can justify an early prototype before all theory is
-finished. Exploratory observations can revise theory. Confirmation cannot revise
-its own criteria after seeing results. There is no universal 100-repetition rule:
-precision and valid stopping belong to the frozen experimental question.
+- Paper H: the same open-weight coding host with and without the exact package,
+  with verified intervention uptake. Codex/Claude compatibility observations stay
+  separate from scientific effect estimates.
+- Paper S: free planning, shared-context fixed workflow, production without reverse
+  source-owner re-entry, and full collaboration. Full-versus-control is a product
+  bundle contrast. Re-entry ablation is a blocking/early-stop intervention, not
+  feedback quality at equal author attempts.
+- Retain every scheduled draw, missing final, failed execution and unknown usage.
+  Never resume consumed evaluations, salvage unselected work, retry a failure
+  under a new model, or optimize on hidden outcomes.
+- Separate outer agent-run variation from inner simulation Monte Carlo variation.
+  Report family-grouped outcomes, justified uncertainty, time/calls/tokens/
+  computation and failure modes. One task or selected traces cannot establish
+  population efficacy.
 
-Heavy Lean work normally follows stable statements; foundational lemmas may be
-investigated earlier. Formalization is required only by explicit task intent or
-its frozen benchmark. A formal gap stays visible without erasing valid evidence
-in unrelated dimensions. Current workspace transitions are serial/interleaved;
-true independent parallel execution is not yet implemented.
+**Deliverable:** immutable trajectories, exact selected artifacts and common
+independent outcomes for both studies, including negative results.
 
-The model owns derivations, research order, useful tests, search queries and all
-source revisions. The harness owns identity, source horizon, permissions,
-isolation, checkpoints, budgets, blinding and verifier authority. No fixed step
-count, file count, candidate count or tool-use ritual defines research quality.
-Feedback handling must not infer scientific meaning or instruction ownership from
-field-name patterns. Preserve model methods and unknown tool observations; retire
-legacy routing metadata at its producers rather than expand a repair blacklist.
-Shared changes require a demonstrated context, tool, state or authority defect.
-Deterministic tests should vary opaque diagnostics and candidate data to verify
-unchanged source, complete feedback and same-owner iteration, not teach a particular
-research answer. A model reasoning error is not by itself a harness defect. Moving
-benchmark-specific remedies into prompts or renaming verdicts is not a demonstrated
-solution either. Scientific improvement requires separate fresh capability evidence;
-mechanism tests cannot establish it or authorize rejudging consumed evaluations.
+### 3. Complete Scientific Results and the Case Study
 
-## Measurable Deliveries
+Product agents, not Codex as operator, investigate sources, derive arguments,
+implement methods and interpret experiments. Assess definitions, estimands,
+assumptions, equation chains, dependencies and code/theory agreement. Conditional
+results, counterexamples and honest gaps are valid research dispositions.
+Simulation has explicit aims, DGPs, estimands, methods, metrics and Monte Carlo
+precision; no universal 100-repetition rule and no simulation-as-proof claim.
 
-These are separate product evidence obligations, not gates imposed on every task.
-Current support and missing implementation are detailed in the audit.
+Produce the substantive case's methods, comparisons, results, interpretation and
+full appendix from qualified artifacts. Distinguish unchanged replication,
+adaptation, reimplementation and theory development. Independent assessment covers
+the exact submitted argument, not structural JSON or its title.
 
-| Delivery | Required demonstration | Current boundary |
-|---|---|---|
-| Progressive theory and scientific research | Two unrelated, fresh known-result research tasks with reviewable definitions and derivations, useful exploratory computation, accepted exact code, frozen confirmation and independent full-task acceptance | The latest trimmed-mean run completed the internal graph but failed independent gold; no new credit |
-| Reproduction and Python/R breadth | A pinned published-paper/code/data reproduction with exact environment and independently compared results, including real R execution; separately assess paper-to-code with author code hidden | R and controlled source execution exist; arbitrary dependency/data/environment reconstruction remains incomplete |
-| Optional formalization and library reuse | A nontrivial exact statistical target closed in the active Statlib/Mathlib project with independent statement review; reuse a verified supporting artifact in an unrelated formal task | Some scoped formal credits exist; strict development source-theorem closure remains 0/2 |
-| Long-horizon collaboration | Theory receives real code/simulation/prover findings, revises the relevant files and dependencies, and downstream evidence is revalidated only for changed inputs | Same-owner continuation and interleaving exist; independent concurrent work and join semantics remain unimplemented |
-| Durable improvement | A source/version/assumption-bound artifact demonstrably helps a disjoint later task, without hidden-answer leakage or stale proof authority | Retrieval and trace export exist; export alone is not learning or autonomous library growth |
+**Deliverable:** defensible results, case analysis and complete mathematical/
+computational supplements with limitations and no invented efficacy claim.
 
-These deliveries establish a first integrated capability baseline, not autonomous
-frontier discovery. Then advance through hidden known-theory rederivation,
-historical rediscovery, near-frontier extensions and genuinely open questions.
-Historical literature cutoffs restrict accessible sources but cannot remove
-pretraining contamination; report that limitation. Open results need external
-mathematical/scientific scrutiny, not model consensus or an invented success rate.
-Existing sealed held-out and strict-formal protocols are not weakened or unlocked;
-they are archived studies, not gates on the new publication programme.
+### 4. Finish Reproducible Releases and Curated Lean Support
 
-## Implementation Order
+Resolve both root licenses and third-party/source-text/data redistribution rights.
+Establish actual public repository access. Package minimal installation and test
+Python/R workflows on a clean researcher environment; a wheel import or prepared
+operator environment alone is not a clean release.
 
-Publication execution follows the immediate manuscript-and-study sequence above.
-Local Qwen/host conformance and Lean release work support specified scientific
-deliverables, not independent infrastructure campaigns. The following mechanism
-priorities apply only to demonstrated study or product blockers; the publication
-programme supersedes the former one-success milestone and Haiku-only testing scope.
-Verify actual skill activation and complete request context through native host
-interfaces, not merely installed files or a discovery listing. Use mock transport
-conformance before scientific draws. Replication can use an independently run
-reference implementation as numerical authority; do not add a model referee or
-repeat model qualification where an executable reference answers the evaluation
-question. Mathematical acceptance remains a separate expert-review obligation.
+Curate a compact source-faithful Lean API atop the active Mathlib/Statlib pin:
+definitions, statement correspondence, imports, proof/axiom status, dependencies,
+provenance and accessible RAG. Existing source-map labels are not independently
+reviewed coverage. Report exclusions rather than rename the entire library or
+claim three textbooks are formalized. The 4.33.1 migration failed on 41 targets;
+the fresh 4.30.0 root check timed out. Neither is a passing release. Do not rerun
+those consumed checks or promote incompatible premises.
 
-1. Inspect the existing Theory -> exploratory code/simulation -> independent
-   review -> same-owner revision path. Demonstrate a missing tool, unreadable
-   observation, lost context, or incorrect lineage before changing the harness.
-   Repair the shared mechanism so the product model can investigate and revise
-   its own research. Do not infer a harness defect from a wrong mathematical
-   answer or spend a new scientific draw just to justify unrelated infrastructure.
-2. Improve long-horizon Theory through recoverable observations and native
-   Markdown/LaTeX work. Theory, Scientific and Lean owners now share a read-only
-   history tool backed by the existing immutable session store. Full observations
-   survive model-context omission; parent references permit on-demand reads across
-   checkpoint windows without copying the entire history or rerunning tools.
-   This is mechanism support, not demonstrated long-horizon scientific reliability.
-   Let the model decide derivation length, useful scratch work, and when to revise
-   or report an unresolved gap; do not add a second memory service or summary agent.
-3. Use the existing source-discovery, exact snapshot, file-import, Python/R and
-   optional native tools for permitted baselines. Make selected source-grounded
-   operating knowledge accessible through those tools. Evaluate portable
-   AREX-Skill-style references and PaperQA's
-   lower-level parsing/provenance components, not their agent controllers.
-   Preserve original-source access, version identity, and benchmark blinding;
-   do not turn skills into mandatory recipes or an answer bank.
-   General environment reconstruction remains incomplete, but further native or
-   network engineering is deferred until a required workflow demonstrates the need.
-4. Support genuinely independent work and exact-input joins in the sole
-   AgentRuntime. Reuse Codex/Pi lifecycle principles; do not embed their loops.
-   Normal environment feedback stays with the source owner. Changed premises
-   invalidate dependent evidence, not all work in unrelated dimensions.
-5. Prefer native Lean dependency extraction and active-project premise access
-   over source-text guesses. Reuse Prove2Me's statement/proof separation,
-   LeanMarathon's scoped DAG context, ReProver's accessibility contract, and
-   Statlib/SLT's mathematical module conventions. Keep incompatible upstream
-   libraries discovery-only until an explicit full-project migration succeeds.
-   The 2026-10-02 upstream check now finds public contiguity, e-variable/utility
-   and potential-response APIs on Statlib main, requiring Lean 4.33.1. Reassess
-   migration against these actual APIs; do not carry forward the old assumption
-   that the newer branch adds only tutorials. Preserve the current verified pin
-   while testing a separate full-project migration and semantic orientation.
-   The [isolated full-library check](../benchmarks/publication_foundation_migration_20261002/README.md)
-   resolved dependencies but failed the root build on 41 targets without source
-   edits or model calls. Keep the active 4.30.0 pin; do not silently adopt newer
-   premises or patch the failed record. This optional release work is not a gate
-   on non-formal scientific experiments.
-   TODO characterizations and functional causal definitions are not completed
-   inference theorems or new agent proof evidence.
-   The [current reconstruction record](../benchmarks/publication_foundation_rebuild_20261003/README.md)
-   separates a failed cache-preparation check from the first unchanged-source root
-   build. Neither is agent capability or mathematical acceptance. Anonymous Lean
-   repository access is not established; resolve release access and source rights
-   rather than claim that configured operator Git access proves public installation.
-6. Use ERA-style candidate search only inside an existing exploratory workspace
-   with a trustworthy executable score. No automatic search tree, model ensemble,
-   extra reviewer, repair taxonomy, or fixed iteration ritual is required.
-   The [Dream-RSI adoption review](../skills/dream-rsi-scientific-search/references/adoption.md)
-   extends this principle to history-informed candidate allocation. Its Codex skill
-   is available as operating guidance, not a product replay controller. Do not turn
-   consumed evaluations into policy-training histories or prioritize replay
-   infrastructure before a scientific workflow demonstrates the need.
-7. Verify each shared change with content-neutral mechanism tests, then fresh,
-   prospectively defined cross-task evidence. Measure research outcomes and
-   preparation/downstream costs separately. Preserve all consumed evaluations;
-   do not replace failed tasks repeatedly to manufacture a success milestone.
+**Deliverable:** versioned installable releases, tested instructions, rights
+notices and scoped Lean evidence. Optional Lean work does not block non-formal
+experiments. It is supporting material, not a third paper by default.
 
-The [implementation audit](original_goal_harness_redesign_20260909.md), dated
-operator audits and Git history retain earlier changes and evidence. This goal
-document is a forward work contract, not a growing chronology of fixes.
+### 5. Assemble and Review the Submission Packages
 
-## Resource and Change Policy
+Complete each main paper's contribution, closest baselines, methods, results,
+case/application, discussion and limitations. Append full relevant derivations,
+task/rubric construction, prompts/tools, pins, resource accounting, simulation
+details and reproducible code/data access. Disclose overlap. Verify every number
+and claim against evidence and obtain required independent scientific review.
+Authors, affiliations and release decisions remain to be supplied, not guessed.
 
-- Future model tests and qualification use local Qwen, not Anthropic. The observed
-  reusable model is Qwen3-4B-Instruct-2507 Q4_K_M at upstream conversion revision
-  `a06e946bb6b655725eafa393f4a9745d460374c9`, GGUF SHA-256
-  `3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597`.
-  Pin runtime, native chat template, context and sampling before each new study.
-  Local endpoint failure does not authorize a cloud fallback or model escalation.
-  Legacy Haiku evaluation profiles are not Qwen-compatible authority. Forward
-  evaluation uses provider/model bindings and local semantic protocols 26/27;
-  qualify independent gold prospectively and leave old records untouched.
-  Deterministic tests do not call any live model. Local Claude Code host checks
-  are the separate authorized compatibility exception, not main-study results.
-- Credentials stay outside source, prompts, logs and `.env.example`. This revision
-  uses the operator-designated `.env` through the existing CLI loader; absence of
-  a process variable alone is not a blocker. Use configured machine authentication
-  for Git; local inference requires no cloud credential.
-- Reuse Codex's retained file/tool feedback and independent authority principles,
-  not Codex Core, App Server, provider transport or a second orchestrator.
-- Reuse Numina and ReProver's environment/state access, LeanMarathon's evolving
-  long-proof dependencies, and Prove2Me's stable target and blinded statement
-  read-back. Their published results do not establish performance of our models.
-- Keep the active Statlib/Mathlib/StatInference foundation. External SLT, OpenProver,
-  CodexProver and other branches are selected source/provider resources, not an
-  instruction to merge every branch. The audit records pins and compatibility.
-- Use ERA-style search only with a trustworthy exploratory executable score;
-  never optimize against held-out confirmation or treat an LLM vote as proof.
-- Prefer deletion and consolidation. No task-family formulas, Lean grammar/tactic
-  patches, repair agents, packet hierarchies, model escalation or hidden fallback.
-- Run focused synthetic checks while iterating and the full suite before pushing
-  a shared mechanism change. Tests are mechanism evidence, not scientific success.
+**Done means:** two reviewed, evidence-backed arXiv-ready packages plus usable
+releases and reproducible comparative results. Documents, mechanism tests and
+model consensus alone cannot satisfy this contract.
 
-## Historical Archive
+## Architecture and Work Discipline
 
-Original Haiku judgments, activation ledgers and operator audits remain unchanged.
-Never resume, repair, rerun, rejudge or rescore consumed records. They are not
-official publication results, model baselines or gates on the new studies.
-Retain relevant implementation and regression lessons without keeping an active
-Haiku scorecard. See the historical-evidence boundary in
-[publication_programme.md](publication_programme.md) and the preserved records
-linked from [main_worker_status.json](main_worker_status.json).
+- Keep [production design](production_design.md): one outer graph and one shared
+  loop. Math/source live in files; tasks carry references. The same model owner
+  receives raw feedback and writes all revisions. No second scheduler, repair
+  agent, case-specific patch, Lean grammar rule or compulsory research recipe.
+- Theory and cheap exploratory Python/R inform each other. Stable claims receive
+  review before frozen confirmation. Lean is intent-selected; only exact
+  identity-bound, axiom-clean active-project checks count as proof. Execution
+  currently remains serial/interleaved, not genuinely parallel.
+- Defer concurrency, learning pipelines, more RAG providers, VM/proxy networking
+  and fallback layers unless a required workflow demonstrates a blocker.
+  Reuse reviewed upstream principles through existing tools, not another controller.
+- One publication deliverable at a time. Report artifacts/outcomes and the next
+  unresolved decision, not another percentage or conformance scorecard. Use focused
+  deterministic tests while editing; run the full suite when a shared mechanism
+  patch is final, before pushing. Docs/config work alone does not justify another
+  full regression or scientific draw.
+- Scientific model calls use available pinned local Qwen. The observed baseline
+  is Qwen3-4B-Instruct-2507 Q4_K_M, GGUF SHA-256
+  3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597.
+  Verify availability and exact conditions before calls. This is not an established
+  reasoning-capacity ceiling. No Anthropic testing, Opus or automatic escalation.
+  Claude Code is separately authorized only for native-host compatibility.
+- Keep credentials out of source, prompts and logs; never recover them from chat.
+  Use configured Git authentication, preserve unrelated edits and deliver reviewed
+  changes directly to main/canonical under [ownership policy](main_worker_ownership.md),
+  without PRs or force pushes.
+
+Historical evaluations and source ledgers remain unchanged. See
+[current sources](publication_sources_20261001.md),
+[harness reuse review](research_harness_reuse_strategy.md) and
+[Lean integration evidence](publication_lean_integration_20261002.md) for scoped
+prior work; no claim is made that every publication or source line was audited.
