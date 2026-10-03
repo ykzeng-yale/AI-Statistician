@@ -1,0 +1,62 @@
+{
+  "purpose": "Evaluator-side qualification of the complete unchanged Python replication scope; not an agent study, theory gold or substitute for TSCI.",
+  "study_activated": false,
+  "model_calls": 0,
+  "source": {
+    "article": "https://www.jstatsoft.org/article/view/v113i08",
+    "doi": "10.18637/jss.v113.i08",
+    "paper_url": "https://www.jstatsoft.org/index.php/jss/article/download/v113i08/4699",
+    "paper_sha256": "2a68123809bdddb46feacba106daa586106f2e50945d03ea79f76fb1afc1e9b2",
+    "package_url": "https://www.jstatsoft.org/index.php/jss/article/download/v113i08/4700",
+    "package_version": "2.2.3",
+    "package_sha256": "6ddc76f10a40033061812ac16c7d7d2ca7ed2444b62006d9a0f684dee85edc2e",
+    "package_license": "MIT, Copyright 2022 Eric Lacourse and others; preserve original notice",
+    "package_license_sha256": "c6534598d279cbc39ab6b4ff0e7ae10124cdce87395a6070f35758f23e1ce327",
+    "replication_url": "https://www.jstatsoft.org/index.php/jss/article/download/v113i08/4702",
+    "replication_sha256": "af7051cffbb520e625b7f4064e663eb272225da93e5290c54066939680b079a3",
+    "rights_limit": "Replication archive has no separate license file. Verify script identities against the MIT package before execution. The package license does not automatically license the seven archived datasets or the paper. Do not redistribute their bytes in this repository; record download identities and unresolved data terms."
+  },
+  "environment": {
+    "python": "3.11.15 managed CPython, arm64 macOS",
+    "requirements": "stepmix_reference_requirements.txt",
+    "status": "prospective adapted environment, not a recovered historical author lock; paper Table 1 lists 2.1.3 while the journal distributes 2.2.3",
+    "selection": "Pin a period-compatible scientific stack satisfying the package's declared scikit-learn >=1.0.0, <=1.5.0 constraint; pandas 1.5.3 retains the numeric-only aggregation behavior used by the unchanged scripts. No dependency bypass or source patch.",
+    "isolation": "separate reference virtual environment, execution copy and HOME; no mutation of product .venv",
+    "threads": 1
+  },
+  "execution": {
+    "source_root": "runs/publication_reference_qualification_20261003/stepmix/replication/Python",
+    "execution_root": "runs/publication_reference_qualification_20261003/stepmix/execution_1",
+    "source_edits": false,
+    "cached_outputs": "none in the downloaded archive; copy only unchanged scripts, README and the seven supplied CSV inputs",
+    "script_order": [
+      {"file": "paper_examples.py", "args": [], "sha256": "bf09ac6d24d4675a68ee5c19ae0491f57c4f1a8ea57dce1131df4ea012b0b698"},
+      {"file": "run_bakk_simulation.py", "args": ["-s", "500"], "sha256": "e2297a31958b52802a3992069c154d73867cc583e5fd43bf0556219faf32d6b4"},
+      {"file": "run_bakk_simulation.py", "args": ["-s", "500", "-c"], "sha256": "e2297a31958b52802a3992069c154d73867cc583e5fd43bf0556219faf32d6b4"},
+      {"file": "run_bakk_simulation_complete.py", "args": ["-s", "500"], "sha256": "f73276c5f1576e1b6da8c9b9432cb4db34aff824704241ad9e8252804b9249c0"},
+      {"file": "run_real_example.py", "args": ["--n_repetitions", "100", "--max_iter", "10000"], "sha256": "b9a6b84c8c12396091e9f4cc26d35eac4370d59d44902894fb47742776a2aeea"},
+      {"file": "run_package_comparison.py", "args": [], "sha256": "68b5c2547cf0f0ae4788fdf6d73b5fa5542263c06ec5f284532b9684c86b1b79"}
+    ],
+    "master_equivalence": "The six invocations are exactly those in run_all.sh 500 100. Capture each child separately and stop on its first nonzero exit; the author master lacks fail-fast behavior and cannot certify all child exits by its last exit status.",
+    "planned_simulation_fit_slots": 67500,
+    "planned_application_bootstrap_repetitions": "100 per method, five methods",
+    "wall_time_limit_seconds": 21600,
+    "on_failure": "Retain the first invocation, raw diagnostics, partial output and skipped stages. No source repair, reduced repetition count, resumed reference or automatic rerun."
+  },
+  "inspection": [
+    "Verify the environment and exact input/source identities before the first scientific script; preserve installation diagnostics.",
+    "Require separate terminal statuses, stage runtimes and complete stdout/stderr; master exit zero alone is insufficient.",
+    "Inspect Tables 3, 5 and 7, all GSS application outputs for Tables 8-10, and the six StepMix likelihoods for Table 11 against the journal edition; report differences without choosing acceptance thresholds after execution.",
+    "Record all emitted degeneracy warnings and visible failures. The scripts suppress ConvergenceWarning; no emitted warning does not establish optimizer convergence.",
+    "The simulation scripts discard fits with absolute coefficient >=1000 and print only aggregate results. Their retained denominators, per-repetition outputs and MCSE are not persisted. Do not reconstruct missing outcomes or infer unconditional success rates from rounded aggregates.",
+    "The application prints bootstrap-averaged parameters and bootstrap standard deviations, rather than simply the original sample's fitted parameters. Keep these estimands distinct.",
+    "Numeric agreement qualifies at most this source/environment scope, not consistency, unbiasedness, global optimization, correctness of interpretation, agent autonomy or final-task theory acceptance."
+  ],
+  "excluded_scope": [
+    "R wrapper examples in Appendix B",
+    "execution of Latent GOLD, Mplus, poLCA, mclust and MoEClust comparisons",
+    "independent mathematical authority, assay of true social classes and full data redistribution rights",
+    "official model experiments, hidden rubric qualification and final roster/split activation"
+  ],
+  "freshness": "No StepMix, latent-class/profile or generalized-mixture task was found in the inspected current public benchmark questions, examples, publication docs or manuscript records. This is a bounded record search, not proof of absent historical exposure or pretraining contamination. Generic EM/background overlap must remain disclosed; allocate all future variants of this source to one family."
+}
