@@ -76,3 +76,26 @@ def test_explicit_diagnosis_environment_does_not_inherit_unselected_process_url(
     assert report["summary"]["llm_theory_blockers"] == []
     with pytest.raises(ValueError, match="loopback"):
         LocalChatGeneratorBackend(base_url="")
+
+
+@pytest.mark.parametrize("provider,key,label", [
+    ("anthropic", "ANTHROPIC_API_KEY", "Anthropic key"),
+    ("openai", "OPENAI_API_KEY", "OpenAI key"),
+])
+@pytest.mark.parametrize("present", [False, True])
+def test_consolidated_optional_cloud_checks_preserve_prior_contract(
+    provider, key, label, present, monkeypatch,
+):
+    from ai_statistician import doctor
+
+    monkeypatch.setattr("urllib.request.build_opener", _forbid_network)
+    monkeypatch.setattr(doctor, "_has_module", lambda name: present)
+    env = {key: "test-only-placeholder"} if present else {}
+    blockers = doctor._llm_runtime_blockers(provider=provider, env=env, dotenv_values={})
+    checks = doctor._llm_provider_checks(provider, env=env, dotenv_values={})
+    assert [c.name for c in checks] == [label, "optional package: " + provider]
+    assert all(c.status == "OK" for c in checks) is present
+    assert blockers == ([] if present else [
+        key + " missing", "Python package '" + provider + "' missing; "
+        "install with `python -m pip install -e '.[llm]'`",
+    ])

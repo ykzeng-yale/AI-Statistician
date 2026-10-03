@@ -272,15 +272,12 @@ def _llm_provider_checks(
             "standard-library local transport; no cloud SDK or API key required. "
             "Configuration only: no endpoint request, model/weights attestation or scientific check.",
         )]
-    if provider == "anthropic":
+    if provider in {"anthropic", "openai"}:
+        key, label = {"anthropic": ("ANTHROPIC_API_KEY", "Anthropic key"),
+                      "openai": ("OPENAI_API_KEY", "OpenAI key")}[provider]
         return [
-            _key_check("ANTHROPIC_API_KEY", env, dotenv_values, label="Anthropic key"),
-            _import_check("anthropic", required=False, label="optional package: anthropic"),
-        ]
-    if provider == "openai":
-        return [
-            _key_check("OPENAI_API_KEY", env, dotenv_values, label="OpenAI key"),
-            _import_check("openai", required=False, label="optional package: openai"),
+            _key_check(key, env, dotenv_values, label=label),
+            _import_check(provider, required=False, label="optional package: " + provider),
         ]
     if provider == "static":
         return [DoctorCheck("static LLM replay", "OK", False, "no live model runtime required")]
@@ -316,20 +313,13 @@ def _llm_runtime_blockers(
         except ValueError as exc:
             return [str(exc)]
         return []
-    if provider == "anthropic":
+    if provider in {"anthropic", "openai"}:
+        key = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}[provider]
         return _runtime_blockers(
-            key_present=bool(_env_presence("ANTHROPIC_API_KEY", env, dotenv_values)["present"]),
-            module_present=_has_module("anthropic"),
-            key_name="ANTHROPIC_API_KEY",
-            package_name="anthropic",
-            install_extra="llm",
-        )
-    if provider == "openai":
-        return _runtime_blockers(
-            key_present=bool(_env_presence("OPENAI_API_KEY", env, dotenv_values)["present"]),
-            module_present=_has_module("openai"),
-            key_name="OPENAI_API_KEY",
-            package_name="openai",
+            key_present=bool(_env_presence(key, env, dotenv_values)["present"]),
+            module_present=_has_module(provider),
+            key_name=key,
+            package_name=provider,
             install_extra="llm",
         )
     if provider == "static":
