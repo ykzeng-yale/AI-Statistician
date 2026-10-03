@@ -9,12 +9,13 @@ H1: Does the portable package improve accepted scientific outputs and researcher
 reproduction effort over the same coding host without it?
 S1: Does specialist collaboration improve full-task acceptance over one general
 agent with the same base model and tools at matched global resources?
-S2: Which contribution comes from independent review, cross-role feedback,
-durable artifact context and optional formal support?
+S2: What changes under shared-context workflow guidance and under the implemented
+policy that disables reverse author revision? These are operational contrasts,
+not separate estimates of review quality, memory, communication or Lean effects.
 
-The independent generalization unit is a paper/problem family, not a prompt,
-simulation repetition, lemma or agent call. Transformed variants and all tasks
-from one paper stay in the same split. Repeated stochastic agent runs estimate
+The unit of task selection and possible generalization is a paper/problem family,
+not a prompt, simulation repetition, lemma or agent call. Transformed variants
+and all tasks from one paper stay in the same split. Repeated stochastic agent runs estimate
 reliability within a task; they do not multiply the number of independent papers.
 Existing consumed tasks and their revealed gold are excluded from the new test
 pool. Public textbook proofs can be mechanism tests, not uncontaminated discovery.
@@ -59,23 +60,42 @@ performance question; bundled frontier tasks follow, rather than define, the
 first capability test. Include honest invalid-claim and non-reproducible controls.
 Do not require Lean for non-formal tracks.
 
-The initial sampling-frame proposal is 24 independently selected paper/problem
-families across at least six statistical domains, with a separate development
-pool. This is not a preregistered sample size. Determine the final main-study
-count and repeated runs from the minimum scientifically meaningful paired effect
-and attainable confidence interval before opening test gold. If pilot reliability
-or resources are insufficient, report an explicitly exploratory study rather
-than declare a small convenience panel definitive.
+The initial roster proposal is 24 distinct paper/problem families across at least
+six statistical domains, with a separate development pool. It is a purposive
+benchmark proposal, not a probability sample or preregistered sample size. Freeze
+the roster, family weights and repeated-run precision before opening test gold.
+Repeated runs can estimate expected acceptance on that fixed benchmark; they
+cannot qualify a population claim about unseen statistical problems. Such a
+claim needs a specified target population and defensible sampling design. If
+the comparison or its precision is not qualified, report exploratory evidence
+rather than declare a convenience panel definitive.
 
 ## Baselines And Interventions
 
 | Study | Arms | Attribution |
 | --- | --- | --- |
 | Portable H | Same host bare vs same host + package | Paired within host/model; separate installations across Codex, Claude Code and Kimi |
-| System S | Free-planning general agent; single-context workflow control; isolated roles without reverse author revision; full collaboration | Same Qwen, tools and resource accounting; distinguish workflow support from context separation |
+| System S | Free-planning general agent; single-context workflow control; isolated roles without reverse author revision; full collaboration | Same Qwen and matched resource/access conditions; compare implemented bundles, not isolated reasoning mechanisms |
 | External scaffold | Minimal ResearchHarness or compatible open implementation | Pin code and report every provider/tool adaptation; no comparison with published scores |
 | Lean | Zero-shot source; compiler feedback; compiler feedback + scoped RAG | Same statements, model, project and total resources |
 | Foundation reuse | Pinned standard foundation vs standard + curated StatInference | Hold out target proof and dependent aliases; separately measure semantic fidelity |
+
+The planned System S primary contrast is `full_collaboration` minus
+`free_planning`. It evaluates the implemented collaboration bundle, including
+planning, role contexts, independent product review and revision opportunities.
+The other contrasts have narrower operational interpretations:
+
+| Contrast | Supported interpretation | Not identified by this contrast |
+| --- | --- | --- |
+| `same_workflow` minus `free_planning` | Added fixed guidance in the same retained conversation, if all other conditions match | Independent review or specialist collaboration |
+| `full_collaboration` minus `same_workflow` | Role-separated product bundle beyond the specified shared-context guidance | Context separation alone; workflow equivalence must first be established |
+| `full_collaboration` minus `no_cross_role_revision` | Allowing reverse re-entry rather than the implemented blocking/early-stop policy | Feedback content alone at equal author attempts or guaranteed final submission |
+
+These four arms do not separately identify the effects of independent review,
+durable memory or optional Lean. Those claims would need distinct, prospectively
+qualified interventions; they are not added to this main study by interpretation.
+Do not select only runs that reached review or final submission: these are
+post-intervention events. Preserve every scheduled draw and its stopping cause.
 
 Paper H can initially establish installation/conformance under each host and
 scientific efficacy under an open-weight-compatible host. The authorized local
@@ -292,11 +312,12 @@ missing required outcomes explicitly; do not condition comparisons on successful
 internal completion. Trusted benchmark code injects this policy through the
 existing sole runtime callback; no model action can replace authority checks.
 This is a role-level reverse-reentry intervention, not a per-file edit detector.
-It measures reverse graph work under the current submission contract; it does
-not isolate semantic feedback quality from extra author attempts or arm-induced
-termination. Report those differences rather than attribute every gain to better
-criticism. The same-source accepted phase return prevents mandatory review alone
-from mechanically excluding confirmation in this arm.
+Its `BLOCKED` outcome is part of the intervention, including when that prevents
+final selection; it is not a neutral removal of feedback content. Report those
+terminations rather than attribute every gain to better criticism. Do not route
+the blocked draft around production review or salvage earlier artifacts to make
+the ablation finish. The same-source accepted phase return prevents mandatory
+review alone from mechanically excluding confirmation in this arm.
 
 Optional `source_snapshot_ref` uses the existing hash-bound source loader;
 optional `source_execution_ref` binds the existing execution specification to that
@@ -543,15 +564,136 @@ implementation fidelity, reproduction accuracy, empirical calibration, robustnes
 formal status, time/cost and operator interventions. A failed or unavailable task
 remains in the denominator under its predeclared handling.
 
-Report task-by-arm outcomes and paired family-level differences with uncertainty.
-For clustered repeated runs, use a family-level paired resampling or a
-prespecified hierarchical analysis; do not treat individual criteria/calls as
-independent observations. Within-artifact simulation repetitions are not independent
-research-agent draws and cannot increase the agent-comparison sample size.
-A success-rate test or effect interval should account
-for the paired design. Declare multiplicity handling and separate exploratory
-ablations from the primary comparison. Report time-limit censoring for duration,
-and quality-cost curves, not only average cost among successful attempts.
+### Target and Estimation
+
+The primary target is expected independently accepted output on the fixed,
+qualified benchmark under one frozen host/model/resource condition. For Paper H,
+the primary contrast is package minus bare host within the same host/model. For
+Paper S, it is full collaboration minus free planning. Do not pool hosts, model
+checkpoints or resource conditions into one effect without a separate declared
+target and weights.
+
+Let the roster contain $N$ families, with one prespecified primary task/access
+condition per family. Let $w_i>0$, $\sum_{i=1}^N w_i=1$, be frozen family
+weights; equal-family weighting uses $w_i=1/N$. Each family has $R_i\geq1$
+scheduled paired draws across arms. A variant-inclusive design must define its
+within-family aggregation before outcomes rather than count variants as new
+families. Let $Y_{ir}^a\in\{0,1\}$ indicate complete independent acceptance
+for arm $a$, family $i$, draw $r$. A missing final selection is not
+accepted; preserve the distinction between scientific rejection, incompletion
+and environment/evaluation failure in the reported causes. The endpoint measures
+accepted delivered research, not an unobserved error-free mathematical truth.
+
+Write $\mathcal B$ for this fixed benchmark and $\mathcal F$ for the frozen
+task, model, execution, access, adjudication and scheduling conditions. For arms
+$A$ and $B$, the schedule-averaged target and its estimator are
+
+$$
+\begin{aligned}
+\Delta_{\mathcal B}^{A,B}
+&=\sum_{i=1}^N\frac{w_i}{R_i}\sum_{r=1}^{R_i}
+  \mathbb E[Y_{ir}^A-Y_{ir}^B\mid\mathcal F],\\
+\widehat\Delta_{\mathcal B}^{A,B}
+&=\sum_{i=1}^N\frac{w_i}{R_i}\sum_{r=1}^{R_i}
+  (Y_{ir}^A-Y_{ir}^B).
+\end{aligned}
+$$
+
+Linearity alone, without an independence assumption, gives
+
+$$
+\begin{aligned}
+\mathbb E[\widehat\Delta_{\mathcal B}^{A,B}\mid\mathcal F]
+&=\sum_{i=1}^N\frac{w_i}{R_i}
+  \mathbb E\!\left[\sum_{r=1}^{R_i}(Y_{ir}^A-Y_{ir}^B)
+  \mid\mathcal F\right]
+  &&\text{(outer linearity)}\\
+&=\sum_{i=1}^N\frac{w_i}{R_i}\sum_{r=1}^{R_i}
+  \mathbb E[Y_{ir}^A-Y_{ir}^B\mid\mathcal F]
+  &&\text{(inner linearity)}\\
+&=\Delta_{\mathcal B}^{A,B}
+  &&\text{(target definition).}
+\end{aligned}
+$$
+
+Show family-by-arm counts, paired differences and failures before the weighted
+aggregate. Within-artifact datasets, rubric items and tool calls are not outer
+draws. Family-level resampling cannot turn a purposive roster into a probability
+sample of unseen problems. A task-population analysis requires its own declared
+sampling frame/design; do not present it as the fixed-benchmark analysis.
+
+### Conditional Repeated-Run Uncertainty
+
+Uncertainty about the fixed benchmark comes from the scheduled agent/assessment
+run mechanism. Its assumptions must be explicit. A conservative finite-sample
+interval below requires independent paired blocks $(Y_{ir}^A,Y_{ir}^B)$ across
+$(i,r)$, conditional on $\mathcal F$; dependence between arms within a
+block is allowed. It does not require identical means. Fresh contexts, no mutable
+cross-draw memory, a fixed qualified adjudication procedure and the actual model
+randomness/scheduling policy must support this assumption. A common server or
+rater can induce dependence; clean directories alone do not establish independence.
+If dependence is not resolved by the design, do not use this interval. A different
+uncertainty method and its assumptions must be fixed prospectively, or report
+descriptive outcomes without a calibrated interval.
+
+The current local model client sends temperature but no per-request model seed.
+Executor/data seeds therefore do not establish paired model randomness, and
+deterministic-decoding repeats do not automatically provide independent stochastic
+draws. Record the server's decoding/RNG behavior and arm order. The bound cannot
+certify these empirical design assumptions or correct grading bias.
+
+For $t>0$, each weighted paired difference lies in
+$[-w_i/R_i,w_i/R_i]$. Applying the independent bounded-sum inequality to the
+upper and lower tails and using a union bound yields
+
+$$
+\begin{aligned}
+\Pr\!\left(
+ \left|\widehat\Delta_{\mathcal B}^{A,B}-\Delta_{\mathcal B}^{A,B}\right|
+ \geq t\mid\mathcal F\right)
+&\leq2\exp\!\left\{
+ -\frac{2t^2}{\sum_{i=1}^N\sum_{r=1}^{R_i}(2w_i/R_i)^2}
+ \right\}
+ &&\text{(two tails)}\\
+&=2\exp\!\left\{
+ -\frac{2t^2}{\sum_{i=1}^N\sum_{r=1}^{R_i}4w_i^2/R_i^2}
+ \right\}
+ &&\text{(expand the square)}\\
+&=2\exp\!\left\{
+ -\frac{2t^2}{\sum_{i=1}^N4w_i^2/R_i}
+ \right\}
+ &&\text{(sum over draws)}\\
+&=2\exp\!\left\{
+ -\frac{t^2}{2\sum_{i=1}^Nw_i^2/R_i}
+ \right\}
+ &&\text{(cancel the common factor).}
+\end{aligned}
+$$
+
+This is a standard application of [Hoeffding (1963), Theorem 2, equation (2.6)](https://doi.org/10.1080/01621459.1963.10500830),
+not a new theoretical contribution or a proof of an agent's statistical argument.
+For $K\geq1$ prespecified confirmatory contrasts using this schedule and
+$0<\alpha<1$, a further union bound gives simultaneous coverage at least
+$1-\alpha$ with radius
+
+$$
+h_\alpha=\sqrt{2\log(2K/\alpha)\sum_{i=1}^Nw_i^2/R_i}.
+$$
+
+Intersect each interval $[\widehat\Delta_{\mathcal B}^{A,B}-h_\alpha,
+\widehat\Delta_{\mathcal B}^{A,B}+h_\alpha]$ with $[-1,1]$. Dependence among
+the contrasts does not invalidate the union bound. The interval is conservative;
+it may be uninformative. Planning for radius at most $\varepsilon>0$ under
+this method requires $\sum_i w_i^2/R_i\leq
+\varepsilon^2/\{2\log(2K/\alpha)\}$. This is a precision calculation, not
+power evidence or permission for outcome-dependent extra draws. A narrower
+prespecified method needs its own justified assumptions. No official weights,
+repeat counts, RNG policy or confidence procedure have yet been frozen.
+
+Report time-limit censoring for duration and quality-cost curves, not only cost
+among successful attempts. Keep confirmatory contrasts separate from exploratory
+ablations. Mathematical claim assessment and inner simulation uncertainty remain
+separate from this outer acceptance comparison.
 
 Human usability is a separate study: identical research material, randomized
 counterbalanced assignment where possible, observer-recorded setup/reproduction

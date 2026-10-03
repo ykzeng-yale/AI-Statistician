@@ -211,14 +211,33 @@ a thousand independently evaluated agent outputs. They cannot compensate for
 using one paper family or one successful model draw.
 
 For the outer comparison, the proposed estimand is the package-minus-bare-host
-difference in full-task acceptance under the specified host, model, task population
-and resource condition. Report family-level arm outcomes and paired differences
-before any aggregate. Repeated draws estimate within-family reliability. The
-number of families, task-stratum weights, draw schedule and family-level uncertainty
-method must be specified before outcomes; variants and rubric fields are not
-independent samples. With only a purposively selected case or very few families,
-report descriptive evidence rather than a general-population efficacy estimate.
-Neither size nor precision has yet been fixed for the official study.
+difference in expected independent full-task acceptance on a fixed qualified
+benchmark under one specified host, model and resource condition. For $N$
+families, frozen weights $w_i>0$, $\sum_i w_i=1$, and $R_i$ scheduled
+paired draws per family, the aggregate estimate is
+
+$$
+\widehat\Delta_{\mathcal B}^{\mathrm{package},\mathrm{bare}}
+=\sum_{i=1}^N\frac{w_i}{R_i}\sum_{r=1}^{R_i}
+ (Y_{ir}^{\mathrm{package}}-Y_{ir}^{\mathrm{bare}}),
+$$
+
+where $Y_{ir}^a$ indicates complete independent acceptance and $\mathcal B$
+is the fixed roster; $i$, $r$ and $a$ denote family, scheduled draw and
+arm. Equal-family weights are $1/N$; one primary task/access
+condition per family defines the initial comparison. Report family-level counts,
+paired differences and failures before aggregation. Variants require declared
+within-family aggregation; they and rubric fields are not independent families.
+
+Uncertainty from repeated agent runs is conditional on that roster and the frozen
+run mechanism. The proposed task selection is purposive, not a probability sample
+of statistical research. Family resampling therefore cannot justify inference to
+unseen problems. Data/executor seeds do not establish independent or paired model
+randomness; model decoding/RNG behavior and scheduling must also be qualified.
+The shared analysis specification gives the exact conditional target and a
+conservative interval under independent paired blocks, not a population guarantee.
+Counts, weights, repetitions and the uncertainty method remain unfrozen. Native
+compatibility or deterministic repeats do not supply those missing assumptions.
 
 Within a statistical-method task, the generated experiment must describe its aim,
 DGP, estimand, methods and performance measures. Comparators must address the same
@@ -327,6 +346,14 @@ weights/runtime/template, sampling, context and stopping settings. Complete
 scheduled-draw accounting and actual final artifact references will support the
 main comparisons. Native host differences and operator interventions are disclosed;
 compatibility-only observations remain separate from scientific outcomes.
+
+The [analysis specification](../docs/publication_experiments.md#outcomes-and-analysis)
+provides the fixed-benchmark estimand, expectation calculation and conditional
+repeated-run interval requirements. Freeze them separately within each exact
+host/model/resource condition. The calculation addresses acceptance variability,
+not mathematical validity or generalization to a population of new tasks. Any
+different inferential method or task-population target needs its own prospective
+assumptions and sampling design.
 
 All paper and supplement tables and figures need documented reproduction paths
 from released, licensed inputs. JSS specifically asks for code and replication

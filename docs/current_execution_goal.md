@@ -32,9 +32,13 @@ distinct contributions and closest baselines, qualified mathematical assessment,
 outer agent comparison versus inner statistical simulation, and a prespecified
 scientifically meaningful case with complete supplementary materials. The main
 drafts now contain these methods and evidence obligations, not completed results.
-Next qualify the full source-paper/proof/code/data basis of the study tasks and
-case, settle the actual arm comparability and analysis, then freeze and execute.
-Do not substitute further toy panels or operator numerical checks for this work.
+The arm descriptions and analysis now distinguish a bundled product comparison
+from the blocking/early-stop revision ablation, and fixed-benchmark run variability
+from task-population generalization. These corrections do not qualify matched
+arms or activate a study. Complete source-paper/proof/code/data and mathematical
+authority qualification, actual access/tool/confirmation/resource matching and
+the run-randomness design; then freeze and execute. Do not substitute further toy
+panels or operator numerical checks for this work.
 
 The [TSCI source qualification](../benchmarks/publication_reference_qualification_20261002/tsci_scientific_source_review.md)
 now distinguishes the final theory edition, software example and full published

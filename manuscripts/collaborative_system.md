@@ -163,10 +163,19 @@ reviewers but withholds another role's return to a previously visited source
 owner or its typed environment-feedback route. Forward review, same-owner local
 feedback and an exact accepted-source return to its deferred execution phase
 remain available. Full collaboration uses the unchanged production handoff
-policy. This intervention isolates reverse graph work only under the declared
-submission contract; it also changes author opportunities and can terminate an
-arm before final selection. It does not identify a pure effect of criticism
-quality at equal source attempts.
+policy. The ablation stops the graph when prohibited re-entry is requested and
+can therefore prevent a final selection. Its contrast measures the operational
+value of allowing reverse revision rather than this blocking/early-stop policy,
+not feedback content alone at equal author attempts. Such stops stay in the
+denominator; earlier drafts are not promoted or routed around review to make
+the arm finish.
+
+Full collaboration versus free planning evaluates the implemented product bundle.
+The shared-context workflow contrast evaluates added fixed guidance, once other
+conditions match. Full collaboration versus that control additionally changes
+role contexts, routing, product-review authority and revision opportunities; it
+does not isolate context separation alone. The four arms do not separately
+identify independent-review, durable-memory or Lean effects.
 
 Current controls and production have different cohort allocation and some
 execution behavior. These must be matched or prospectively declared before
@@ -193,10 +202,11 @@ PaperBench's replication evaluation motivates artifact-level assessment, while
 statistical derivations require additional mathematical scrutiny. [PaperBench](https://arxiv.org/abs/2504.01848)
 Optional formal outcomes remain separately reported.
 
-The independent sampling unit is a paper/problem family. Variants and repeated
-draws within one family do not increase the count of independently sampled
-problems. Task selection will cover distinct inferential domains and Python/R
-work, progressing from known results and replication to hidden derivation and
+The task-selection and possible generalization unit is a paper/problem family.
+Variants and repeated draws within one family do not add new sampled problems.
+The proposed roster is purposive, not a probability sample. Task selection will
+cover distinct inferential domains and Python/R work, progressing from known
+results and replication to hidden derivation and
 extensions. Scientific tolerances, draw schedules, failure handling, sample size
 and analysis must be frozen prospectively. Family-level paired effects and
 uncertainty, rather than rubric-item counts treated as independent samples, will
@@ -214,23 +224,38 @@ a reason to invent extra roles, mandatory review rounds or theorem-specific rule
 ### 4.1. Agent-System Comparison
 
 The proposed primary estimand is the full-collaboration-minus-free-planning
-difference in independent full-task acceptance for the frozen task population,
-base model and resource condition. The same-workflow control distinguishes
-workflow guidance from session separation. The reverse-revision comparison
-assesses its declared operational intervention, including changed opportunities
-to revise; it does not by itself identify the effect of reviewer intelligence.
+difference in expected independent full-task acceptance on a fixed qualified
+benchmark, under one frozen base-model and resource condition. The same-workflow
+comparison assesses fixed guidance within one conversation. Its comparison with
+full collaboration assesses the additional product bundle, not session separation
+alone. The reverse-revision comparison includes its blocking/early-stop policy;
+it does not by itself identify the effect of reviewer intelligence.
 Primary and secondary contrasts must be fixed before examining outcomes rather
 than chosen from whichever arm difference is largest.
 
-Each family receives the same access condition and scheduled draws across arms
-in separate clean workspaces. Repeated seeds describe within-family reliability;
-task variants and individual rubric findings are not independent families. The
-analysis will show family-level outcomes and paired effects, then an aggregate
-with prospectively specified family/stratum weights and uncertainty. Model
-randomness and variation between sampled scientific questions are different
-sources of uncertainty. A small purposive panel supports a bounded case result,
-not an estimate for arbitrary statistical research. Official family counts,
-repeats and the uncertainty method remain to be fixed.
+Each family receives the same access condition and scheduled paired draws across
+arms in separate clean workspaces. One prespecified primary task/access condition
+per family defines the initial comparison; variants require declared within-family
+aggregation. With frozen weights $w_i>0$, $\sum_i w_i=1$, scheduled draw
+counts $R_i$, and independently adjudicated full-task acceptance indicators $Y_{ir}^a$,
+the aggregate estimate is
+
+$$
+\widehat\Delta_{\mathcal B}^{\mathrm{full},\mathrm{free}}
+=\sum_{i=1}^N\frac{w_i}{R_i}\sum_{r=1}^{R_i}
+ (Y_{ir}^{\mathrm{full}}-Y_{ir}^{\mathrm{free}}).
+$$
+
+Here $\mathcal B$ is the fixed roster; equal-family weights are $1/N$.
+The indices $i$, $r$ and $a$ denote family, scheduled draw and arm.
+Report family outcomes before aggregation. Inner simulation repetitions and
+individual findings are not outer agent draws. Repeated runs estimate variation
+under the frozen run mechanism, not task-population uncertainty. In particular,
+executor/data seeds are not model seeds: the current model client does not send
+a per-request seed. Decoding, RNG behavior and run independence need prospective
+qualification. Family resampling cannot turn a purposive roster into a sample
+of arbitrary statistical research. Appendix B specifies the conditional target
+and uncertainty requirements; official counts and the analysis remain unfrozen.
 
 Common tools, accessible sources, experimental data and meaningful resource
 conditions are necessary for attribution. Total calls alone do not equate total
@@ -373,6 +398,16 @@ opportunities, context and resource condition; diagram labels are insufficient.
 Freeze the schedule, endpoints and analysis before calls, and release all scheduled
 draw outcomes, costs, stopping causes, final selections and operator interventions.
 No missing final result is replaced by an intermediate artifact.
+
+The [analysis specification](../docs/publication_experiments.md#outcomes-and-analysis)
+defines the expected acceptance target conditional on the fixed benchmark and
+run conditions. It derives the estimator's expectation by linearity and gives a
+conservative bounded-sum interval only under independent paired run blocks.
+Dependence within a pair is allowed; cross-draw dependence or unqualified grading
+cannot be removed by that calculation. Planned weights, repetitions, contrasts,
+multiplicity and the actual RNG/scheduling design must be supplied before draws.
+Inference for a population of new tasks would require a separate sampling design.
+These are evaluation methods, not a new theorem about scientific correctness.
 
 Scientific-code replication requires the exact generated source and support files,
 environment, DGP, comparator settings, random-number handling, Monte Carlo precision
