@@ -1,0 +1,23 @@
+{
+  "purpose": "Clean Python-environment installation and direct local tool execution, not an official study, agent capability or mathematical assessment.",
+  "base_commit": "33bbcc81a81cd0fe705550d2e6c1283df01baff8",
+  "freeze": "Commit installation diagnosis changes and this plan/probe before building the wheel; record the exact resulting commit, source archive, wheel, dependency locks and raw outcomes.",
+  "scope": [
+    "Build only tracked application/package/runtime/skill inputs from the committed source; do not copy operator .env, old venv, node_modules, runs or Lean artifacts.",
+    "Install the built wheel without cloud/proof extras in a fresh CPython 3.12 environment. Run CLI help/list/doctor from a separate empty researcher workspace.",
+    "Use a new HOME and npm directory with the committed lock; npm ci --omit=dev, then the unchanged scientific preparation command.",
+    "Run the installed Python/R execution API with synthetic complete-source and two-file project fixtures, including exact raw error feedback. No statistical paper, simulation claim, theory proof, task gold or model call.",
+    "Verify the portable skill's exact three files and relative references in the tracked source capsule, without assuming native host activation from installation.",
+    "Run focused tests and the full product regression before pushing the mechanism change. Keep failed preparation attempts; do not use them as passing qualification."
+  ],
+  "limits": [
+    "A fresh virtual environment on this macOS host is not a fresh machine, broad OS support or a full researcher workflow.",
+    "The default Python/R WebAssembly execution remains local; no VM, network proxy, second controller or new native backend is added.",
+    "Local model configuration checks make no endpoint request and do not attest weights, model availability or scientific capacity.",
+    "Lean, native installed-R packages, actual host skill uptake, model-driven theory and official comparative studies remain separate qualifications.",
+    "Repository and third-party rights remain unresolved; this local preparation is not a public artifact release."
+  ],
+  "model_calls": 0,
+  "study_activated": false,
+  "consumed_evaluations_changed": false
+}

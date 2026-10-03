@@ -49,7 +49,7 @@ def build_doctor_report(
     environ: Mapping[str, str] | None = None,
     max_manifests: int = 12,
 ) -> dict[str, object]:
-    """Inspect local readiness without running expensive Lean/LLM work."""
+    """Inspect installation/configuration; do not contact a model or verify science."""
 
     project_root = (root or Path.cwd()).resolve()
     env = dict(os.environ if environ is None else environ)
@@ -89,8 +89,8 @@ def build_doctor_report(
     checks = [
         _python_check(),
         _import_check("numpy", required=True, label="required package: numpy"),
-        _path_check(project_root / "ai_statistician", required=True, label="package directory"),
-        _path_check(project_root / "examples" / "questions.json", required=True, label="example questions"),
+        _path_check(Path(__file__).resolve().parent, required=True, label="package directory"),
+        _path_check(project_root / "examples" / "questions.json", required=False, label="example questions"),
         _registry_check("proof bank obligations", len(all_obligations())),
         _registry_check("vetted algorithms", len(all_algorithms())),
         _local_lean_check(),
@@ -266,6 +266,12 @@ def _llm_provider_checks(
     env: Mapping[str, str],
     dotenv_values: Mapping[str, str],
 ) -> list[DoctorCheck]:
+    if provider == "local":
+        return [DoctorCheck(
+            "local model transport", "OK", False,
+            "standard-library local transport; no cloud SDK or API key required. "
+            "Configuration only: no endpoint request, model/weights attestation or scientific check.",
+        )]
     if provider == "anthropic":
         return [
             _key_check("ANTHROPIC_API_KEY", env, dotenv_values, label="Anthropic key"),
@@ -299,6 +305,17 @@ def _llm_runtime_blockers(
     env: Mapping[str, str],
     dotenv_values: Mapping[str, str],
 ) -> list[str]:
+    if provider == "local":
+        from .local_model_backend import DEFAULT_LOCAL_BASE_URL, LocalChatGeneratorBackend
+
+        configured = {**dotenv_values, **env}
+        try:
+            LocalChatGeneratorBackend(base_url=configured.get(
+                "AI_STATISTICIAN_LOCAL_BASE_URL", DEFAULT_LOCAL_BASE_URL,
+            ))
+        except ValueError as exc:
+            return [str(exc)]
+        return []
     if provider == "anthropic":
         return _runtime_blockers(
             key_present=bool(_env_presence("ANTHROPIC_API_KEY", env, dotenv_values)["present"]),

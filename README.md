@@ -106,15 +106,17 @@ missing outputs. These are immutable development failures, not publication resul
 Create the Python environment:
 
 ```bash
-git submodule update --init --recursive
 python3 -m venv .venv
-.venv/bin/pip install -e '.[test,llm]'
+.venv/bin/pip install -e '.[test]'
 ```
+
+The default local Qwen transport needs no cloud SDK or key. The `llm` extra is
+for explicitly selected Anthropic production support, not local-model tests.
 
 Prepare the repository-pinned scientific Python and R WASM runtimes:
 
 ```bash
-npm ci
+npm ci --omit=dev
 npm run prepare:scientific-sandbox
 ```
 
@@ -165,6 +167,17 @@ Statlib and must be built locally before a live formal evaluation. Alternate Lak
 projects require an explicit `--lean-project`; the runtime does not silently fall
 back to a historical snapshot. Use `doctor` to inspect retrieval, LSP/MCP, AXLE,
 and Lean availability.
+Initialize the optional foundation only when using it, with authorized repository
+access:
+
+```bash
+git submodule update --init --recursive external/EmpericalProcessLEAN-main
+```
+
+Unavailable Lean repository access does not block installing the Python package,
+running local Python/R tools or a non-formal research task. `doctor` checks
+installation/configuration without making a model request; its readiness flags
+do not attest a running server, weights, scientific correctness or research success.
 
 ## Basic Commands
 

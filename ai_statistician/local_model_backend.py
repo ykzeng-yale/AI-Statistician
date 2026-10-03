@@ -20,6 +20,9 @@ from .model_backend import (
 )
 
 
+DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:8081/v1"
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise ValueError("local model endpoint must not redirect")
@@ -71,9 +74,9 @@ class LocalChatGeneratorBackend:
     provider_name = "local"
 
     def __init__(self, *, base_url: str | None = None, timeout_s: float | None = None) -> None:
-        self.base_url = (base_url or os.environ.get(
-            "AI_STATISTICIAN_LOCAL_BASE_URL", "http://127.0.0.1:8081/v1"
-        )).rstrip("/")
+        configured = (os.environ.get("AI_STATISTICIAN_LOCAL_BASE_URL", DEFAULT_LOCAL_BASE_URL)
+                      if base_url is None else base_url)
+        self.base_url = configured.rstrip("/")
         self.timeout_s = timeout_s
         self.validate_environment()
 
