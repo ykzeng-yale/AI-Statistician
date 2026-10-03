@@ -1,11 +1,11 @@
 # Prospective Local Deployment Check
 
 This committed plan observes one existing proposed deployment condition, not a
-research draw. The old weight path is absent and no local model is running. The
-same pinned public file will be recovered and its full SHA-256 checked before
-loading. It does not replace the model or change any consumed evaluation.
+research draw. At preparation the old weight path was absent and no local model
+was running. The plan recovers the same pinned public file and checks its full
+SHA-256 before loading. It does not replace the model or change a consumed evaluation.
 
-The check uses the existing local backend and one synthetic forced-tool request.
+The check uses the existing local backend and requests one synthetic named-tool turn.
 No statistical question, paper source, hidden answer, RAG corpus or scientific
 evaluation is supplied. No new product loop, adapter or scheduler is added.
 Weights and raw observations remain in the gitignored `runs/` directory. The
@@ -21,7 +21,35 @@ An allocated 131072-token context and a short tool turn cannot establish long-in
 quality, free tool choice, long-horizon theory development, multi-agent efficacy
 or a main-study RNG/order policy. Q06/Q07 remain open until the actual study is
 qualified and frozen. The case's missing sources and independent authority are
-not addressed by this check. Results will be recorded separately after execution.
+not addressed by this check. The observed result is recorded separately below.
+
+## Observed Outcome
+
+The [result record](results.json) preserves one download, one startup and one
+synthetic model request. The exact 2497281120-byte weights were recovered and
+verified. The server loaded in about 6 seconds; `/props` reported the proposed
+131072 context, one slot, template and decoding. The request used 217 input and
+31 output tokens and returned the matching native tool marker. The owned server
+was stopped cleanly; its PID and the port listener were absent afterward.
+
+There is an important API limitation. The log warns about the named `tool_choice`
+object, and the [reported upstream revision](https://github.com/ggml-org/llama.cpp/blob/4fea119/tools/server/server-common.cpp#L1087)
+reads it as a string with `auto` default. Its [choice parser](https://github.com/ggml-org/llama.cpp/blob/4fea119/common/chat.cpp#L322)
+accepts `auto`, `none` and `required`. The correct returned tool does not establish
+forced named selection. The observer's original output is retained; this fuller
+interpretation does not retry or change it. No product compatibility branch,
+upstream patch or new model condition is introduced for this synthetic check.
+
+Three mocked observer cases passed with zero real calls; 48 existing focused
+tests passed and one opt-in test skipped. No product code changed, so the previous
+full regression retains its separate scope. Preparation mistakes are recorded,
+including the missing loader environment and an early metadata read while curl
+was still running. Neither created another startup or model request.
+
+The short request is not a long-context quality test or scientific result. Raw
+files and their hashes, loaded assets, process/usage observations and remaining
+qualification requirements are in the record. Q06/Q07 stay open. Restoring this
+prerequisite is not a reason to repeat model setup or open another easy panel.
 
 Sources: the [pinned converted file](https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/blob/a06e946bb6b655725eafa393f4a9745d460374c9/Qwen3-4B-Instruct-2507-Q4_K_M.gguf)
 advertises the same SHA-256; [Qwen's original model card](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507#best-practices)

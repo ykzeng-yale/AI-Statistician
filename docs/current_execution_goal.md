@@ -63,8 +63,9 @@ one comparison confound, not complete study qualification or scientific efficacy
 The preceding TSCI configuration follow-up changed no product mechanism. Its 116 focused
 deterministic tests include all four existing draw entries with mocked transport;
 no scientific call or result was produced. It rejects a missing source-execution
-input before writing arm files. Local Qwen weights and server binary were checked
-offline, but the proposed longer-context/decoding condition is not live-verified.
+input before writing arm files. That preparation record contains offline asset
+checks, not a live deployment attestation; the subsequent scoped observation below
+is separate.
 The default generated R environment is WebR, distinct from the native source
 replication environment; native package installation alone cannot qualify the
 Algorithm/Simulation R path. No actual TSCI draw configurations were materialized.
@@ -120,7 +121,7 @@ Do not open another design framework or benchmark service.
   still precede activation; loading the task is not a capability result.
   The [available-input record](../benchmarks/publication_case_candidates/tsci_b1_card/input_preparation.json)
   now binds paper/code/data/environment assets and a parsed source-execution
-  candidate with a successful native package probe. Complete source closure and
+candidate with a successful native package probe. Complete source closure and
   reconstruction instructions rather than repeat the already prepared inventory.
   The generated native-R mechanism is now available; qualify the case's actual
   source/method execution and freeze that environment across all relevant arms.
@@ -150,6 +151,16 @@ do not restart broad literature collection or an infrastructure campaign.
 The immediate remaining blockers are source completeness and a qualified numerical
 reference/assessment contract, followed by matched arm/model/roster conditions.
 Native R execution is no longer a reason to repeat package/version probes.
+
+The [prospective deployment observation](../benchmarks/publication_deployment_qualification_20261003/README.md)
+now recovers the exact original Qwen weights after the old cache path disappeared.
+One frozen startup observed the proposed context/template/decoding; one synthetic
+native-tool turn returned a matching marker, then the owned server was stopped.
+The record discloses a named-tool enforcement limitation. No product code,
+scientific question, official study or historical evaluation changed. The weights
+are retained at the record's ignored project path; a server is not left running.
+This advances model availability only. Do not repeat this setup check or treat a
+short prompt as long-context or scientific capacity; Q06/Q07 remain open.
 
 The checklist's candidate table now consolidates the inspected reference scopes.
 The [fixed StepMix execution](../benchmarks/publication_reference_qualification_20261003/README.md#completed-fixed-scope-execution)

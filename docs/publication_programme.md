@@ -218,6 +218,11 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   schedule/RNG/order, stopping, all outcomes and analysis. Confirm the chosen
   deployment is available. Freeze before the first official call; no study is
   currently activated.
+  The [deployment prerequisite](../benchmarks/publication_deployment_qualification_20261003/README.md)
+  recovered the identical missing weights and observed one proposed startup and
+  short synthetic tool turn. Its explicit API limitation, untested long-session
+  behavior and still-unfrozen study conditions keep Q07 open; it is not an official
+  scientific draw and does not change consumed records.
 
 #### Roster Qualification Evidence
 

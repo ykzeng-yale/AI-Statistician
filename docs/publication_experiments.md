@@ -38,6 +38,13 @@ open-weight configuration is chosen, it is a separate prospective condition,
 never an automatic escalation after observing a failure. General model-capacity
 claims require more than one small quantized checkpoint.
 
+The [new prospective availability check](../benchmarks/publication_deployment_qualification_20261003/README.md)
+restored the same weights to an ignored project asset path after the old cache
+disappeared. It observed the proposed context/template/decoding and one short
+native-tool turn, with a disclosed named-choice limitation. The owned service was
+stopped. This is a setup record only, not a scientific draw, complete transport or
+long-session qualification, study freeze or main-result baseline.
+
 Claude Code is authorized as a local host for portable harness compatibility and
 researcher-workflow tests using the installed coding agent. Label those separately
 with the host/model version and any operator intervention; do not pool their
