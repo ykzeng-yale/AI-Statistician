@@ -31,7 +31,7 @@ contract without falsely completing or replacing that goal.
 | Product | One outer AgentRuntime and retained tool loop; Markdown/LaTeX Theory; source-owner Python/R/Lean feedback; separate role review | Correct scientific research or useful collaboration |
 | Portable package | One skill and two references; host discovery; Kimi/local-Qwen body uptake and file access; separately labelled Claude Code compatibility | Scientific efficacy, broad clean-machine installation or researcher time savings |
 | Manuscripts | [Harness draft](../manuscripts/portable_harness.md) and [system draft](../manuscripts/collaborative_system.md), with distinct methods arguments | Submission-ready papers; official comparative results do not exist |
-| Case inputs | Official TSCI commit frozen as 66 exact files and checked through production source tools | Executable B1 study, complete input/environment package or mathematical gold; missing helpers remain unresolved |
+| Case inputs | Official TSCI commit frozen as 66 exact files; integrated B1/Card E.1 candidate loads through the existing task/ABI interfaces | Activated study, complete input/environment package or mathematical gold; missing B1 helper remains unresolved after official package-history checks |
 | Qwen development | Four standalone known-result draws had no final selection; both native FDA draws failed; earlier native R draws failed without demonstrated skill uptake | A publication baseline, reliable theory development or a measured harness benefit |
 | Lean foundation | Active Lean 4.30.0 Mathlib/Statlib/StatInference pin; selected kernel checks and source-mapped retrieval | Complete textbook coverage, clean reconstruction or source-faithful public API |
 | Verification | Final full suite passed 2103 tests, with 18 skips and one existing xfail; earlier storage failure and fixture follow-ups retained separately | Mathematical correctness, matched experimental arms or publication readiness |
@@ -67,6 +67,11 @@ Do not open another design framework or benchmark service.
   missing dependencies, environment, producer/aggregation, endpoint and authority.
   The [source review](../benchmarks/publication_reference_qualification_20261002/tsci_scientific_source_review.md)
   identifies unresolved gaps, not a corrected proof or full-paper reference.
+  The [integrated candidate](../benchmarks/publication_case_candidates/tsci_b1_card/README.md)
+  supplies the concrete public task and ABI without a model run or hidden-answer
+  hints. Its intent exercises theory, code and empirical work, rather than the
+  single-role source-only path. Source completeness, authority and arm conditions
+  still precede activation; loading the task is not a capability result.
   Do not silently repair sources, substitute an example for the published study,
   or replace this work with another easy panel.
 - Qualify common final-artifact assessment. Executable references can assess

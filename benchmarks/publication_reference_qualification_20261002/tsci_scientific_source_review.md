@@ -141,6 +141,30 @@ mathematical assessment are still separate unresolved inputs. The frozen code
 can be supplied through the existing `source_snapshot_ref`; this evaluator-side
 review and reference outputs must not be included as author hints.
 
+The bounded follow-up also checked the two official package histories, without
+executing or adapting either package. The author's
+[software page](https://zijguo.github.io/research/software.html) links
+[`zijguo/TSCI`](https://github.com/zijguo/TSCI), observed at
+`3affa208fee17bd3b3d338ccfd2901d4dfda81a7` (84 reachable commits, package 0.1.1,
+GPL-3). The maintained
+[`dlcarl/TSCI`](https://github.com/dlcarl/TSCI) was observed at
+`bd894dc62e28ed28a8cb6b683fcd6584b8a7d733` (158 reachable commits across advertised
+main/bsplines/dev/parallelization branches, package 3.0.5, GPL >=3).
+Neither history returned the two exact helper paths, nor an R-file change
+containing `naiveRF.stat.hetero` or `TSRF.stat.full.hetero`. This does not exclude
+separate distributions or a differently named implementation. It does rule out
+claiming that these inspected package histories supply the unchanged B1 helper;
+the current package is not silently substituted. Missing-source clarification
+has been requested from the operator.
+
+A concrete [integrated candidate task](../publication_case_candidates/tsci_b1_card/README.md)
+now binds B1 plus Card E.1 to the existing theory/code/empirical task intent and
+estimator ABI. The existing loader and ABI checks accepted its input. This is
+task preparation, not activation, a model run, scientific acceptance or a new
+test-family assignment. Its public task contains no hidden reference outcomes
+or operator proof corrections. Complete inputs, reference execution, arm
+conditions and independent assessment remain pending.
+
 ## Qualification Decision and Paper Consequences
 
 TSCI remains a substantive candidate, not an activated publication case. It
