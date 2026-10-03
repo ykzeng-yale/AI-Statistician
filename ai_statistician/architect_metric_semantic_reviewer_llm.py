@@ -1659,11 +1659,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
-            tool_choice=(
-                "any"
-                if theory_scratchpad
-                else ARCHITECT_METRIC_SEMANTIC_REVIEW_SUBMIT_TOOL
-            ),
+            tool_choice="any",
             disable_parallel_tool_use=True,
             enable_prompt_caching=True,
             metadata={

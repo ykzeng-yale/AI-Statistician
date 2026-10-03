@@ -328,7 +328,7 @@ def test_actual_arm_requests_share_research_theory_context_and_use_effective_out
         config["runtime"].update(local_model_call_limit=2, theory_scratch_enabled=True,
                                  theory_scratch_timeout_seconds=31, generated_simulation_timeout_seconds=31)
     else:
-        config["request"].update(max_tokens=shared_output, temperature=0.23)
+        config["request"].update(max_tokens=shared_output, temperature=0.23, tool_choice="any")
         config["execution"]["timeout_s"] = 31
         config["limits"]["local_model_call_limit"] = 2
     prefix = "" if collaborative else "theory__"
@@ -341,6 +341,7 @@ def test_actual_arm_requests_share_research_theory_context_and_use_effective_out
     assert len(requests) == summary["local_model_usage"]["attempted_requests"] == 2
     assert summary["final_material_ref"] is None and summary["scientific_evaluation_performed"] is False
     assert all(row["model"] == MODEL and row["temperature"] == 0.23 for row in requests)
+    assert all(row["tool_choice"] == "required" and row["parallel_tool_calls"] is True for row in requests)
     assert all(row["max_tokens"] == (serious_output if collaborative else shared_output) for row in requests)
     assert freezes[0]["role_configs"]["theory"]["max_tokens"] == 1024
     assert freezes[0]["role_configs"]["theory"]["serious_max_tokens"] == serious_output

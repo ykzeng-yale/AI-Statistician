@@ -102,9 +102,12 @@ def prepare(*, out, deployment, sources, source_execution, call_limit, output_to
         "critic": asdict(CriticEvaluatorConfig(**common, client_tool_max_turns=call_limit,
             client_tool_max_tool_calls=2 * call_limit, client_tool_max_no_progress_turns=no_progress_turns)),
     }
+    control_request = {"system_prompt": "Research the supplied question with the actual workspace tools. "
+        "Own source revisions, preserve selected evidence and report unresolved gaps honestly.",
+        "model": model, "max_tokens": output_tokens, "temperature": temperature, "tool_choice": "any"}
     fingerprint = stable_hash({"question_ref": question_ref, "deployment_ref": deployment_ref,
         "source_snapshot_ref": source_ref, "source_execution_ref": execution_ref,
-        "backend": backend, "roles": roles, "workflow": WORKFLOW, "modes": MODES,
+        "backend": backend, "roles": roles, "control_request": control_request, "workflow": WORKFLOW, "modes": MODES,
         "call_limit": call_limit, "seed": seed, "replicates": replicates,
         "execution_timeout": execution_timeout, "no_progress_turns": no_progress_turns,
         "confirmation_schedule": confirmations})
@@ -134,9 +137,7 @@ def prepare(*, out, deployment, sources, source_execution, call_limit, output_to
                 evaluation_provider="local", evaluation_model_tier="local", evaluation_model=model)),
                 architect_context=context)
         else:
-            config.update(request={"system_prompt": "Research the supplied question with the actual workspace tools. "
-                "Own source revisions, preserve selected evidence and report unresolved gaps honestly.",
-                "model": model, "max_tokens": output_tokens, "temperature": temperature, "tool_choice": "auto"},
+            config.update(request=control_request,
                 workflow_instructions=WORKFLOW if mode == "same_workflow" else "",
                 estimator_ids=[question.estimator_execution_contract["estimator_id"]],
                 execution={"n_runs": replicates, "seed": seed, "timeout_s": execution_timeout,

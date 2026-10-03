@@ -13,6 +13,7 @@ from ai_statistician.cross_family_eval_protocol import (
     CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY, confirmatory_evaluation_seed,
     resolve_confirmatory_evaluation_cohort,
 )
+from ai_statistician.fingerprint import stable_hash
 from ai_statistician.research_source_library import load_research_source_snapshot
 from benchmarks.publication_case_candidates.tsci_b1_card.prepare_configs import MODES, prepare
 from benchmarks.publication.draw_cli import main as draw_main
@@ -78,6 +79,7 @@ def test_candidate_uses_existing_configs_with_explicit_data_and_output_settings(
         assert config["roles"]["theory"]["serious_max_tokens"] == 1703
         if mode in {"free_planning", "same_workflow"}:
             assert config["request"]["max_tokens"] == 1703
+            assert config["request"]["tool_choice"] == "any"
             assert config["limits"]["local_model_call_limit"] == 19
             assert config["execution"]["timeout_s"] == 117
             assert config["execution"]["seed"] == 17 and config["execution"]["n_runs"] == 23
@@ -113,6 +115,24 @@ def test_bad_candidate_settings_do_not_materialize_configs(tmp_path, monkeypatch
     with pytest.raises(ValueError):
         prepare(**args)
     assert not args["out"].exists()
+
+
+def test_control_request_is_bound_in_candidate_protocol_identity(tmp_path, monkeypatch):
+    args = inputs(tmp_path, monkeypatch)
+    refs = prepare(**args)
+    configs = {mode: json.loads(Path(ref["path"]).read_bytes()) for mode, ref in refs.items()}
+    shared, production = configs["free_planning"], configs["full_collaboration"]
+    material = {"question_ref": shared["question_ref"], "deployment_ref": shared["deployment_ref"],
+        "source_snapshot_ref": shared["source_snapshot_ref"], "source_execution_ref": shared["source_execution_ref"],
+        "backend": shared["backend"], "roles": production["roles"], "control_request": shared["request"],
+        "workflow": configs["same_workflow"]["workflow_instructions"], "modes": MODES,
+        "call_limit": args["call_limit"], "seed": args["seed"], "replicates": args["replicates"],
+        "execution_timeout": args["execution_timeout"], "no_progress_turns": args["no_progress_turns"],
+        "confirmation_schedule": shared["execution"]["confirmatory_seeds"]}
+    declared = production["architect_context"]["cross_family_evaluation_protocol"]["protocol_fingerprint"]
+    assert stable_hash(material) == declared
+    material["control_request"] = {**shared["request"], "tool_choice": "auto"}
+    assert stable_hash(material) != declared
 
 
 def test_changed_source_is_not_declared_a_valid_input(tmp_path, monkeypatch):
@@ -151,4 +171,10 @@ def test_generated_config_reaches_existing_draw_transport_without_inference(tmp_
     assert observed["local_model_usage"]["attempted_requests"] == 1
     assert len(requests) == 1 and requests[0]["model"] == "Qwen3-4B-Instruct-2507"
     assert requests[0]["max_tokens"] == 1703 and requests[0]["temperature"] == 0.23
+    if mode in {"free_planning", "same_workflow"}:
+        assert requests[0]["tool_choice"] == "required"
+        assert requests[0]["parallel_tool_calls"] is True
+    else:
+        assert "tools" not in requests[0] and "tool_choice" not in requests[0]
+        assert requests[0]["response_format"]["type"] == "json_schema"
     assert "90211" not in json.dumps(requests[0])

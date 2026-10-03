@@ -406,7 +406,7 @@ def _run_critic_client_tool_review(
         model=request_model,
         max_tokens=config.max_tokens,
         temperature=config.temperature,
-        tool_choice=("any" if inspection_tools else CRITIC_EVALUATION_SUBMIT_TOOL),
+        tool_choice="any",
         disable_parallel_tool_use=False,
         enable_prompt_caching=True,
         metadata={

@@ -2060,7 +2060,7 @@ def test_critic_omits_document_tools_when_all_evidence_is_inline() -> None:
             assert [tool.name for tool in request.tools] == [
                 CRITIC_EVALUATION_SUBMIT_TOOL
             ]
-            assert request.tool_choice == CRITIC_EVALUATION_SUBMIT_TOOL
+            assert request.tool_choice == "any"
             call = ClientToolCall(
                 call_id="submit-inline-critic",
                 name=CRITIC_EVALUATION_SUBMIT_TOOL,

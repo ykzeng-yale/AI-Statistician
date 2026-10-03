@@ -290,6 +290,8 @@ def test_compact_reviewer_accepts_exact_frozen_requirements_in_one_call() -> Non
     requirements = material["empirical_metric_requirements"]
 
     packet, backend, _ = _review(_payload(requirements), material=material)
+    assert backend.requests[0].tool_choice == "any"
+    assert [tool.name for tool in backend.requests[0].tools] == ["submit_architect_metric_semantic_review"]
 
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["reviewed_requirement_ids"] == ["generic_gate"]

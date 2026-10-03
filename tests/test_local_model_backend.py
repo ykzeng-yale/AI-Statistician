@@ -147,6 +147,29 @@ def test_tool_transport_does_not_execute_or_repair_calls(monkeypatch):
         LocalChatGeneratorBackend().generate_client_tool_turn(_request())
 
 
+def test_inline_critic_uses_required_single_tool_on_actual_local_wire(monkeypatch):
+    from ai_statistician.critic_evaluator_llm import (
+        CRITIC_EVALUATION_SUBMIT_TOOL, CriticEvaluatorConfig, LLMCriticEvaluatorAgent,
+    )
+    from ai_statistician.packet_validation import PacketValidationError
+    from ai_statistician.research_schema import OpenResearchQuestion
+
+    requests = _mock_local_completion(monkeypatch, error=True)
+    critic = LLMCriticEvaluatorAgent(provider=LocalChatGeneratorBackend(), config=CriticEvaluatorConfig(
+        provider_name="local", model="Qwen3-4B-Instruct-2507", model_tier="local",
+    ))
+    with pytest.raises(PacketValidationError):
+        critic.propose(
+            question=OpenResearchQuestion(id="opaque-inline", title="Opaque audit", description="No scientific claim."),
+            retrieval_manifest={}, theory_packet={}, simulation_manifest={}, algorithm_manifest={},
+            formalization_manifest={}, canonical_evidence_view={"artifact_kind": "CriticCanonicalEvidenceView",
+                "view_hash": "opaque-inline-view", "dimension_requirements": {"theory": "required"}},
+        )
+    assert len(requests) == 1
+    assert requests[0]["tool_choice"] == "required"
+    assert [row["function"]["name"] for row in requests[0]["tools"]] == [CRITIC_EVALUATION_SUBMIT_TOOL]
+
+
 def test_stateless_structured_generation_uses_server_schema(monkeypatch):
     seen = []
     def complete(_self, payload):
