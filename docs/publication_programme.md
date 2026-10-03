@@ -169,24 +169,30 @@ failed the full library build against the proposed Lean 4.33.1 dependencies.
 The active Lean/RAG pin is unchanged. Compatibility failure does not invalidate
 the old compiled foundation or block optional-Lean research tasks.
 
-1. Establish local Qwen native tools, structured output, continuation and complete
-   cost/provenance; keep cloud APIs out of new tests. Qualify fresh evaluation
-   authority independently of the author and without modifying legacy protocols.
-2. Ship and verify the portable skill/workspace entry point. Test clean checkout
-   and package installation, native Python/R and optional pinned Lean. Resolve
-   licenses and omit unauthorized source assets from release distributions.
-3. Curate source-faithful Lean claims and compiled dependencies. Consolidate
-   genuinely redundant APIs; submit reusable modules upstream where appropriate.
-   No wholesale branch merge or cosmetic renaming campaign.
-4. Implement only the collaboration capabilities needed by the experiment.
-   Evaluate the monolithic and role-separated controls before claiming a benefit.
-5. Freeze new family-grouped development and held-out publication tasks. Collect
-   all outcomes, costs and failures, independent gold and expert review. Existing
-   consumed evaluations remain historical evidence, not a tunable test set.
-6. Write two evidence-linked manuscripts with distinct question, closest prior
-   work, design, falsifiable hypotheses, experiments, limitations and artifact
-   instructions. No invented result tables or novelty assertions. Deposit an
-   arXiv manuscript only after the corresponding release and evidence are ready.
+1. Finish the scientific argument in each existing manuscript master: question,
+   contribution relative to the closest work, actual intervention, baselines,
+   mathematical authority, simulation design, case and complete supplement.
+   Current expanded methods are prospective; no results have been supplied.
+2. Qualify the study's paper families and case from their full papers, relevant
+   proof appendices, code and data. Review assumptions and the argument separately
+   from reference execution. Preselect cases by scientific purpose, not observed
+   agent success. Set scope, exclusions, endpoints, sample/precision rationale
+   and family-level analysis; do not keep replacing failed families with easy ones.
+3. Resolve actual arm/tool/source/confirmation/resource comparability. Test only
+   demonstrated mechanism blockers with deterministic fixtures first. Native
+   Qwen/host conformance, installation and a compact source-faithful Lean release
+   support these deliverables; they are not parallel open-ended side projects.
+4. Freeze and run fresh open-weight studies, collecting all scheduled outcomes,
+   resource use and interventions. Obtain independent scientific adjudication.
+   Existing consumed evaluations remain immutable development records. A source-only
+   reproduction does not measure specialist collaboration; inner Monte Carlo
+   repetitions do not increase the outer agent sample.
+5. Complete the results and substantive case accounts in both masters, with full
+   mathematical arguments and reproducible main/supplement tables and figures.
+   Report negative outcomes and uncertainty without changing the original claims.
+6. Finish clean installation and licensing/attribution, with a defined Lean
+   coverage inventory rather than declaration counts. Deposit each arXiv paper
+   only when its own release and scientific evidence support its contribution.
 
 Likely venue fit is a later decision: a useful statistical software/research
 workflow contribution can fit a computational-statistics/software venue; a

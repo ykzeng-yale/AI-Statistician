@@ -25,6 +25,23 @@ One accepted task is a milestone, not the goal. Repeatedly substituting another
 easy benchmark, extending a scorecard, or collecting more repositories cannot
 stand in for scientific capability or completion of this roadmap.
 
+### Immediate Work Sequence
+
+Complete the two manuscript arguments before starting another scientific draw:
+distinct contributions and closest baselines, qualified mathematical assessment,
+outer agent comparison versus inner statistical simulation, and a prespecified
+scientifically meaningful case with complete supplementary materials. The main
+drafts now contain these methods and evidence obligations, not completed results.
+Next qualify the full source-paper/proof/code/data basis of the study tasks and
+case, settle the actual arm comparability and analysis, then freeze and execute.
+Do not substitute further toy panels or operator numerical checks for this work.
+
+The unconsumed curvature-IV development panel added on 2026-10-02 was withdrawn
+before any model call or protocol activation. Its finite reference checks were
+numerical implementation diagnostics, not mathematical proof or agent outcomes.
+No consumed evaluation, historical outcome or proof ledger is changed. The native
+publication goal remains active; there is no new capability credit.
+
 Use the existing single outer `AgentRuntime` and shared retained model/tool loop.
 Improve or consolidate their actual tools, context, collaboration and authority
 mechanisms; do not rebuild working workspaces or add a second scheduler. The
@@ -124,10 +141,11 @@ they are archived studies, not gates on the new publication programme.
 
 ## Implementation Order
 
-Publication execution starts with local Qwen conformance, portable host access,
-source-faithful Lean release cleanup and comparable scientific baselines. The
-following mechanism priorities remain applicable; the publication programme
-supersedes the former one-success milestone and Haiku-only future-testing scope.
+Publication execution follows the immediate manuscript-and-study sequence above.
+Local Qwen/host conformance and Lean release work support specified scientific
+deliverables, not independent infrastructure campaigns. The following mechanism
+priorities apply only to demonstrated study or product blockers; the publication
+programme supersedes the former one-success milestone and Haiku-only testing scope.
 Verify actual skill activation and complete request context through native host
 interfaces, not merely installed files or a discovery listing. Use mock transport
 conformance before scientific draws. Replication can use an independently run

@@ -25,6 +25,37 @@ experimental results. Pins below are observed upstream HEADs, not dependencies.
 | [AI Scientist v2](https://arxiv.org/abs/2504.08066) | Executable candidate search and full research artifacts | Conditional baseline where compatible; do not port its controller or infer theoretical correctness from paper review scores |
 | [Morris, White, Crowther](https://doi.org/10.1002/sim.8086) | ADEMP and uncertainty in simulation performance measures | Scientific experimental design and reporting; no hardcoded method choices |
 
+## Main-Paper and Appendix Review, 2026-10-02
+
+This follow-up examines publication methods and selected appendices, not another
+runtime-reuse inventory. The local collection's title/URL coverage is not a claim
+that all papers or proofs have been fully read. The inspected scopes below inform
+the two existing manuscript masters; they do not qualify our mathematical gold
+or establish the correctness of every cited scientific result.
+
+| Primary source and examined scope | Consequence for these papers |
+| --- | --- |
+| [Morris et al.](https://pmc.ncbi.nlm.nih.gov/articles/PMC6492164/): planning, analysis, failures and Monte Carlo uncertainty | Specify the statistical-method simulation scientifically; distinguish it from the agent-system experiment. Numeric agreement cannot establish a general theorem. |
+| [PaperBench](https://arxiv.org/html/2504.01848v1): main evaluation, rubric limitations and grader/agent appendices | Assess actual final artifacts, qualify external evaluation and expose grader limitations. Author reference code is not automatically complete or correct. |
+| [AI Scientist-v2](https://arxiv.org/html/2504.08066v1): main study, configuration appendix and selected case/code-review commentary | Disclose idea/run/manuscript selection and check argument-code-results consistency. Linked generated PDFs and every embedded prompt were not fully reviewed here. |
+| [NORA](https://arxiv.org/html/2605.02092v1): file/skill design, qualitative ablations and selected final case reports | File-backed skills are prior art. In F.1 the written proof sketch moves from upper bounds to a claimed lower bound without establishing that transition. Its numerical checks do not repair that gap. This is a finding about the written argument, not a complete theorem audit. |
+| [Fisher-R1](https://arxiv.org/html/2608.07437v1): task formulation, outcomes and Appendix B curation | Executed p-value/decision reproduction has a narrower endpoint than theory development. Its filtered reproducible-task population and expert checks must not be silently generalized. |
+| [Scaling Agent Systems](https://arxiv.org/html/2512.08296v2): comparative design and selected analysis appendices | Controls, actual resource use and task-dependent attribution matter; published cross-domain effects are not our baseline measurements. |
+| [PARNESS](https://arxiv.org/html/2605.05258v1): workflow design and selected limitations/appendix material | Infrastructure and qualitative demonstrations are not completed quantitative evidence of a harness advantage. Do not import another controller. |
+
+Official [JSS author information](https://www.jstatsoft.org/authors) and
+[submission requirements](https://www.jstatsoft.org/about/submissions) were checked
+for software, manuscript and replication obligations. The
+[MLOSS criteria](https://jmlr.org/mloss/mloss-info.html) describe a different,
+short software-paper route emphasizing usable, documented, licensed software.
+These sources do not impose one universal statistics-journal outline or require
+a fabricated new theorem. Our contribution and evidence determine venue fit;
+acceptance and current submission readiness are not established.
+
+The resulting changes are in the manuscript methods, simulation, case and
+appendix sections, not model prompts containing paper-specific proof repairs.
+No numerical or model experiment was conducted for this follow-up.
+
 ## Formal Mathematics And Statistics
 
 | Primary source | Useful design | Boundary |
