@@ -28,15 +28,15 @@ contract without falsely completing or replacing that goal.
 
 | Work | What exists | What it does not establish |
 | --- | --- | --- |
-| Product | One outer AgentRuntime and retained tool loop; Markdown/LaTeX Theory; source-owner Python/R/Lean feedback; separate role review | Correct scientific research or useful collaboration |
+| Product | One outer AgentRuntime and retained tool loop; Markdown/LaTeX Theory; source-owner Python/R/Lean feedback; separate role review; explicit native R executor validated with package/project/bound-estimator fixtures | Correct scientific research, autonomous native R use or useful collaboration |
 | Portable package | One skill and two references; host discovery; Kimi/local-Qwen body uptake and file access; separately labelled Claude Code compatibility | Scientific efficacy, broad clean-machine installation or researcher time savings |
 | Manuscripts | [Harness draft](../manuscripts/portable_harness.md) and [system draft](../manuscripts/collaborative_system.md), with distinct methods arguments | Submission-ready papers; official comparative results do not exist |
-| Case inputs | Integrated B1/Card E.1 v2 distinguishes seven methods; explicit four-arm assembly; 76-file available-input capsule and native source-environment probe | Activated study, complete author replication, generated scientific R execution, release reconstruction or mathematical gold; B1 helper and original data rights remain unresolved |
+| Case inputs | Integrated B1/Card E.1 v2 distinguishes seven methods; explicit four-arm assembly; 76-file available-input capsule and native source-environment probe | Activated study, complete author replication, release reconstruction or mathematical gold; B1 helper and original data rights remain unresolved |
 | Qwen development | Four standalone known-result draws had no final selection; both native FDA draws failed; earlier native R draws failed without demonstrated skill uptake | A publication baseline, reliable theory development or a measured harness benefit |
 | Lean foundation | Active Lean 4.30.0 Mathlib/Statlib/StatInference pin; selected kernel checks and source-mapped retrieval | Complete textbook coverage, clean reconstruction or source-faithful public API |
-| Verification | Full suite passed 2115 tests, with 18 skips and one existing xfail; earlier storage failure and fixture follow-ups retained separately | Mathematical correctness, matched experimental arms or publication readiness |
+| Verification | Full suite passed 2136 tests, with 18 skips and one existing xfail; earlier failed/interrupted attempts retained separately | Mathematical correctness, matched experimental arms or publication readiness |
 
-AI code checkpoint and tested code: 813f627b.
+AI code checkpoint and tested code: 8aabc10c.
 Lean pin: db6c7718349f3c14a7e37905f3529675f1ebaa52.
 The [status record](main_worker_status.json) links detailed immutable evidence.
 Historical mixed-scope Haiku credits are archived, not forward baselines.
@@ -59,10 +59,26 @@ Algorithm/Simulation R path. No actual TSCI draw configurations were materialize
 The subsequent input preparation materialized the available paper/code/data and
 environment documents through existing source interfaces. The standard native
 Rscript probe passed in the pinned executor after two retained startup failures;
-no statistical entrypoint or model session ran. Actual scientific R remains
+no statistical entrypoint or model session ran. Scientific case execution remains
 unqualified. Six author-code files use CRLF; a shared import bug normalized those
 bytes before hash verification. Raw-byte UTF-8 decoding fixes that identity loss
 without rewriting content. Focused LF/CRLF checks and the 2115-test full suite pass.
+
+The subsequent shared executor change adds explicit `scientific_native_r`, using
+the same R ABI builder and existing pinned local-process executor. Twenty-one fresh
+deterministic native fixtures cover installed library execution, transitive package
+resolution, exact project/estimator binding, source-owner error feedback, immutable
+inputs, hidden-harness profile selection and outer-runtime dispatch. They are
+mechanism evidence only: no Qwen session, author study, statistical reference,
+mathematical assessment or scientific comparison was consumed. Native R currently
+requires macOS isolation; package versions do not replace a frozen library inventory.
+Local mechanism configuration: `runs/native_r_execution_mechanism_20261003/native_r_runtime.json`.
+The scoped record is `pre-delivery-regression.xml` (261 passed); the complete
+`full-regression-release.xml` records 2136 passed, 18 skipped and one existing xfail
+in 1378.67 seconds. Its SHA-256 is
+`7d9f19effc0ce535ec719edbdf97a0bf0f6bb9a2ac5e59dc7a1a2608c13f0266`.
+Compileall and the JavaScript syntax check passed. Earlier failed/interrupted
+attempts remain retained; these are not scientific evaluations or TSCI replication.
 
 The previous workflow over-prioritized conformance audits and local fixes while
 official studies stayed unactivated. Stop that pattern. Do not manufacture success
@@ -93,10 +109,12 @@ Do not open another design framework or benchmark service.
   now binds paper/code/data/environment assets and a parsed source-execution
   candidate with a successful native package probe. Complete source closure and
   reconstruction instructions rather than repeat the already prepared inventory.
-  Close the generated scientific execution gap through the existing source-owner
-  workspace and local executor, or explicitly qualify a Python reimplementation.
-  Native R packages do not exist automatically in WebR; another version probe is
-  not a solution. The four-arm assembler is available. Do not replace these
+  The generated native-R mechanism is now available; qualify the case's actual
+  source/method execution and freeze that environment across all relevant arms.
+  Use `AI_STATISTICIAN_NATIVE_R_CONFIG` and explicit `scientific_native_r`
+  selection through existing source-owner tools. Do not infer case qualification
+  from executor fixtures or silently substitute native R for WebR. The four-arm
+  assembler is available. Do not replace these
   missing capabilities with configuration layers or a VM/networking campaign.
   Do not silently repair sources, substitute an example for the published study,
   or replace this work with another easy panel.
@@ -116,6 +134,9 @@ Do not open another design framework or benchmark service.
 separate evaluation authority, exact arm configurations and an analysis plan.
 Resolve a named missing dependency or advance another part of this same package;
 do not restart broad literature collection or an infrastructure campaign.
+The immediate remaining blockers are source completeness and a qualified numerical
+reference/assessment contract, followed by matched arm/model/roster conditions.
+Native R execution is no longer a reason to repeat package/version probes.
 
 ### 2. Execute Fresh Open-Weight Comparisons
 

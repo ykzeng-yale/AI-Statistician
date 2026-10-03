@@ -1,10 +1,10 @@
 {
-  "schema_version": 506,
+  "schema_version": 507,
   "updated_at": "2026-10-03",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The native two-publication goal created on 2026-10-01 remains active. On 2026-10-03, after the operator flagged prolonged stagnation, docs/current_execution_goal.md was consolidated into a verified checkpoint and five ordered publication deliveries: executable study qualification, fresh open-weight comparisons, independently assessed scientific results/case, reproducible releases and curated Lean support, then reviewed submission packages. Conformance audits and mechanism regressions are supporting work, not the objective. The unfinished native objective was not falsely completed or replaced; its API permits status changes only. Future scientific model testing remains local Qwen. No new scientific outcome, readiness percentage or historical rescore is claimed.",
-  "execution_status": "Product fix 813f627b preserves exact UTF-8 bytes during frozen scientific-file import instead of normalizing CRLF before hash verification. Both LF/CRLF import and execution regressions pass; full suite 2115 passed, 18 skipped, one existing xfail in 1294.31 seconds; compileall passed. Evidence: runs/publication_case_inputs_20261003/full-regression.xml, SHA-256 640575d7b80ccbb48377db639be6969a7c7922a37db13195d71f94f277c57cda. This fixes shared source identity, not statistical content or a generated answer. The TSCI available-input capsule now has 76 identity-validated documents: 66 unedited upstream code files, final paper/text, exact Card package data/notices, mechanical CSV and environment metadata. The existing model-selected source execution candidate parses; standard native Rscript package/version probe passed in the existing pinned executor after two retained pre-science startup failures. No author statistical entrypoint or model session ran, and old reference outcomes/operator mathematical findings were excluded from inputs. Record: benchmarks/publication_case_candidates/tsci_b1_card/input_preparation.json. Native source R is still distinct from generated scientific WebR; no claim that Algorithm/Simulation can execute ranger or the full TSCI case. Missing B1 helper, original data redistribution rights, scientific method execution, reference/assessment and prospective arm/model/roster qualification remain open. Next: close generated scientific execution through existing source-owning tools/local executor, then complete source/reference qualification rather than repeat inventories. No new scheduler, source patch, numerical/proof result, study activation or consumed-evaluation change. Goal active; publications not ready.",
+  "execution_status": "Product commit 8aabc10c adds explicit scientific_native_r through the shared R ABI and existing pinned local-process executor, not another scheduler or automatic fallback. Source owners, Theory scratch and exact reviewer probes can select the configured backend; hidden evaluators retain their own frozen profile. Twenty-one fresh native fixtures cover installed packages, projects, exact estimator binding, raw source-owner feedback, input identity, protected adapter/output handling and dispatch. Full suite: 2136 passed, 18 skipped, one existing xfail in 1378.67 seconds, exit zero; compileall, JavaScript syntax and diff checks passed. Evidence: runs/native_r_execution_mechanism_20261003/full-regression-release.xml, SHA-256 7d9f19effc0ce535ec719edbdf97a0bf0f6bb9a2ac5e59dc7a1a2608c13f0266. Scoped pre-delivery tests: 261 passed. Earlier failed/interrupted test attempts remain retained, not successful qualification. Native R currently requires macOS isolation; package version checks are not package-content hashes or a clean-machine release. The previous 76-file TSCI capsule and native source-environment probe remain input preparation only. No scientific model call, author study, numerical reference, mathematical assessment, study activation or consumed-evaluation change occurred. Missing B1 helper, original data rights, actual source/method execution, independent assessment and prospective matched arm/model/roster conditions remain open. Next: complete that executable study package rather than repeat package/version probes or add infrastructure. Goal active; neither publication is ready.",
   "historical_evidence_scope": "Haiku capability_facts and latest_independent_qualification below are archived development facts only, not official publication results, model baselines or gates on the new studies. Do not continue following their scores or resume consumed draws. Keep useful regression mechanisms and source-faithful, independently verified mathematical artifacts without attributing them to autonomous research success.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Prepare AI-Statistician and EmpericalProcessLEAN for two distinct, legitimate arXiv-first publications: (1) a portable statistical-research harness usable by researchers with Codex, Claude Code and an open-source coding agent, supporting reviewable theory, Python/R simulation and intent-selected Lean; (2) a complete multi-agent AI-Statistician driven through a single LLM API. Systematically audit both repositories and current primary literature/code, establish defensible contributions and scientific baselines, consolidate reusable architecture and the Statlib-aligned Lean foundation, implement reproducible installation and evaluation protocols, run prospectively frozen independent experiments without reusing consumed evaluations, and produce evidence-backed manuscripts and public release artifacts. Completion requires working, tested releases and reproducible comparative evidence for each paper; documentation, tests, model agreement and preliminary proofs alone do not count as publication readiness.",
@@ -31,7 +31,7 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "813f627bfe92ca4ea8d47e25ac1a7a3d10bef318",
+  "validated_code_head": "8aabc10c309afabe9fd8a24b5055a1e9e8d0f12f",
   "open_weight_system_development": {
     "study_id": "fixed_k_l2_20261002",
     "record": "benchmarks/publication_development/fixed_k_l2_20261002/observed_results.json",
@@ -47,8 +47,8 @@
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "0b3826fabd776d5ad114eaac5ccb16fe8167ae3c",
-    "working_tree_before_current_change": "Began at matching AI main/canonical 0b3826fa with a clean root and Lean pin db6c7718. Prepared exact available source assets and native source-environment metadata without author science. A source-import newline-identity defect was fixed generically and full regression passed before product commit 813f627b. The following input/goal records preserve historical evidence and introduce no additional product mechanism. Deliver reviewed changes directly and atomically to AI main/canonical; no PR or force push."
+    "remote_before_current_change": "2514ad7e052e130bef08a6386c7dede2870026cb",
+    "working_tree_before_current_change": "Began at matching AI main/canonical 2514ad7e and clean Lean pin db6c7718. Reused the existing local executor and R ABI for explicit generated native R; no statistical content, task-specific repair or Lean change. Full regression passed before product commit 8aabc10c. Goal/status follow-up preserves historical evidence and documents five remaining publication deliveries. Deliver directly and atomically to AI main/canonical; no PR or force push."
   },
   "publication_development": {
     "study_id": "kimi_type_ms_20261001",
@@ -257,24 +257,24 @@
   },
   "current_structure": {
     "research_agent_runtime_lines": 24531,
-    "theory_workspace_lines": 4594,
-    "scientific_code_workspace_lines": 3658,
-    "research_architect_lines": 3719,
-    "client_tool_loop_lines": 1573,
-    "research_control_lines": 733,
+    "theory_workspace_lines": 4596,
+    "scientific_code_workspace_lines": 3615,
+    "research_architect_lines": 3720,
+    "client_tool_loop_lines": 1581,
+    "research_control_lines": 740,
     "agent_runtime_lines": 1459,
     "formalizer_llm_lines": 1841,
     "lean_candidate_revision_tool_loop_lines": 2892,
-    "cli_lines": 7003,
-    "production_design_lines": 399,
+    "cli_lines": 7010,
+    "production_design_lines": 398,
     "codex_adoption_lines": 246
   },
   "latest_validated_change": {
-    "code_commit": "b2602bf27eff733c9dd9820712d6b5747c569264",
+    "code_commit": "8aabc10c309afabe9fd8a24b5055a1e9e8d0f12f",
     "lean_commit": "db6c7718349f3c14a7e37905f3529675f1ebaa52",
-    "summary": "One-shot experiment process launcher reuses the existing draw CLI unchanged for all four modes. It records configuration/runtime-entry identities, binary-safe captured streams, elapsed process/cleanup time and exit/timeout/interruption metadata, without reading candidate outputs or invoking an evaluator. No default research cap, scheduler, retry, repair or source edit. Owned-group cleanup does not certify termination of the model server, separate scientific sessions, escaped work or external kills that prevent sealing.",
-    "verification": "Full suite with benchmark source b2602bf2: 2024 passed, 18 skipped, one existing xfail in 789.00 seconds, exit zero. Console-reported result; no new JUnit file was generated. Focused launcher/draw/control tests: 119 passed in 5.31 seconds. Opaque real processes exercise the four mode declarations, raw non-UTF-8 output, nonzero exit, timeout, in-group descendant cleanup, unaffected peer group, immutable output directories, launch failure, Python interruption and changed configuration; no model inference. Compileall/diff checks passed. Lean pin db6c7718, source-map SHA-256 99f2a42a4813a896591a9296cc824d6131982bfd52a482056173a4f330c54e80 and protected historical hash e7162814977a51579850fcc3418017d7b638d23ce1550a0f523d2b7f55903da3 unchanged. Owned test processes ended; no consumed evaluation or source ledger changed.",
-    "capability_effect": "Prospective process measurement only, not scientific capability or established matched resources. The existing request accounting alone is not equal tokens/cost; this launcher adds child wall evidence but neither owns all computation nor attests deployment. Source/scientific tools can create separate sessions and keep changing files after an outer stop. The caller must independently terminate that work and its owned server before collection/another condition and qualify common scientific authority. No live draw, publication effect, mathematical credit or repair of a generated answer. Release rights, curated Lean API, independent theory authority and comparative studies remain unfinished; both official studies stay unactivated and the complete goal active."
+    "summary": "Explicit local Rscript selection through the shared scientific executor, common R ABI builder and existing pinned-process resources. Existing source-owner loops receive raw observations and author all revisions. Default WebR remains unchanged; installed packages come from the operator environment, not task rules. Trusted adapters and final records are outside the model process write scope; log reads reject links and nonregular files. No new scheduler, repair agent, source patch or cloud fallback.",
+    "verification": "Full suite: 2136 passed, 18 skipped, one existing xfail in 1378.67 seconds, exit zero. JUnit runs/native_r_execution_mechanism_20261003/full-regression-release.xml, SHA-256 7d9f19effc0ce535ec719edbdf97a0bf0f6bb9a2ac5e59dc7a1a2608c13f0266. Pre-delivery focus: 261 passed in 118.76 seconds; 21 native fixtures include real local R execution and scripted dispatch/reviewer/evaluator tests, with no model inference. Local runtime config SHA-256 0611435c9744158cc681a193fd8e5b83242313821c4f1724171a82591a2fc292. Compileall, JavaScript syntax and diff checks passed. Earlier failed/interrupted regressions are retained separately. Lean pin and protected historical capability, qualification and publication-development fields are unchanged; no consumed scientific evaluation was rerun or rescored.",
+    "capability_effect": "Mechanism evidence for explicit installed native R use, not autonomous scientific capability, full TSCI replication or publication efficacy. macOS isolation is required; library versions do not establish frozen package bytes. No scientific model call, author statistical entrypoint, new reference authority, proof credit or official study activation. Source completeness, data rights, independent assessment, fair arm/model/roster conditions, clean releases and both complete submission packages remain unfinished. The two-publication goal stays active."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-analytic-gaussian-20260911-v1",
