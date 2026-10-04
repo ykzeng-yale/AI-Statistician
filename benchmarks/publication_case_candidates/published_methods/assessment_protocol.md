@@ -43,7 +43,9 @@ conditions merely because they reach the same evaluation entrypoint.
 The [native access observation](native_access_observation.json) establishes only
 planned text/source and data access plus opaque local execution feedback. Native
 `Read` rejects the PDFs, and the paired text extraction has not been checked for
-mathematical fidelity. The pinned text-only model has no demonstrated image
+complete mathematical fidelity. The bounded source-fidelity observation below
+finds consequential representation ambiguities; readable text is not a qualified
+substitute for these PDFs. The pinned text-only model has no demonstrated image
 understanding. Native manual approval/unrestricted shell also differs from S's
 sandbox authority. Freeze the actual source representation and these permission
 differences; do not convert a host capability flag or mock tool turn into evidence
@@ -55,6 +57,76 @@ This draft adds no scientific answer, failure location, reference number or sour
 patch to the model's input capsule. Evaluator-only material stays outside author
 tools. The public source papers already contain their published conclusions;
 excluding cached outputs is not a claim of pretraining decontamination.
+
+### Paper-Input Fidelity Observation: 2026-10-04
+
+The operator visually compared six deliberately selected method pages from the
+unchanged journal PDFs with the existing `pypdf==6.16.1` layout text. This is a
+source-presentation check, not independent mathematical assessment, a model
+comprehension test, a random page sample or certification of all 113 PDF pages.
+Page numbers below are one-based PDF pages; text lines refer to the original
+`sources/paper/article.txt` in each prepared input capsule. No source file, formula,
+input capsule or consumed result was corrected or replaced.
+
+| Paper and inspected pages | Bounded observation in the original text view |
+| --- | --- |
+| StepMix 7--8, Section 4.1 | Weighted likelihood terms are present, but nested sum bounds are detached and variable/parameter superscripts and subscripts are flattened (lines 373--415). The FIML paragraph still contains the overbar character and the set difference (421--430); it is incorrect to say the overbar was wholly omitted. Their two-dimensional attachment and scripts are not preserved as mathematical markup. |
+| ebnm 4 and 7, Equations 3 and 7 | Equation 3's fractions are flattened into `1n`, with sum bounds, hats and indices displaced (175--180). Equation 7 retains its likelihood/integral factors and conditioning, although scripts are flattened; the local-false-sign-rate inequalities are also present. These positive controls do not certify every equation. |
+| bizicount 2 and 6, Equations 1 and 6--7 | The mixture branches and the four-term backward-difference structure remain present (54--60 and 287--295), but the Poisson density's exponent/fraction layout becomes a squeezed glyph string without a division mark (line 60). This is a representation limitation, not a finding that the published formula is wrong. |
+
+Across these slices, prose often lacks word separation. A single read-only
+`pypdf` default-mode extraction of ebnm page 4 separates the numerator and
+denominator onto different lines instead of `1n`; it still supplies no structural
+math encoding or qualified alternative view. No extraction mode is selected on
+the basis of this one-page comparison. The earlier bizicount rotated-text warning
+belongs to input preparation and was not newly reproduced here.
+
+The exact PDF hashes remain those in [input_plan.json](input_plan.json). The
+original text SHA-256 identities, verified unchanged, are:
+
+- StepMix: `686000c41cb231255b831cecace5f8325749d89d3c452770c4d63b369b824cfd`.
+- ebnm: `803db86f9917b80ab392b00ca2e6657672ef1c75c37c0064d9f82403beb52eee`.
+- bizicount: `5e9b76a10249ecf9687073a8192cf13a9003d79244aaee55f83068a98e1d5652`.
+
+Local visual evidence is retained in `runs/publication_source_fidelity_20261004/`,
+rendered with Poppler `pdftoppm 26.05.0`, `-scale-to 1800 -png`, without cropping
+or image editing. PNG hashes in inspected-page order are:
+
+| File | SHA-256 |
+| --- | --- |
+| `stepmix-07.png` | `f546ce5fd48955344fd187802ff2bd3707cc6de6a07212e3f190be6d609da6b2` |
+| `stepmix-08.png` | `15c52a85d12a70169af9305736ec4d26874cd1c831a019e700850377f9831523` |
+| `ebnm-04.png` | `754beec995722531b97cbdf5e5c2b3dd016373b0e33aecdcb67d2b5ef8ca4040` |
+| `ebnm-07.png` | `e0091a8a10458423abb611bca116cfcb36a30d8d2acd3fa65ee9fd4a457e88a0` |
+| `bizicount-02.png` | `fbd15a842c2595b4fea192200dbfec59540bc7972ed03754943ca6c35c002d1b` |
+| `bizicount-06.png` | `9f24681ac8beca3ac48bd573cab62669688bc3bead74d22b0a358357702132c1` |
+
+A bounded original-source lookup found no `.tex`/`.ltx`/`.bib`/`.Rmd`/`.qmd`
+path in the nontruncated default-branch trees of the author-linked
+`willwerscheid/ebnm-paper`, `Labo-Lacourse/stepmix` and `jmniehaus/bizicount`
+repositories. The respective Git **tree** identities are
+`f6f3aa0156b8145e3fe14e0a3fbfaec6a0ce5884`,
+`9bdfe552ebf6c5cebce87dc58bc5aff31ae32d4a` and
+`994790e3b97d77ece96ee1a476071f64890b93d3`.
+This filename check is not an all-branch/archive/source absence claim. A request
+for bizicount's nonexistent `master` ref first returned 404; the subsequent
+checked tree is its actual `main` branch. Cached numerical outputs were not read.
+
+The primary arXiv metadata advertises TeX sources for
+[ebnm 2110.00152v3](https://arxiv.org/abs/2110.00152v3) (2024-03-29) and
+[StepMix 2304.03853v6](https://arxiv.org/abs/2304.03853v6) (2024-06-17).
+Both precede the selected 2025 journal editions. Source-link fetches returned a
+web cache miss; their TeX contents were not downloaded or compared here.
+Neither an earlier edition nor a repository code vignette is silently substituted
+for the selected journal's mathematical source.
+
+Before freeze, choose and qualify a version-bound source representation that the
+actual text-only model and every compared arm can access, disclose any edition
+or permission differences, and retain the original PDF/text identities. The
+six-page observation supplies neither that qualification nor a model-authored
+theory result. Do not repair individual equations by operator transcription,
+inject known answers, or convert this finding into task-specific harness rules.
+Q06/A01 remain open.
 
 ## Common Scientific Obligations
 

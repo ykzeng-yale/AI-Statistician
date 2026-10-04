@@ -315,6 +315,11 @@ the text view is incomplete and cannot substitute for the PDF. Text-symbol,
 formula and layout fidelity are not qualified for any of the three papers.
 The snapshots do not establish that every eventual host can inspect PDF content;
 actual model/host access remains part of Q06 qualification.
+The [six-page source-presentation observation](assessment_protocol.md#paper-input-fidelity-observation-2026-10-04)
+now localizes flattened fractions/scripts and word separation, while recording
+preserved symbols and formula structure. Original PDFs/text and capsules remain
+unchanged. It is neither full-paper fidelity nor model-comprehension evidence;
+earlier arXiv editions are not substituted for the selected journal inputs.
 
 With the exact downloaded assets available at the plan's repository-relative
 paths, the same preparation is:

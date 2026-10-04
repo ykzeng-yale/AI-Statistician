@@ -111,6 +111,12 @@ unfinished. Production graph/loop and scientific sources are unchanged.
 The same assessment draft now binds literal stage/grid accounting, raw versus
 display labels, timing multiplicities and application/simulation model distinctions.
 It is not yet an executable accuracy criterion or qualified mathematical rubric.
+Its [six-page source-presentation observation](../benchmarks/publication_case_candidates/published_methods/assessment_protocol.md#paper-input-fidelity-observation-2026-10-04)
+now identifies fraction/script/layout ambiguities in the original text views,
+without changing capsules or manually reconstructing mathematics. Earlier arXiv
+source editions are not replacements for the selected journal versions. Qualify
+the actual model-accessible mathematical source before official calls; this
+bounded visual check is not full-paper fidelity or model comprehension.
 Next resolve these declared access/authority differences and long-session scope,
 qualify numerical interpretation/endpoints, independent assessment and the freeze.
 Do not open another reference panel, repeat

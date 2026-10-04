@@ -315,6 +315,11 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   to S's sandbox authority. Complete effective permissions, PDF fidelity, long
   sessions, matched opportunities, qualified numerical endpoints, independent
   authority and freeze remain open.
+  A [bounded six-page PDF/text comparison](../benchmarks/publication_case_candidates/published_methods/assessment_protocol.md#paper-input-fidelity-observation-2026-10-04)
+  now finds fraction/script/layout ambiguities, with exact original and visual
+  evidence identities. It records preserved structures too, not an all-formula
+  failure or full-paper certification. No capsule is changed; actual model-accessible
+  mathematical source and version qualification remain required before freeze.
   Q06 is not complete.
 - [ ] **Q07. Prospective freeze.** Bind exact code/package, local Qwen weights,
   quantization/runtime/template/decoding/hardware, task and authority versions,

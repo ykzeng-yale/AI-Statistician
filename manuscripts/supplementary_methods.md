@@ -67,6 +67,15 @@ claims or observational causal assumptions. Model review is a product mechanism
 or separately labelled automated diagnostic, not a substitute for missing
 independent authority. Kernel proof additionally needs source-statement fidelity.
 
+Paper access also requires source-presentation qualification. A bounded operator
+comparison of six selected method pages in the three prospective journal papers
+found flattened fractions, scripts and formula layout in their existing extracted
+text, alongside preserved formula structures. It was not model inference, a
+complete-paper audit or mathematical adjudication. The original inputs remain
+unchanged; a faithful version-bound representation accessible to all compared
+arms has not been qualified. Details and evidence identities are in the
+[assessment protocol](../benchmarks/publication_case_candidates/published_methods/assessment_protocol.md#paper-input-fidelity-observation-2026-10-04).
+
 ## S3. Fixed-Benchmark Target and Conditional Uncertainty
 
 Let the qualified fixed roster contain $N$ families, one primary task/access
