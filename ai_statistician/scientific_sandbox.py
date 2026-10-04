@@ -16,6 +16,7 @@ from typing import Any, Mapping, Sequence
 from .fingerprint import stable_hash
 from .research_source_library import (
     PinnedProcessRuntime, _bounded_execution_text, _execute_pinned_process, load_pinned_process_runtime,
+    _source_execution_resource_limiter as _resource_limiter,
 )
 from .scientific_project import (
     ScientificProjectFile,
@@ -26,12 +27,6 @@ from .scientific_project import (
     scientific_project_hash,
     scientific_python_local_import_roots,
 )
-
-try:  # POSIX execution is required only when an isolation provider is available.
-    import resource
-except ImportError:  # pragma: no cover - exercised on non-POSIX hosts
-    resource = None  # type: ignore[assignment]
-
 
 STDLIB_SANDBOX_PROFILE = "stdlib"
 SCIENTIFIC_WASM_SANDBOX_PROFILE = "scientific_wasm"
@@ -808,27 +803,6 @@ def _resource_limit_payload(
         "node_heap_mb": max(128, int(max_node_heap_mb)),
         "open_files": 64,
     }
-
-
-def _resource_limiter(limits: Mapping[str, int]):
-    def apply_limits() -> None:
-        if resource is None:  # pragma: no cover - runtime is unavailable there
-            return
-        os.setsid()
-        resource.setrlimit(
-            resource.RLIMIT_CPU,
-            (limits["cpu_seconds"], limits["cpu_seconds"]),
-        )
-        resource.setrlimit(
-            resource.RLIMIT_FSIZE,
-            (limits["file_size_bytes"], limits["file_size_bytes"]),
-        )
-        resource.setrlimit(
-            resource.RLIMIT_NOFILE,
-            (limits["open_files"], limits["open_files"]),
-        )
-
-    return apply_limits
 
 
 def _scientific_sandbox_environment(sandbox_dir: Path) -> dict[str, str]:
