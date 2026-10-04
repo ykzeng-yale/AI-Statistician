@@ -111,7 +111,8 @@ untouched main-study test.
 
 ## Existing Four-Arm Configuration Assembly
 
-`prepare_configs.py` only instantiates existing role/runtime configurations and
+The shared [`benchmarks/publication/prepare_configs.py`](../../publication/prepare_configs.py)
+only instantiates existing role/runtime configurations and
 creates inputs to `benchmarks.publication.draw_cli`. It does not schedule a draw,
 call a model, score an output or activate a study. All resource/decoding choices
 are explicit arguments; it adds no product default or new controller.
@@ -159,8 +160,9 @@ Run the assembler only after supplying those qualified input paths and selected
 prospective resource values:
 
 ```sh
-.venv/bin/python benchmarks/publication_case_candidates/tsci_b1_card/prepare_configs.py \
-  --out "$FRESH_CONFIG_DIRECTORY" --deployment "$DEPLOYMENT_DECLARATION" \
+.venv/bin/python -m benchmarks.publication.prepare_configs \
+  --out "$FRESH_CONFIG_DIRECTORY" --questions "$PUBLIC_QUESTIONS" \
+  --question-id "$SELECTED_QUESTION_ID" --deployment "$DEPLOYMENT_DECLARATION" \
   --sources "$PUBLIC_SOURCE_MANIFEST" --source-execution "$SOURCE_EXECUTION_MANIFEST" \
   --call-limit "$CALL_LIMIT" --output-tokens "$OUTPUT_TOKENS" \
   --temperature "$TEMPERATURE" --seed "$DIAGNOSTIC_SEED" \
@@ -169,8 +171,21 @@ prospective resource values:
   --no-progress-turns "$NO_PROGRESS_TURNS"
 ```
 
+The selected question and its existing estimator contract are explicit; this
+assembler no longer has a TSCI default or a case-specific entry wrapper. It rejects
+an absent/ambiguous question or missing required transport contract before writing
+any arm files. Mathematical content and estimator formulas are not specified here.
+
+For native generated execution, also pass `--native-python "$NATIVE_PYTHON_CONFIG"`
+and/or `--native-r "$NATIVE_R_CONFIG"`. Every arm and protocol fingerprint bind the
+exact supplied files. A draw requires the matching `AI_STATISTICIAN_NATIVE_PYTHON_CONFIG`
+and/or `AI_STATISTICIAN_NATIVE_R_CONFIG`; unset undeclared native configurations,
+including `AI_STATISTICIAN_NATIVE_PROJECT_CONFIG`. The entry rejects undeclared,
+missing, changed or different files before inference, rather than silently select
+ambient tools. File/schema checks are not execution or whole-environment attestation.
+
 The source-execution manifest is distinct from the generated scientific profile.
-The default is still WebR. Product commit `8aabc10c` makes explicit local
+Absent an explicit native profile, R uses WebR. Product commit `8aabc10c` makes explicit local
 `scientific_native_r` available through the existing Algorithm/Simulation,
 Theory scratch and exact reviewer tools when `AI_STATISTICIAN_NATIVE_R_CONFIG`
 is configured. Qualify that exact configuration/library and actual case source

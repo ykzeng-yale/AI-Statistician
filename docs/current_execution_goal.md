@@ -30,8 +30,8 @@ execution contract, without falsely completing it.
 | Area | Established scope | Still missing |
 | --- | --- | --- |
 | Architecture | Sole outer graph, shared retained loop, file-backed mathematics and same-source-owner feedback | Scientific efficacy and useful collaboration; execution is serial/interleaved, not independently concurrent |
-| Scientific execution | WASM and explicit native Python/R share existing executors/ABIs; common assessment honors its frozen profile at a5b46dc0 | Actual matched candidate-arm execution, frozen inventories and clean reconstruction |
-| Verification | Full suite at a5b46dc0: 2174 passed, 53 skipped, one existing xfail; configured common-evaluation checks: 141 passed | Fixtures are not scientific results; skipped execution and the process-lifetime xfail remain unqualified |
+| Scientific execution | WASM and explicit native Python/R share existing executors/ABIs; common assessment honors its frozen profile; twelve explicit Paper S configurations are assembled | Actual matched arm execution, evaluator qualification, frozen inventories and clean reconstruction |
+| Verification | Full suite at c5a02555: 2195 passed, 53 skipped, one existing xfail; focused condition/outcome checks: 205 passed, 4 skipped | Fixtures are not scientific results; skipped execution and the process-lifetime xfail remain unqualified |
 | Portable release | Fresh same-host wheel/CLI and synthetic Python/R projects; separately labelled host activation/compatibility observations | Qualified researcher workflow, clean-machine scope, rights and Paper H efficacy |
 | Case and roster | Exposed TSCI B1/Card inputs; three source-assisted StepMix/ebnm/bizicount candidates with prepared inputs and source environments | Complete case/reference obligations, independent scientific authority, final roster and precision |
 | Manuscripts | Separate H/S methods masters and shared methods appendix | Assessed case arguments, fresh comparative results, final discussion and submission review |
@@ -65,9 +65,12 @@ evidence. It does not gate non-formal study progress.
 
 ## Immediate Work
 
-Native execution and common assessment dispatch are regression-verified. Next
-assemble actual candidate/arm execution conditions and finalize scientific
-assessment through existing interfaces. Do not open another reference panel, repeat
+Native execution and common assessment dispatch are regression-verified. The
+[prospective condition assembly](../benchmarks/publication_case_candidates/published_methods/arm_conditions_preparation.json)
+now binds explicit task editions, public estimator transport metadata and twelve
+Paper S configuration files. Next qualify their actual access/opportunities,
+Paper H host conditions and scientific assessment through existing interfaces.
+Do not open another reference panel, repeat
 package/version probes or build a new execution framework.
 
 - **TSCI:** retain the exposed substantive case. Missing

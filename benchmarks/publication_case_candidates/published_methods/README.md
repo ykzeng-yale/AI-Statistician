@@ -3,8 +3,11 @@
 2026-10-03 selection decision. No model call, experiment activation, reference
 rerun, mathematical acceptance or publication effect is recorded here.
 
-The [public questions](questions.json) use the existing `OpenResearchQuestion`
-format. They require theory, scientific source, empirical work and source
+The original [public questions](questions.json) use the existing `OpenResearchQuestion`
+format and remain unchanged at their input-preparation identity. The prospective
+[execution edition](execution_questions_v2.json) adds explicit public estimator
+transport metadata for the same three tasks. Neither edition is an activated
+study or a version reset of a consumed family. They require theory, scientific source, empirical work and source
 reconstruction together. They are not source-only tasks relabelled as a
 multi-agent comparison. These files are research intent, not a runtime recipe or
 an answer key. Mathematical content remains model-authored Markdown/LaTeX.
@@ -110,9 +113,10 @@ The existing-format source snapshots are prepared at the identities in
 [execution preparation](execution_preparation.json) binds candidate commands,
 interpreters and adapted environments through the existing interfaces. These are
 loadable configurations, not authoritative numerical references or completed
-scientific execution. The tasks do not yet carry frozen estimator ABIs. Before
-activation, specify method inputs and outputs without prescribing an answer, bind
-actual access in all arms, and qualify the complete native execution path. An
+scientific execution. Their original v1 tasks have no estimator transport contract;
+the separately bound v2 proposal supplies that metadata, not a frozen scientific
+endpoint. Before activation, qualify method inputs/outputs without prescribing an
+answer, actual access in all arms and the complete native execution path. An
 installed author reference environment is not automatically the model workspace
 environment.
 No new adapter, scheduler, repair loop or model call is justified by this document.
@@ -123,6 +127,39 @@ roster, weights, repetitions, RNG/order and analysis together with a precision
 rationale. No counts, budgets, tolerances, split or study are frozen here.
 Q02/Q04/Q05/Q06/Q07 remain open in the
 [single delivery checklist](../../../docs/publication_programme.md#delivery-checklist).
+
+## Prospective Arm Conditions
+
+The [assembly record](arm_conditions_preparation.json) binds twelve actual local
+configuration files: each of the three v2 tasks in the existing `free_planning`,
+`same_workflow`, `no_cross_role_revision` and `full_collaboration` modes. The
+case-specific assembler was moved to the shared publication directory, not wrapped
+or duplicated. It selects an explicit question and validates the existing transport
+contract and source/environment references. The task metadata gives no formulas,
+proofs, numerical gold, acceptance tolerance or mandatory mathematical answer.
+
+The four modes share each task's source capsule, deployment, source-execution and
+native profile references. StepMix uses the already prepared native Python profile.
+For ebnm/bizicount, new resource proposals add the same explicit local-worker grant
+to native and original-source execution; the existing generic executor is unchanged.
+Original configurations, author files, environment-lock documents, worker failure,
+input/preparation records and consumed references remain immutable. The new grant
+is a separately bound resource addendum, not a historical author environment.
+Its inbound-listener limitation remains; there is no complete isolation claim.
+
+The proposed global cap, output/decoding, timeouts, diagnostic repetitions and
+no-progress values are explicit, but not empirically qualified or official study
+settings. Diagnostic repetitions do not replace original paper scopes or define a
+confirmatory precision rule. No model, source study or scientific assessment ran.
+All configuration checks are static; actual PDF/data/tool access, model behavior,
+confirmation opportunities, evaluator conditions, authority, rights, roster,
+precision and schedule still need qualification/freeze. These are Paper S proposals;
+Paper H requires its separate actual bare/package host conditions. Q06/Q07 stay open.
+
+Verification at `c5a02555`: 205 focused tests passed with 4 skips; the full default
+suite passed with 2,195 passes, 53 skips and one existing xfail in 1,566.94 seconds,
+exit zero. The assembly record binds raw reports, preserved initial development
+failures and the exact code. These are mechanism checks, not scientific results.
 
 ## Verification Scope
 
@@ -239,7 +276,7 @@ enforcement, source identity and the model's inability to modify that budget rem
 Statistical algorithms, source revisions and scientific stopping decisions are not
 implemented by this preparer. Frozen official resource conditions remain open.
 
-Two actual execution limitations must be resolved before full-arm qualification:
+At that earlier preparation checkpoint, two execution limitations were recorded:
 
 - StepMix's native author environment is not a native generated-Python profile.
   Existing scientific WASM does not automatically expose this package/environment;
@@ -252,6 +289,11 @@ Two actual execution limitations must be resolved before full-arm qualification:
   native R support. Native R's earlier simpler fixtures remain separate evidence.
 
 The full regression record is in [execution_preparation.json](execution_preparation.json).
+Subsequent generic local-worker and shared native Python/R verification is described
+above. The prospective arm proposals now select those existing resources explicitly;
+the earlier missing generated-Python profile and denied-worker fixture are historical
+observations, not revised results. Actual study access and complete task execution
+remain unqualified.
 These source/environment bindings and the negative fixture do not qualify estimator
 semantics, original result aggregation, hidden assessment, PDF access, actual arm
 opportunities, redistribution rights or a completed checklist item. No model call,

@@ -1,0 +1,394 @@
+{
+  "schema_version": 1,
+  "scope": "prospective_standalone_arm_configuration_preparation_only",
+  "code_commit": "c5a025557dd47f92b0de6d2aebae50772c6a4802",
+  "study_activated": false,
+  "scientific_evaluation_performed": false,
+  "model_calls": 0,
+  "author_study_executions": 0,
+  "publication_result": false,
+  "question_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/execution_questions_v2.json",
+    "sha256": "31ec45801cacb7ced967dd153f59376a6d253b01f761831547683048da357e80",
+    "byte_size": 34497
+  },
+  "preserved_original_question_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/questions.json",
+    "sha256": "a940b69ab0e2ef0744f7483663f7839b1332b1a8184ca96b149767b7712f7cba",
+    "byte_size": 10973
+  },
+  "question_edition": "v2 adds public estimator transport metadata only; no estimator formula, proof, numerical reference or acceptance threshold. Original v1 input records remain unchanged. No candidate model draw has been consumed or reset.",
+  "deployment_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/tsci_b1_card/deployment_candidate.json",
+    "sha256": "7f11431aa2d49291e71759508b1243baf7b637c4fcf16f7f5bf3a18cd040747e",
+    "byte_size": 1308
+  },
+  "assembler_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication/prepare_configs.py",
+    "sha256": "bedcc38e082ce3a4de8403bb1346e60f961437a12980fc85bb33827a06d606f5",
+    "byte_size": 12864
+  },
+  "draw_entry_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication/draw_cli.py",
+    "sha256": "268e0e1edc5d2d56aeeeb325c6e620158360a02e95ca5eaa4371d05da72b8365",
+    "byte_size": 13678
+  },
+  "proposed_settings": {
+    "global_model_request_cap": 256,
+    "per_request_output_tokens": 16384,
+    "temperature": 0.7,
+    "diagnostic_repetitions": 500,
+    "scientific_execution_timeout_seconds": 21600,
+    "model_request_timeout_seconds": 900,
+    "no_progress_turns": 32,
+    "endpoint": "http://127.0.0.1:8081/v1",
+    "r_local_worker_port": 11308
+  },
+  "resource_authority": "Unactivated proposal, not empirically qualified resources, an official sample size or a confirmatory precision rule. Existing request meter counts all roles. Replication commands keep their original scope; diagnostic n_runs is not substituted for author repetitions. Freeze new RNG/order, counts, precision, hardware and authority before official calls.",
+  "resource_changes": {
+    "python": "Existing pinned StepMix environment reused; no new package, grant or source revision.",
+    "r": "New explicit resource proposals add only R_PARALLEL_PORT=11308 and runtime_local_ports=[11308] to the previously prepared ebnm/bizicount native and source-execution configurations; source-execution IDs and benchmark labels identify this prospective edition. Original configs, source/environment-lock documents and failed worker observation are unchanged. The model-visible execution descriptor carries the new resource addendum. Same grant in all four modes.",
+    "network_limit": "Existing generic local-worker capability, not a proxy/VM or permission to fetch dependencies; outbound TCP limited to the declared loopback port. Inbound bind can cover all interfaces; no complete network-isolation claim. Port availability at study startup still needs qualification."
+  },
+  "families": [
+    {
+      "family": "stepmix",
+      "question_id": "stepmix_external_variables_source_assisted_candidate_v2",
+      "preparation_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/stepmix/preparation.json",
+        "sha256": "85f5721dd1ce953e02889a41686f617932256911a88264bed943ee7a2748835c",
+        "byte_size": 3155
+      },
+      "config_refs": {
+        "free_planning": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/stepmix/free_planning.json",
+          "sha256": "0cda1feb61e64c1cfce47ff6de6547c958fb7d27bc4e90af3ce1a60aaeeeb543",
+          "byte_size": 8215
+        },
+        "same_workflow": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/stepmix/same_workflow.json",
+          "sha256": "53030d785ee06b1bc22917628d5c1df7fdf987d73973aa74e9103ac70a7da9b4",
+          "byte_size": 8629
+        },
+        "no_cross_role_revision": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/stepmix/no_cross_role_revision.json",
+          "sha256": "e398bc56acdf46d10e5f1398b2aeeee3c059e9662ff95c346d113f9128200975",
+          "byte_size": 6062
+        },
+        "full_collaboration": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/stepmix/full_collaboration.json",
+          "sha256": "c9da3bec2d2b416891b4b4621e769656953afb30c995a26b1a63e601947aca25",
+          "byte_size": 6058
+        }
+      },
+      "source_snapshot_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/stepmix_jss_author_inputs_v1/research_sources.json",
+        "sha256": "8925138a6555046db920f2f85e4412634e94ebc4777c65b7e3f2f721ed5ee10e",
+        "byte_size": 57886
+      },
+      "source_execution_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/stepmix_jss_author_inputs_v1/source_execution.json",
+        "sha256": "10e327fed29adc2ed945700b6afa76b57b1e9f67ad1fd7e9521f8299dbbbc256",
+        "byte_size": 1743
+      },
+      "native_execution_refs": {
+        "python": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/native_python_execution_mechanism_20261003/native_python_runtime.json",
+          "sha256": "6a39f2bdc7dcc2ada356d5a7c4d98b3dd05fe738ff150d730a7a153a1afc0e8d",
+          "byte_size": 889
+        }
+      },
+      "source_file_count": 68,
+      "declaration_checks": {
+        "all_four_modes_same_task_source_and_native_refs": true,
+        "existing_loaders_and_content_identity": true,
+        "same_native_and_author_interpreter_hash": true,
+        "same_native_and_author_environment_root": true,
+        "same_declared_local_ports": true
+      },
+      "actual_arms_executed": false,
+      "assembly_arguments": {
+        "questions": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/execution_questions_v2.json",
+        "question_id": "stepmix_external_variables_source_assisted_candidate_v2",
+        "deployment": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/tsci_b1_card/deployment_candidate.json",
+        "sources": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/stepmix_jss_author_inputs_v1/research_sources.json",
+        "source_execution": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/stepmix_jss_author_inputs_v1/source_execution.json",
+        "call_limit": 256,
+        "output_tokens": 16384,
+        "temperature": 0.7,
+        "seed": 10017,
+        "confirmation_base": 5400011,
+        "replicates": 500,
+        "execution_timeout": 21600,
+        "model_timeout": 900.0,
+        "no_progress_turns": 32,
+        "native_python": "/Users/yukangzengcmac/AI-Statistician/runs/native_python_execution_mechanism_20261003/native_python_runtime.json"
+      }
+    },
+    {
+      "family": "ebnm",
+      "question_id": "ebnm_prior_families_source_assisted_candidate_v2",
+      "preparation_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/ebnm/preparation.json",
+        "sha256": "508506b2d2797eef6c94d5afe5e40027be55a0f6982103ff0267dd5a18ae70a9",
+        "byte_size": 3124
+      },
+      "config_refs": {
+        "free_planning": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/ebnm/free_planning.json",
+          "sha256": "76971c189b5cdd61e2d1fd77736508a9aafa4adbb88886ad31e2809e75b78592",
+          "byte_size": 8191
+        },
+        "same_workflow": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/ebnm/same_workflow.json",
+          "sha256": "f0ab3166e04b159735bc3c58d087ac7da6244e7b9b59b9c226102e3c6fa1b527",
+          "byte_size": 8605
+        },
+        "no_cross_role_revision": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/ebnm/no_cross_role_revision.json",
+          "sha256": "29d1e597ea0da1d8ab33ffb660eddce2d578ce569435c40bb2ebc48e4b5442f0",
+          "byte_size": 6036
+        },
+        "full_collaboration": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/ebnm/full_collaboration.json",
+          "sha256": "b1fc2172808c683c93e8ee96b42ed8d413d57f973bc04060cf1dffd583613772",
+          "byte_size": 6032
+        }
+      },
+      "source_snapshot_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/ebnm_jss_author_inputs_v1/research_sources.json",
+        "sha256": "d1492d65b9797141035446df1797fb681296ace4f07be84b9eb4cf5e1f800ea2",
+        "byte_size": 92886
+      },
+      "source_execution_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/resource_proposals/ebnm/source_execution.json",
+        "sha256": "e0e261b0d72c7c1b959a1264d31cdb551e221f8fba135ad9e37b07d9ccb3fb84",
+        "byte_size": 3462
+      },
+      "native_execution_refs": {
+        "r": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/resource_proposals/ebnm/native_r_runtime.json",
+          "sha256": "bf953d71caf51120f322a41e8532b3aa457ed651abefa25d2871570558b932ca",
+          "byte_size": 6825
+        }
+      },
+      "source_file_count": 112,
+      "declaration_checks": {
+        "all_four_modes_same_task_source_and_native_refs": true,
+        "existing_loaders_and_content_identity": true,
+        "same_native_and_author_interpreter_hash": true,
+        "same_native_and_author_environment_root": true,
+        "same_declared_local_ports": true
+      },
+      "actual_arms_executed": false,
+      "assembly_arguments": {
+        "questions": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/execution_questions_v2.json",
+        "question_id": "ebnm_prior_families_source_assisted_candidate_v2",
+        "deployment": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/tsci_b1_card/deployment_candidate.json",
+        "sources": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/ebnm_jss_author_inputs_v1/research_sources.json",
+        "source_execution": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/resource_proposals/ebnm/source_execution.json",
+        "call_limit": 256,
+        "output_tokens": 16384,
+        "temperature": 0.7,
+        "seed": 20017,
+        "confirmation_base": 6400021,
+        "replicates": 500,
+        "execution_timeout": 21600,
+        "model_timeout": 900.0,
+        "no_progress_turns": 32,
+        "native_r": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/resource_proposals/ebnm/native_r_runtime.json"
+      }
+    },
+    {
+      "family": "bizicount",
+      "question_id": "bizicount_joint_count_source_assisted_candidate_v2",
+      "preparation_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/bizicount/preparation.json",
+        "sha256": "c7b8d2e57427c174f98b25f12befabe50cf03344b7812f38c6e4cf4a232f8473",
+        "byte_size": 3161
+      },
+      "config_refs": {
+        "free_planning": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/bizicount/free_planning.json",
+          "sha256": "06c9a8e5ee36382f4134dce29f8ffcb158b9883da93066dca1e50f3e7323450f",
+          "byte_size": 8212
+        },
+        "same_workflow": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/bizicount/same_workflow.json",
+          "sha256": "e3a60f848acf9d8aca78a7859babcab51d3d56ca62a1163fa610f5531cad4261",
+          "byte_size": 8626
+        },
+        "no_cross_role_revision": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/bizicount/no_cross_role_revision.json",
+          "sha256": "144edf67344dfb0512f6dc420edcbcad71514328ed5a078170f37814646aad47",
+          "byte_size": 6055
+        },
+        "full_collaboration": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/proposed/bizicount/full_collaboration.json",
+          "sha256": "d1aa35d7cf1bc3b4451f56340bb8b510d972ea51729f1888a29f404b8bba748d",
+          "byte_size": 6051
+        }
+      },
+      "source_snapshot_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/bizicount_jss_author_inputs_v1/research_sources.json",
+        "sha256": "440b651b80bc8a9529a1926bb66850493fe7ab9548bdfb2ed181db23693beac8",
+        "byte_size": 46965
+      },
+      "source_execution_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/resource_proposals/bizicount/source_execution.json",
+        "sha256": "9113b41af16bc8a3d2f8b5387d0b672ea808e6d306e50ff4aa46c1a3a9bb1ac4",
+        "byte_size": 4231
+      },
+      "native_execution_refs": {
+        "r": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/resource_proposals/bizicount/native_r_runtime.json",
+          "sha256": "e029e2c8593b79cb3eddece67d813663f6a0d96730696cfecf3f9193522038ec",
+          "byte_size": 5590
+        }
+      },
+      "source_file_count": 61,
+      "declaration_checks": {
+        "all_four_modes_same_task_source_and_native_refs": true,
+        "existing_loaders_and_content_identity": true,
+        "same_native_and_author_interpreter_hash": true,
+        "same_native_and_author_environment_root": true,
+        "same_declared_local_ports": true
+      },
+      "actual_arms_executed": false,
+      "assembly_arguments": {
+        "questions": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/execution_questions_v2.json",
+        "question_id": "bizicount_joint_count_source_assisted_candidate_v2",
+        "deployment": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/tsci_b1_card/deployment_candidate.json",
+        "sources": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/bizicount_jss_author_inputs_v1/research_sources.json",
+        "source_execution": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/resource_proposals/bizicount/source_execution.json",
+        "call_limit": 256,
+        "output_tokens": 16384,
+        "temperature": 0.7,
+        "seed": 30017,
+        "confirmation_base": 7400031,
+        "replicates": 500,
+        "execution_timeout": 21600,
+        "model_timeout": 900.0,
+        "no_progress_turns": 32,
+        "native_r": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/resource_proposals/bizicount/native_r_runtime.json"
+      }
+    }
+  ],
+  "scientific_authority": "Existing common exact-final assessment path; no assessor appointment, mathematical assessment, hidden numeric endpoint, tolerance or acceptance by this preparation.",
+  "comparability_limits": [
+    "Paper S proposals only; Paper H native bare/package conditions still need their separate activation and workflow qualification.",
+    "These proposed draws declare source execution and native scientific Python/R, not the optional native-project tool. An ambient native-project grant is rejected before calls; this is the study's declared tool scope, not a removal of that product capability.",
+    "Static identity/configuration alignment is not actual tool/PDF/data access, long-model-session qualification or opportunity matching.",
+    "Initial Architect JSON-schema request versus shared controls tool request, batching policies and confirmation-feedback exposure remain declared bundle differences.",
+    "The original author environment-lock documents describe the parent preparation; the prospective local-worker grants are an explicit separately bound addendum, not a historical author lock.",
+    "Package names/versions and current interpreter hashes do not independently qualify every package byte, reconstruction or portable OS execution.",
+    "Exact endpoints/alternative dispositions, assessor calibration, rights, final roster, weights, schedule and precision remain unfrozen.",
+    "Consumed references and evaluations are not rerun, reassessed or rescored."
+  ],
+  "verification": {
+    "scope": "deterministic regression and static assembly; no actual scientific model, author study, method assessment or publication result",
+    "compileall_exit_code": 0,
+    "full_regression": {
+      "command": ".venv/bin/pytest -q --junitxml=runs/publication_arm_conditions_20261004/full_regression.xml > runs/publication_arm_conditions_20261004/full_regression.stdout 2> runs/publication_arm_conditions_20261004/full_regression.stderr",
+      "observed_exec_session_id": 25304,
+      "observed_exit_code": 0,
+      "seconds_terminal": 1566.94,
+      "passed": 2195,
+      "skipped": 53,
+      "xfailed": 1,
+      "failures": 0,
+      "errors": 0,
+      "seconds_junit": 1566.824,
+      "junit_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/full_regression.xml",
+        "sha256": "7cdab1c1f2f4963285edfce391d6b8ec53c01e25b8875130a69fde40db6416e5",
+        "byte_size": 746364
+      },
+      "stdout_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/full_regression.stdout",
+        "sha256": "0d78a6ca21cf111efef346879c2332127a35b297306743b6ff0d2c972a79c753",
+        "byte_size": 2617
+      },
+      "stderr_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/full_regression.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "byte_size": 0
+      },
+      "unqualified": "53 default-suite skips and the existing detached-process-lifetime xfail are not passes or scientific capability."
+    },
+    "focused_records": [
+      {
+        "junit_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/focused-initial.xml",
+          "sha256": "f6d26a5fac71a254686fe4254f51d5017c14d4ad64d9b15fac0637e3cbb2844e",
+          "byte_size": 33039
+        },
+        "observed_exit_code": 1,
+        "passed": 111,
+        "skipped": 0,
+        "xfailed": 0,
+        "failures": 6,
+        "errors": 0,
+        "seconds_junit": 8.755
+      },
+      {
+        "junit_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/focused-2.xml",
+          "sha256": "1a1afa2fc6370f52daf86620c2f9ccb4847828c87ef41766f7db0d23c345621f",
+          "byte_size": 22550
+        },
+        "observed_exit_code": 0,
+        "passed": 132,
+        "skipped": 0,
+        "xfailed": 0,
+        "failures": 0,
+        "errors": 0,
+        "seconds_junit": 9.156
+      },
+      {
+        "junit_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/focused-3.xml",
+          "sha256": "c1905dea354c0b364b45492387a1402ba8e1e674b3cf7b5f51e00f732490f0da",
+          "byte_size": 35750
+        },
+        "observed_exit_code": 0,
+        "passed": 202,
+        "skipped": 4,
+        "xfailed": 0,
+        "failures": 0,
+        "errors": 0,
+        "seconds_junit": 83.457
+      },
+      {
+        "junit_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/focused-4.xml",
+          "sha256": "1969fadc1059a567ab1a58f23a6f7f09895f452b8ea70ab46545477ae9aa2017",
+          "byte_size": 39915
+        },
+        "observed_exit_code": 1,
+        "passed": 204,
+        "skipped": 4,
+        "xfailed": 0,
+        "failures": 1,
+        "errors": 0,
+        "seconds_junit": 75.892
+      },
+      {
+        "junit_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_arm_conditions_20261004/focused-final.xml",
+          "sha256": "4eaf0e55070b525bd5bd8d1507dbe11849f94403e64ace26eb1f104480e4b1d1",
+          "byte_size": 36209
+        },
+        "observed_exit_code": 0,
+        "passed": 205,
+        "skipped": 4,
+        "xfailed": 0,
+        "failures": 0,
+        "errors": 0,
+        "seconds_junit": 83.623
+      }
+    ],
+    "development_failures": "Initial six failures came from the operator assembler passing a question object instead of its task_intent mapping to an existing helper. A later R declaration fixture omitted the existing required jsonlite metadata. The assembler call and opaque test fixture were corrected, not generated mathematical or method source. Exact initial failure JUnit remains retained; final code is bound separately by code_commit.",
+    "declaration_limits": "Native positive draw-entry fixtures use opaque schema metadata and mocked HTTP, not actual candidate environment execution. The three actual candidate configurations passed existing source/native loaders and hash checks only. No inference, full-arm opportunity qualification, mathematical verdict, consumed-reference rerun, rescore or checklist closure."
+  }
+}

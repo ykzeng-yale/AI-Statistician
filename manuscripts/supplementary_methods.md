@@ -347,6 +347,12 @@ uses its declared execution profile and records the actual backend and exact
 request; an unavailable native environment is not silently replaced with WASM.
 Configuration or ABI fixtures establish dispatch, not scientific correctness or
 matched access in the study arms.
+The [prospective arm assembly](../benchmarks/publication_case_candidates/published_methods/arm_conditions_preparation.json)
+retains the original input edition and binds the proposed execution edition,
+native environments, source commands and four-mode configurations. Its settings
+are unactivated proposals, not an official schedule or confirmed Monte Carlo
+precision. Freeze separate evaluator access and record actual execution before
+treating these declarations as qualified scientific conditions.
 
 Case trace analysis identifies a finding, its exact source/input version, the
 source owner's response, the revised artifact and independent final outcome.
