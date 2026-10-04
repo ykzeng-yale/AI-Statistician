@@ -267,6 +267,13 @@ text fidelity and actual host PDF access are unqualified. Eight existing source/
 tests passed without a model call or scientific script. Execution bindings, task
 ABIs, rights, independent assessment, actual arms and roster/precision freeze remain
 required. This prerequisite does not close Q02/Q04 or activate a study.
+The [candidate execution bindings](../benchmarks/publication_case_candidates/published_methods/execution_preparation.json)
+now connect the unchanged input documents to pinned local interpreters and adapted
+libraries. Configuration loading is not full execution: a synthetic native R
+two-worker fixture failed to open its local server socket, and StepMix's generated
+Python environment is not the native author environment. Resolve these shared
+execution/access gaps before Q06/Q07; do not add another candidate or substitute
+serial toy computation for the declared study. No author script or model ran.
 
 ### 2. Theory and Scientific Agreement
 

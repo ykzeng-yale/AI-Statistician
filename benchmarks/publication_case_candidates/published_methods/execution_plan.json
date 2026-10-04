@@ -1,0 +1,43 @@
+[
+  {
+    "question_id": "stepmix_external_variables_source_assisted_candidate_v1",
+    "runtime_language": "python",
+    "environment_root": "runs/publication_reference_qualification_20261003/stepmix/environment",
+    "interpreter_executable_relative_path": "bin/python",
+    "interpreter_executable_sha256": "68100c5188b837802c7ae52398389d121b1c063ed244dec11649775b539c3a30",
+    "environment_readiness": "benchmarks/publication_reference_qualification_20261003/stepmix_ready.json",
+    "entrypoint_document_id": "replication/Python/paper_examples.py",
+    "working_directory_relative": "replication/Python",
+    "package_distributions": {"stepmix": "stepmix", "numpy": "numpy", "scipy": "scipy", "scikit-learn": "scikit-learn", "pandas": "pandas", "joblib": "joblib", "tqdm": "tqdm"},
+    "arguments": [],
+    "result_artifact_paths": [],
+    "timeout_seconds": 21600,
+    "generated_execution_environment": "Existing scientific_wasm supports the common scientific Python stack, not this native StepMix environment. The full generated-code/import path remains unqualified; this source execution binding is not a native scientific Python profile."
+  },
+  {
+    "question_id": "ebnm_prior_families_source_assisted_candidate_v1",
+    "runtime_language": "r",
+    "base_runtime_config": "runs/native_r_execution_mechanism_20261003/native_r_runtime.json",
+    "owned_library": "runs/publication_reference_qualification_20261002/ebnm/library",
+    "entrypoint_document_id": "replication/code/code.R",
+    "working_directory_relative": "replication/code",
+    "package_distributions": {"ebnm": "ebnm", "tidyverse": "tidyverse", "flashier": "flashier", "gt": "gt", "cowplot": "cowplot", "microbenchmark": "microbenchmark", "jsonlite": "jsonlite"},
+    "arguments": [],
+    "result_artifact_paths": ["replication/output/timecomps.rds", "replication/output/simstudy.rds", "replication/figs/shrink_intro.pdf", "replication/figs/timecomps.pdf", "replication/figs/simres.htm", "replication/figs/wOBA_normal_custom.pdf", "replication/figs/wOBA_npmle_cdf.pdf", "replication/figs/wOBA_npmle_pm.pdf"],
+    "timeout_seconds": 21600,
+    "generated_execution_environment": "Explicit scientific_native_r with the generated native_r_runtime.json is the candidate library binding. Actual study source/method execution and clean reconstruction are not established by configuration parsing."
+  },
+  {
+    "question_id": "bizicount_joint_count_source_assisted_candidate_v1",
+    "runtime_language": "r",
+    "base_runtime_config": "runs/native_r_execution_mechanism_20261003/native_r_runtime.json",
+    "owned_library": "runs/publication_reference_qualification_20261002/bizicount/reference_1_3_3/library",
+    "entrypoint_document_id": "replication/v109i01-replication.R",
+    "working_directory_relative": "replication",
+    "package_distributions": {"bizicount": "bizicount", "copula": "copula", "dplyr": "dplyr", "tidyr": "tidyr", "ggplot2": "ggplot2", "doParallel": "doParallel", "doRNG": "doRNG", "RhpcBLASctl": "RhpcBLASctl", "jsonlite": "jsonlite"},
+    "arguments": [],
+    "result_artifact_paths": ["replication/output_montes_small.RData", "replication/sessioninfo.txt", "replication/v109i01-replication.txt", "replication/Figures/table_3.txt", "replication/Figures/fig1_12.png", "replication/Figures/fig1_13.png", "replication/Figures/fig1_14.png", "replication/Figures/fig1_21.png", "replication/Figures/fig1_22.png", "replication/Figures/fig1_23.png", "replication/Figures/fig1_24.png", "replication/Figures/fig1_31.png", "replication/Figures/fig1_32.png", "replication/Figures/fig1_33.png", "replication/Figures/fig1_34.png", "replication/Figures/fig1_41.png", "replication/Figures/fig1_42.png", "replication/Figures/fig1_43.png", "replication/Figures/fig1_44.png", "replication/Figures/figure_2.pdf", "replication/Figures/figure_3.pdf", "replication/Figures/figure_4.pdf", "replication/Figures/appendix_figure_B1.pdf", "replication/Figures/appendix_figure_B2.pdf"],
+    "timeout_seconds": 21600,
+    "generated_execution_environment": "Explicit scientific_native_r with the generated native_r_runtime.json is the candidate library binding. The author FORK/PSOCK worker transport has not been qualified in the product executor; no claim of complete study execution follows."
+  }
+]

@@ -102,13 +102,16 @@ Input identities already exist in the original preparation records:
   The package is GPL >=3; replication-archive and original-data redistribution
   terms are not independently qualified. Do not commit third-party bytes here.
 
-The existing-format source snapshots are now prepared at the identities in
-[input_preparation.json](input_preparation.json). They are input identity evidence,
-not authoritative numerical references or source-execution bindings. The tasks do
-not yet carry frozen estimator ABIs. Before activation, specify method inputs and
-outputs without prescribing an answer, bind exact data/runtime access in all arms,
-and qualify the complete native scientific execution path. An installed author
-reference environment is not automatically the model workspace environment.
+The existing-format source snapshots are prepared at the identities in
+[input_preparation.json](input_preparation.json). The subsequent
+[execution preparation](execution_preparation.json) binds candidate commands,
+interpreters and adapted environments through the existing interfaces. These are
+loadable configurations, not authoritative numerical references or completed
+scientific execution. The tasks do not yet carry frozen estimator ABIs. Before
+activation, specify method inputs and outputs without prescribing an answer, bind
+actual access in all arms, and qualify the complete native execution path. An
+installed author reference environment is not automatically the model workspace
+environment.
 No new adapter, scheduler, repair loop or model call is justified by this document.
 
 Next finish the independent claim/implementation rubrics and rights, then common
@@ -188,3 +191,49 @@ the record binds JUnit and the exact preparation script. The binary import tests
 use deterministic fixtures, not these studies. No product mechanism changed,
 scientific endpoint was assessed, consumed evaluation was retried, model was
 called, official study was activated or checklist item was closed by this work.
+
+## Candidate Execution Bindings
+
+[execution_plan.json](execution_plan.json) and the offline
+[preparer](prepare_execution.py) reuse the three immutable input snapshots and
+already-installed environments. They neither run the author studies nor install
+packages. All 231 parent documents remain identical; ten environment documents
+produce 241 registered files. Local file inventories, interpreter hashes and
+package metadata are bound, with separate owned R libraries for ebnm and bizicount.
+All 5,638 previously recorded installed StepMix files still match their identities.
+The native R configuration and three `ResearchSourceExecutionSpec` files load.
+The legacy `source_commit` field holds the original replication archive SHA-256,
+explicitly **not** an invented Git commit. These adapted environments are not the
+historical authors' locks or a verified clean reconstruction.
+
+```sh
+.venv/bin/python -m benchmarks.publication_case_candidates.published_methods.prepare_execution \
+  --out runs/publication_execution_binding_20261003/prepared
+```
+
+The model chooses entrypoint, working directory, arguments and declared outputs
+inside the bound source/environment. The candidate timeout is explicitly 21,600
+seconds per invocation; it is not a minimum, a task-completion criterion or an
+activated study budget. The shared loader now honors a positive operator-declared
+timeout without an unrelated 1,800-second ceiling. Defaults, actual timeout
+enforcement, source identity and the model's inability to modify that budget remain.
+Statistical algorithms, source revisions and scientific stopping decisions are not
+implemented by this preparer. Frozen official resource conditions remain open.
+
+Two actual execution limitations must be resolved before full-arm qualification:
+
+- StepMix's native author environment is not a native generated-Python profile.
+  Existing scientific WASM does not automatically expose this package/environment;
+  its exact generated-code/import path remains unqualified.
+- A synthetic two-worker FORK fixture, not the paper simulation, failed with
+  `creation of server socket failed`. The product executor currently denies network
+  operations, including this local coordination. No source patch, serial substitute,
+  rerun of the paper or mathematical rejection follows. Preserve the raw fixture
+  failure; qualify a general execution-resource solution before claiming parallel
+  native R support. Native R's earlier simpler fixtures remain separate evidence.
+
+The full regression record is in [execution_preparation.json](execution_preparation.json).
+These source/environment bindings and the negative fixture do not qualify estimator
+semantics, original result aggregation, hidden assessment, PDF access, actual arm
+opportunities, redistribution rights or a completed checklist item. No model call,
+author scientific execution or official experiment occurred.

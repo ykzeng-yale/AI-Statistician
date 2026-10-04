@@ -1,0 +1,215 @@
+{
+  "scope": "candidate_execution_binding_preparation_only",
+  "model_calls": 0,
+  "scientific_scripts_executed": 0,
+  "source_probes_executed": 0,
+  "study_activated": false,
+  "plan_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/execution_plan.json",
+    "sha256": "7950e8c819a5c19ac82c54bf432f67b13c97c01a14fe19c96a77a30cfe22b8f6",
+    "byte_size": 4273
+  },
+  "input_preparation_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/input_preparation.json",
+    "sha256": "c890d130c9948c14dae3257f0d21e63c0d9fc412c4e907906cbeb4e0dfbc162d",
+    "byte_size": 11553
+  },
+  "preparer_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/prepare_execution.py",
+    "sha256": "df2b07515919d618f6a0cd92c72a4ce686d3d2022cc6c18fbcf5ca87cf6f87c8",
+    "byte_size": 11262
+  },
+  "code_commit": "09e69091dd42b4242b7c2567debbe851f487193d",
+  "candidates": [
+    {
+      "question_id": "stepmix_external_variables_source_assisted_candidate_v1",
+      "parent_manifest_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_roster_inputs_20261003/stepmix_jss_author_inputs_v1/research_sources.json",
+        "sha256": "de7e48abd472a766450626519119f83c59a83e4359586bbb9dc35e1fcacf9e80",
+        "byte_size": 56939
+      },
+      "source_snapshot_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/stepmix_jss_author_inputs_v1/research_sources.json",
+        "sha256": "8925138a6555046db920f2f85e4412634e94ebc4777c65b7e3f2f721ed5ee10e",
+        "byte_size": 57886
+      },
+      "snapshot_hash": "dfa5dad2e73b663e05ebd1f321a716358b75a495af0e783c7902a237d62f56b3",
+      "document_count": 68,
+      "source_execution_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/stepmix_jss_author_inputs_v1/source_execution.json",
+        "sha256": "10e327fed29adc2ed945700b6afa76b57b1e9f67ad1fd7e9521f8299dbbbc256",
+        "byte_size": 1743
+      },
+      "native_r_runtime_ref": null,
+      "preserved_parent_documents": 66,
+      "environment_inventory_refs": [
+        {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/stepmix_jss_author_inputs_v1/sources/environment/file_inventory_0.json",
+          "sha256": "c6d0531b986082f6813258927dfe69aea930bd904176ed655f8485a149050b1d",
+          "byte_size": 1349472,
+          "file_count": 6611,
+          "tree_hash": "c11f36efb1d24233d724325d016359da3bff2f62b63488967bafa10b2043f094"
+        }
+      ],
+      "timeout_seconds": 21600,
+      "command_selection_mode": "model_selected",
+      "source_commit_field": "Original replication archive SHA-256; not a Git commit or invented author history.",
+      "generated_execution_environment": "Existing scientific_wasm supports the common scientific Python stack, not this native StepMix environment. The full generated-code/import path remains unqualified; this source execution binding is not a native scientific Python profile."
+    },
+    {
+      "question_id": "ebnm_prior_families_source_assisted_candidate_v1",
+      "parent_manifest_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_roster_inputs_20261003/ebnm_jss_author_inputs_v1/research_sources.json",
+        "sha256": "bfa89ce56c8ac46241a6f5fa8b02ce75b5808f37d34c58a8ae743015d070ad92",
+        "byte_size": 91041
+      },
+      "source_snapshot_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/ebnm_jss_author_inputs_v1/research_sources.json",
+        "sha256": "d1492d65b9797141035446df1797fb681296ace4f07be84b9eb4cf5e1f800ea2",
+        "byte_size": 92886
+      },
+      "snapshot_hash": "5241bb3b3a596c20396b3a4dcba828c89188db029a19b80a9e7d456c3e3bcd5a",
+      "document_count": 112,
+      "source_execution_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/ebnm_jss_author_inputs_v1/source_execution.json",
+        "sha256": "1b32e20284870f62ec141dda42f15078c1aed69658e5d3240fb10371906813f0",
+        "byte_size": 3391
+      },
+      "native_r_runtime_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/ebnm_jss_author_inputs_v1/native_r_runtime.json",
+        "sha256": "f57f8e86fd49625b14906c2403ec55540cd73fb9a84b0dfe891c49305842816d",
+        "byte_size": 6751
+      },
+      "preserved_parent_documents": 108,
+      "environment_inventory_refs": [
+        {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/ebnm_jss_author_inputs_v1/sources/environment/file_inventory_0.json",
+          "sha256": "71c5e6ecae5a0a2ecb9839f03721d3633514e8b366953b5cecb3386cb85aaa91",
+          "byte_size": 1393002,
+          "file_count": 8150,
+          "tree_hash": "95f8385107c75fbaefdfb3b7575297d6d6c010f521eefb4e76076589ada96b6d"
+        },
+        {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/ebnm_jss_author_inputs_v1/sources/environment/file_inventory_1.json",
+          "sha256": "9300f73ce7a81408a7df5decd8892e27b8c1d42f31f97dfa4e1124d2c6ce2282",
+          "byte_size": 1390115,
+          "file_count": 8124,
+          "tree_hash": "a137cfb10d9ebd5c6cc7cf39dbbf345a52f8d5f252d7157d483188141419c6e4"
+        }
+      ],
+      "timeout_seconds": 21600,
+      "command_selection_mode": "model_selected",
+      "source_commit_field": "Original replication archive SHA-256; not a Git commit or invented author history.",
+      "generated_execution_environment": "Explicit scientific_native_r with the generated native_r_runtime.json is the candidate library binding. Actual study source/method execution and clean reconstruction are not established by configuration parsing."
+    },
+    {
+      "question_id": "bizicount_joint_count_source_assisted_candidate_v1",
+      "parent_manifest_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_roster_inputs_20261003/bizicount_jss_author_inputs_v1/research_sources.json",
+        "sha256": "881b82ebd2c2ef082f6a3fc3cdd08eab94ed7177306d1ee5dbf1b8c9e7091f46",
+        "byte_size": 45121
+      },
+      "source_snapshot_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/bizicount_jss_author_inputs_v1/research_sources.json",
+        "sha256": "440b651b80bc8a9529a1926bb66850493fe7ab9548bdfb2ed181db23693beac8",
+        "byte_size": 46965
+      },
+      "snapshot_hash": "00c6dfcf9864385712919ecf95e7f8ed8312a4d505b2860cdf88348cc6a61cdb",
+      "document_count": 61,
+      "source_execution_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/bizicount_jss_author_inputs_v1/source_execution.json",
+        "sha256": "4d0b89ed87c6298f6c7a4c1af77df3112aa222d72b94574a697a1534d99debfc",
+        "byte_size": 4160
+      },
+      "native_r_runtime_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/bizicount_jss_author_inputs_v1/native_r_runtime.json",
+        "sha256": "235efdac239f999a1307132518ef3aad26436eb6bbb412c93cd878fb63e7a261",
+        "byte_size": 5516
+      },
+      "preserved_parent_documents": 57,
+      "environment_inventory_refs": [
+        {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/bizicount_jss_author_inputs_v1/sources/environment/file_inventory_0.json",
+          "sha256": "eff56aabfd9994a4f96d27f41e2e255ca872f7d52401f8a6ea6c24b1af71dfe9",
+          "byte_size": 322018,
+          "file_count": 1919,
+          "tree_hash": "f6d697afc29f72dfb6c97e0b925d4a9f95e653f3051d2d584a37fa034251bd76"
+        },
+        {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/bizicount_jss_author_inputs_v1/sources/environment/file_inventory_1.json",
+          "sha256": "9300f73ce7a81408a7df5decd8892e27b8c1d42f31f97dfa4e1124d2c6ce2282",
+          "byte_size": 1390115,
+          "file_count": 8124,
+          "tree_hash": "a137cfb10d9ebd5c6cc7cf39dbbf345a52f8d5f252d7157d483188141419c6e4"
+        }
+      ],
+      "timeout_seconds": 21600,
+      "command_selection_mode": "model_selected",
+      "source_commit_field": "Original replication archive SHA-256; not a Git commit or invented author history.",
+      "generated_execution_environment": "Explicit scientific_native_r with the generated native_r_runtime.json is the candidate library binding. The author FORK/PSOCK worker transport has not been qualified in the product executor; no claim of complete study execution follows."
+    }
+  ],
+  "remaining": [
+    "actual study/native parallel execution",
+    "generated Python import environment",
+    "final estimator interfaces and common scientific assessment",
+    "actual matched arms and source/PDF access",
+    "rights, roster/precision and prospective study freeze"
+  ],
+  "raw_record_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/execution_preparation.json",
+    "sha256": "76447ac8cee3d6bab36118b3f16f433d39d7660ea4f685d25c53959d1851279c"
+  },
+  "native_parallel_fixture": {
+    "scope": "synthetic_native_two_worker_conformance_not_scientific_evaluation",
+    "record_ref": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/parallel_probe/observation.json",
+      "sha256": "e828e68ff324fd3c57896546be602cb76bf8a06b98943ecd4541b34379a58668"
+    },
+    "program_ref": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/parallel_probe.R",
+      "sha256": "ce8575160a713a54997cd7f12cdd339b8064360cb4b6ac062aad8406b2760683"
+    },
+    "runtime_config_ref": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_execution_binding_20261003/prepared/bizicount_jss_author_inputs_v1/native_r_runtime.json",
+      "sha256": "235efdac239f999a1307132518ef3aad26436eb6bbb412c93cd878fb63e7a261"
+    },
+    "returncode": 1,
+    "stderr": "Error in serverSocket(port = port) : \n  creation of server socket failed: port 11308 cannot be opened\nCalls: local ... eval -> eval -> eval -> <Anonymous> -> serverSocket\nExecution halted\n",
+    "conclusion": "Two local FORK workers failed to initialize in the current executor. Complete paper execution and cause attribution remain unqualified. Retain the failure; do not patch author code or call it a mathematical rejection."
+  },
+  "verification": {
+    "parent_document_identity": "All 231 original documents remain identical in the prepared execution snapshots.",
+    "original_installed_stepmix_files_unchanged": 5638,
+    "source_execution_specs_loadable": 3,
+    "native_r_configurations_loadable": 2,
+    "selected_commands_preserve_declared_environment_and_timeout": true,
+    "scientific_execution_or_model_conformance_qualified": false,
+    "py_compile": "passed",
+    "full_regression": {
+      "scope": "deterministic default mechanism regression, not scientific capability",
+      "code_commit": "09e69091dd42b4242b7c2567debbe851f487193d",
+      "command": ".venv/bin/pytest -q --junitxml=runs/publication_execution_binding_20261003/full-regression.xml",
+      "returncode": 0,
+      "passed": 2156,
+      "skipped": 30,
+      "xfailed": 1,
+      "elapsed_seconds": 1625.22,
+      "junit_ref": {
+        "path": "runs/publication_execution_binding_20261003/full-regression.xml",
+        "sha256": "7d95f66d43b4b98c1453922aba22057a625db9ec727bb1d371fd5cc8580cfc3c"
+      },
+      "stdout_ref": {
+        "path": "runs/publication_execution_binding_20261003/full-regression.stdout.log",
+        "sha256": "03f8bafe820cd266d2ef847390443ec9079d0515b0aafb5b478a2b8cfd6bbff8"
+      },
+      "stderr_ref": {
+        "path": "runs/publication_execution_binding_20261003/full-regression.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "focused_source_tests": {"passed": 34, "elapsed_seconds": 1.57, "returncode": 0},
+      "compileall": "passed",
+      "limitation": "Skipped opt-in native executions were not run. The separate two-worker native fixture failed; no model, author study, mathematical assessment or official experiment ran."
+    }
+  }
+}

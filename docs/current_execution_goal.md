@@ -37,9 +37,9 @@ contract without falsely completing or replacing that goal.
 | Case inputs | Integrated B1/Card E.1 v2 distinguishes seven methods; explicit four-arm assembly; 76-file available-input capsule and native source-environment probe | Activated study, complete author replication, release reconstruction or mathematical gold; B1 helper and original data rights remain unresolved |
 | Qwen development | Four standalone known-result draws had no final selection; native FDA/R draws failed; exposed TSCI preparation made 21 requests and wrote one unselected document before handoff failure | A publication baseline, independently correct theory, a measured harness benefit or complete case |
 | Lean foundation | Active Lean 4.30.0 Mathlib/Statlib/StatInference pin; selected kernel checks and source-mapped retrieval | Complete textbook coverage, clean reconstruction or source-faithful public API |
-| Verification | Latest default full suite: 2145 passed, 30 skipped and one existing xfail; installed Python/R WASM fixtures executed separately; earlier failed/interrupted attempts retained | Mathematical correctness, skipped opt-in checks, matched experimental arms or publication readiness |
+| Verification | Latest default full suite: 2156 passed, 30 skipped and one existing xfail; installed Python/R WASM fixtures executed separately; earlier failed/interrupted attempts retained | Mathematical correctness, skipped opt-in checks, matched experimental arms or publication readiness |
 
-AI code checkpoint and tested code: 4fb51df2.
+AI code checkpoint and tested code: 09e69091.
 Lean pin: db6c7718349f3c14a7e37905f3529675f1ebaa52.
 The [status record](main_worker_status.json) links detailed immutable evidence.
 Historical mixed-scope Haiku credits are archived, not forward baselines.
@@ -106,7 +106,24 @@ rotated-text omission warning; the exact PDF is retained and text fidelity is
 unqualified. Eight existing source/import tests passed with zero model calls or
 scientific script execution. Rights and roster/precision freeze remain open.
 No new scientific draw, reference rerun or product mechanism change occurred.
-Next finish execution/access and common assessment, not another acquisition panel.
+The [execution preparation](../benchmarks/publication_case_candidates/published_methods/execution_preparation.json)
+now connects the unchanged inputs to existing-format interpreter/environment
+bindings. Three source specifications and two native R configurations load; all
+231 parent documents and the previous 5,638 StepMix installed files remain exact.
+A synthetic two-worker native R fixture failed to open a local server socket under
+the existing executor policy. Generated StepMix Python also lacks qualification of
+its native package environment. These are real shared execution/access gaps, not
+mathematical failures or completed case evidence. Resolve them next, alongside the
+common assessment contract; do not repeat acquisition, add a panel, patch author
+algorithms or declare configuration loading a scientific success.
+The shared source executor now honors the task's positive declared timeout rather
+than imposing an unrelated 1,800-second ceiling. Execution still enforces that
+timeout; model-selected commands cannot override it or the environment. Default
+120 seconds and all other bounds are unchanged. Exact code 09e69091 passed the
+full default suite: 2156 passed, 30 skipped, one existing xfail in 1625.22 seconds,
+exit zero; compileall and 34 focused source tests passed. The execution record
+binds the JUnit and logs. This is a generic budget-contract correction, not a
+statistical-source repair or qualification of the failed native fixture.
 
 The separate shared-tool correction declares each writable artifact's existing
 top-level type in the model schema. Runtime checks and atomic replacement are
