@@ -242,8 +242,14 @@ entrypoint uses the existing `main.py`/`main.R` executor ABI. Exact source/helpe
 and empirical files now reach the common evaluator without content repair;
 the complete captured report remains available to independent assessment.
 This transport supplies no scientific acceptance or confirmation credit.
-Tool permissions, actual PDF/data access, qualified numerical adjudication and independent authority are still
-unqualified. No official host draw has run.
+Disposable scripted access checks observe the planned text/source reads, CSV/RDA
+parsing and opaque Python/R error/edit/rerun feedback in both arms; they perform
+no model inference or author-method experiment. Native `Read` rejects PDF bytes,
+and the paired text extraction's mathematical fidelity remains unqualified.
+Manual native approvals and unrestricted shell are distinct from the standalone
+system's sandbox authority. Full effective permissions, long sessions, numerical
+adjudication and independent mathematical authority remain unqualified.
+No official host draw has run.
 
 ## 4. Simulation and Statistical Analysis
 

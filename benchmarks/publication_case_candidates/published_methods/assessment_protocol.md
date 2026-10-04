@@ -40,6 +40,14 @@ confirmation status or mathematical authority. Freeze the actual numerical
 interpretation and endpoints separately, identically within each study's arms.
 H's file view and S's checkpoint-derived view are not equivalent scientific
 conditions merely because they reach the same evaluation entrypoint.
+The [native access observation](native_access_observation.json) establishes only
+planned text/source and data access plus opaque local execution feedback. Native
+`Read` rejects the PDFs, and the paired text extraction has not been checked for
+mathematical fidelity. The pinned text-only model has no demonstrated image
+understanding. Native manual approval/unrestricted shell also differs from S's
+sandbox authority. Freeze the actual source representation and these permission
+differences; do not convert a host capability flag or mock tool turn into evidence
+that a research model understood a paper or reproduced its method.
 Preserve invalid submissions and projection failures as scheduled outcomes;
 do not repair them, discard their draws or substitute an earlier source.
 

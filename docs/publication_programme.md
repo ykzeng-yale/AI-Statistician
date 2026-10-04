@@ -3,6 +3,47 @@
 Updated: 2026-10-04. Status: design and release work in progress; no new scientific
 benchmark result. The native chat goal is active and covers both publications.
 
+## Execution Roadmap
+
+The checklist below is the single source of completion status. This map connects
+its items to concrete paper deliverables; it is not another checklist, scheduler
+or requirement to invent a new statistical theorem. Each result must distinguish
+what the research agents delivered from operator preparation and assessment.
+
+| Work package | Items | Required deliverable | Paper placement and completion evidence |
+| --- | --- | --- | --- |
+| Scientific contribution and qualification | Q01--Q07 | Distinct H/S questions; exact task/access roster; executable reference scope; independent assessment protocol; actual arm conditions; prospective code/model/resource/schedule freeze | Both Sections 1--4 and A01/A03. A dated, hash-bound protocol precedes official calls; candidate configurations and mock tests alone do not complete this package. |
+| Theory and agreement | T01--T05 | Reviewed evaluation mathematics plus complete selected agent-authored Markdown/LaTeX case arguments, claim-level assessment, and theory/code/data/report correspondence | Both theory appendices and the essential claims in Section 5. Full definitions, assumptions, derivations and invoked-result conditions are supplied; a missing or rejected argument remains visible. |
+| Harness comparison | E02, E05--E06 | All scheduled within-host bare/package draws; actual uptake; exact final-artifact adjudication; prespecified contrasts and complete cost/failure accounting | H main outcome table and resource figure, W02, A03/A06. Cross-host compatibility is reported separately, not pooled as efficacy. |
+| Collaboration comparison | E03, E05--E06 | All scheduled free-planning, shared-workflow, no-reverse-revision and full-collaboration draws under the frozen conditions; common external adjudication and bundle-specific contrasts | S main four-arm outcome table and resource/behavior figure, W03, A03/A06. Role names or internal acceptance do not establish collaboration benefit. |
+| Statistical-method simulations | E01, E04 | Per-task ADEMP design; frozen method/source and comparators; fresh datasets; every replication and failure; estimand-aligned summaries and Monte Carlo uncertainty | Main scientific summaries and A04/A06. Inner datasets are not additional agent draws; finite simulation does not prove a theorem. |
+| Substantive application | Q03--Q04, C01--C05 | Declared complete B1 reconstruction and Card E.1 analyses, exact aggregation, uncertainty, assumptions/sensitivity, assessed theory and traceable agent behavior | Both Section 5 drafts completed under W04, with full A02/A04 material. Missing TSCI helper/data/aggregation cannot be replaced silently; this case dependency does not halt otherwise qualified primary comparisons. |
+| Optional formal foundation | T06, A05 | Compact curated Lean API and source/dependency/axiom evidence for precisely the formal claims actually made | Scoped optional-Lean appendix. No whole-textbook, autonomous-proving or general prover-performance claim from library compilation. Non-formal experiments do not wait for this package. |
+| Manuscripts, release and submission | W01--W05, A01--A06, R01--R05 | Evidence-backed H/S main texts; complete mathematical, protocol, simulation and reproduction supplements; rights; clean installation; independent full-paper review; checked submission packages | The two existing manuscript masters and common supplement remain authoritative. Results determine the abstract/discussion; missing outcomes are not filled with expected success or synthetic numbers. |
+
+**Current position:** Q01/T01/C01/W01 are limited scope or draft deliverables.
+Official H/S comparisons, full assessed case arguments, confirmatory simulations,
+results sections and release rights are not complete. No publication readiness
+percentage is computed from this map.
+
+**Next executable deliverable:** finish the selected tasks' access/reference and
+numerical endpoint qualification, resolve independent assessment, and freeze one
+study package. Then execute its entire scheduled comparison and adjudication,
+instead of alternating indefinitely between new task panels, architecture changes
+and unselected numerical checks. Preserve unsuccessful draws; a negative effect
+is reportable without redefining success.
+
+The minimum scientific scope is a justified comparison of the implemented
+intervention on the declared roster/model, not universal research automation.
+The standard evaluation calculations in T01/T05 are not a novelty claim. The
+case's substantive mathematics must be independently assessed whether it invokes
+published theory, derives a conditional result or fails to establish a claim.
+Cross-model generalization, human time savings, frontier discovery, new statistical
+theory, independent parallel execution, learned policies and complete textbook
+formalization require their own evidence and are deferred unless explicitly made
+part of a prospectively qualified claim. Do not turn them into mandatory side
+projects for these two papers.
+
 ## Two Research Questions
 
 **Paper H: A Portable Harness for Reviewable Statistical Research.** Can a small,
@@ -232,8 +273,17 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   the common evaluator. Opaque execution fixtures verify dispatch and distinct
   source/result failures, not scientific interpretation or acceptance. Six new
   paired H workspaces bind the explicit entrypoint contract; earlier unactivated
-  preparation is unchanged. Actual permissions/PDF/data access, long sessions,
-  qualified numerical endpoints, independent authority and freeze remain open.
+  preparation is unchanged. The subsequent
+  [native access observation](../benchmarks/publication_case_candidates/published_methods/native_access_observation.json)
+  uses six disposable copies and scripted responses, with no model inference or
+  author-study execution. Both H arms expose the planned text/source reads, real
+  CSV/RDA parsing and opaque Python/R failure/edit/rerun feedback. All 482 registered
+  source copies remain exact. Initial fixture-client approval cancellations are
+  retained. `Read` rejects PDFs; paired text is readable, not fidelity-qualified.
+  Manual per-call ACP approval and unrestricted native shell are not equivalent
+  to S's sandbox authority. Complete effective permissions, PDF fidelity, long
+  sessions, matched opportunities, qualified numerical endpoints, independent
+  authority and freeze remain open.
   Q06 is not complete.
 - [ ] **Q07. Prospective freeze.** Bind exact code/package, local Qwen weights,
   quantization/runtime/template/decoding/hardware, task and authority versions,

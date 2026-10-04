@@ -1,0 +1,367 @@
+{
+  "scope": "disposable_native_host_access_observation_only",
+  "code_commit": "8d0e8cee87851bafd0632a5792675c1520bc622b",
+  "study_activated": false,
+  "publication_result": false,
+  "actual_model_calls": 0,
+  "author_study_executions": 0,
+  "mathematical_assessments": 0,
+  "consumed_evaluations_modified": false,
+  "setup": {
+    "host": "Kimi Code 2.1.1",
+    "transport": "ACP",
+    "mode": "default, manual Bash approval; per-call approve_once for these predeclared fixtures",
+    "endpoint": "loopback scripted OpenAI-compatible responses; not local Qwen inference",
+    "inputs": "new disposable copies of the six unactivated native preparation workspaces",
+    "limitations": "copytree follows the skill-directory symlink; not the original symlink layout or a clean-machine installation. The client does not implement confinement. Native Bash uses inherited PATH and explicit interpreter commands; its permissions and unrestricted shell differ from standalone sandbox execution.",
+    "method_ref": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/check_access.py",
+      "sha256": "d1a40617b223b4084caf171a87f1a9bd9ba3dc2a355ff7161cd80bc410d83b7d",
+      "byte_size": 8358
+    },
+    "plan_refs": [
+      {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-plan.json",
+        "sha256": "0a053139e1cf38bb5f556d56624a69bd240e48ef84f28660beb4cd9491375e28",
+        "byte_size": 2069
+      },
+      {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/ebnm-plan.json",
+        "sha256": "c2fe39ca790e8ef70a60d4f762257c8a389cafd47422160fc9c16bc54b3f25cc",
+        "byte_size": 2815
+      },
+      {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/bizicount-plan.json",
+        "sha256": "9ae97a59be2c9b4aaa0af214aa9e0d1dc13c7dd6f33f20dbaa24f8a59f107d49",
+        "byte_size": 2885
+      }
+    ],
+    "preparation_ref": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_final_view_20261004/native-host-preparation.json",
+      "sha256": "ac5cb2e280fad070e65296999cb1f2e81de24ce1d97836351890e101fd78d5f5",
+      "byte_size": 22657
+    }
+  },
+  "initial_observations": [
+    {
+      "scope": "initial fixture client cancelled all three Bash approvals; execution/access not established",
+      "cause": "native ACP scoped IDs were 0:access-call-N; the fixture incorrectly compared unscoped IDs",
+      "observation_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-bare/observation.json",
+        "sha256": "7bfa8588547498b3650f032c3d826538f1764a8b1d106cfa2d8344a0e5b72fee",
+        "byte_size": 6420
+      },
+      "permissions_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-bare/permissions.json",
+        "sha256": "5f561c0d16778d7bb5225afc8b64e2deff3b7eddc89c91e6441d7852dfaa7cde",
+        "byte_size": 2758
+      },
+      "requests_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-bare/requests.json",
+        "sha256": "25e510c4987a53a749db084735f5cb3b9a22a69524c4eb3f4d613c9baf48a83e",
+        "byte_size": 1253054
+      }
+    },
+    {
+      "scope": "initial fixture client cancelled all three Bash approvals; execution/access not established",
+      "cause": "native ACP scoped IDs were 0:access-call-N; the fixture incorrectly compared unscoped IDs",
+      "observation_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-package/observation.json",
+        "sha256": "8757274d384b0771f371efcf975b0a24945aea7fd4ba7a4e685abb21995cccd2",
+        "byte_size": 6426
+      },
+      "permissions_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-package/permissions.json",
+        "sha256": "67284116ae1bb06faa50b3379c32760f1c6a320f7e7325428e5907ed670189bf",
+        "byte_size": 2758
+      },
+      "requests_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-package/requests.json",
+        "sha256": "b6166f4d63e84e231024e2e98dbbabe2a47fdebf514897d24ab33672bbff034f",
+        "byte_size": 1301774
+      }
+    }
+  ],
+  "corrected_fixture_scope": "Only the disposable test client approval identity was corrected for the pinned host. Initial observations remain unchanged. No product permission policy, source, statistics, host implementation or consumed science was repaired.",
+  "observations": [
+    {
+      "candidate": "stepmix",
+      "arm": "bare",
+      "registered_source_files": 68,
+      "registered_source_mismatches": [],
+      "control_files_byte_identical": true,
+      "scripted_requests": 12,
+      "permissions": 3,
+      "allow_once": true,
+      "session_closed": true,
+      "observation_error": null,
+      "owned_shutdown_returncode": -15,
+      "host_sha256": "2563a338c94868a34e1bfd2e5579067d5a472acf4cb0bf350a3bfe1092bbe59d",
+      "data_parse": "Wall time: 0.080 seconds\n{'columns': ['papres', 'madeg', 'padeg', 'realinc1000'], 'rows': 3029}\n",
+      "raw_source_failure_returned": true,
+      "exact_authored_edit_rerun": true,
+      "pdf_read_rejected_as_binary": true,
+      "raw_refs": {
+        "observation.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-bare-approved/observation.json",
+          "sha256": "5b011a0af937e2fe6457bde67cc6bbeb7c0513825beed3e0c10c3894a3c429f8",
+          "byte_size": 6438
+        },
+        "requests.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-bare-approved/requests.json",
+          "sha256": "002135d73ac14759e46342587529d56a1623c12f5dde433c11ab735f7b6eceba",
+          "byte_size": 1253852
+        },
+        "events.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-bare-approved/events.json",
+          "sha256": "968f4ad703255383a6de6e4f53fa135c74c93de9f724300d3fe6831eaa9b5a64",
+          "byte_size": 41414
+        },
+        "permissions.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-bare-approved/permissions.json",
+          "sha256": "ac8e2a03bf5b8be247dd56442abd499afe67c8002686b199eecd538a74a1acb4",
+          "byte_size": 2857
+        },
+        "host.stderr": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-bare-approved/host.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        }
+      }
+    },
+    {
+      "candidate": "stepmix",
+      "arm": "package",
+      "registered_source_files": 68,
+      "registered_source_mismatches": [],
+      "control_files_byte_identical": true,
+      "scripted_requests": 12,
+      "permissions": 3,
+      "allow_once": true,
+      "session_closed": true,
+      "observation_error": null,
+      "owned_shutdown_returncode": -15,
+      "host_sha256": "2563a338c94868a34e1bfd2e5579067d5a472acf4cb0bf350a3bfe1092bbe59d",
+      "data_parse": "Wall time: 0.070 seconds\n{'columns': ['papres', 'madeg', 'padeg', 'realinc1000'], 'rows': 3029}\n",
+      "raw_source_failure_returned": true,
+      "exact_authored_edit_rerun": true,
+      "pdf_read_rejected_as_binary": true,
+      "raw_refs": {
+        "observation.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-package-approved/observation.json",
+          "sha256": "0f57caf8459849a804ece25b02b4e6f9544425608f7426ecdb274fbd6ed0538c",
+          "byte_size": 6444
+        },
+        "requests.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-package-approved/requests.json",
+          "sha256": "6eaf27990157e2924ba427920c646e9a1fa86cdda40441a2ae1f9455e2ba7fe6",
+          "byte_size": 1302800
+        },
+        "events.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-package-approved/events.json",
+          "sha256": "88efacad41b86517762c4d98f784642f9a1de563c84d0563c9854f94df0afc2a",
+          "byte_size": 41870
+        },
+        "permissions.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-package-approved/permissions.json",
+          "sha256": "1de897c48f7805b53c948d54d5dcf38d35de4cda2648e8c3a019c8ba2597848d",
+          "byte_size": 2857
+        },
+        "host.stderr": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/stepmix-package-approved/host.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        }
+      }
+    },
+    {
+      "candidate": "ebnm",
+      "arm": "bare",
+      "registered_source_files": 112,
+      "registered_source_mismatches": [],
+      "control_files_byte_identical": true,
+      "scripted_requests": 12,
+      "permissions": 3,
+      "allow_once": true,
+      "session_closed": true,
+      "observation_error": null,
+      "owned_shutdown_returncode": -15,
+      "host_sha256": "2563a338c94868a34e1bfd2e5579067d5a472acf4cb0bf350a3bfe1092bbe59d",
+      "data_parse": "Wall time: 0.196 seconds\nwOBA data.frame 688 6 \n",
+      "raw_source_failure_returned": true,
+      "exact_authored_edit_rerun": true,
+      "pdf_read_rejected_as_binary": true,
+      "raw_refs": {
+        "observation.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/ebnm-bare-approved/observation.json",
+          "sha256": "38244cc60be53b43b1c2d7d79085be6f27f346f23e36b48eb2862d611dfcc338",
+          "byte_size": 7178
+        },
+        "requests.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/ebnm-bare-approved/requests.json",
+          "sha256": "87e5f7155e32ea0f995600e4eca515cfe995045a827389d338522b17e46f9368",
+          "byte_size": 1257905
+        },
+        "events.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/ebnm-bare-approved/events.json",
+          "sha256": "054554012dbb521a0e33b96d4f390b4f53af0054e20838bbd499bd1e7fb3caf3",
+          "byte_size": 43667
+        },
+        "permissions.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/ebnm-bare-approved/permissions.json",
+          "sha256": "ca1c59189e7b3f55bdbf2498788ef82a1b57567d26db5085a4761b8b41075e79",
+          "byte_size": 2857
+        },
+        "host.stderr": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/ebnm-bare-approved/host.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        }
+      }
+    },
+    {
+      "candidate": "ebnm",
+      "arm": "package",
+      "registered_source_files": 112,
+      "registered_source_mismatches": [],
+      "control_files_byte_identical": true,
+      "scripted_requests": 12,
+      "permissions": 3,
+      "allow_once": true,
+      "session_closed": true,
+      "observation_error": null,
+      "owned_shutdown_returncode": -15,
+      "host_sha256": "2563a338c94868a34e1bfd2e5579067d5a472acf4cb0bf350a3bfe1092bbe59d",
+      "data_parse": "Wall time: 0.158 seconds\nwOBA data.frame 688 6 \n",
+      "raw_source_failure_returned": true,
+      "exact_authored_edit_rerun": true,
+      "pdf_read_rejected_as_binary": true,
+      "raw_refs": {
+        "observation.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/ebnm-package-approved/observation.json",
+          "sha256": "e3cd38f80b0f46470dcc271a940dbc3e7f933277f7bbe684a0f4f23a31aaf779",
+          "byte_size": 7184
+        },
+        "requests.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/ebnm-package-approved/requests.json",
+          "sha256": "f0263debc680ca760b1fc6f28890704cbe157e4177347635e224410969a08161",
+          "byte_size": 1306769
+        },
+        "events.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/ebnm-package-approved/events.json",
+          "sha256": "8f2b3602aad24cf602319624f662026bfe7df273321b4bea2062fc962688cb04",
+          "byte_size": 44117
+        },
+        "permissions.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/ebnm-package-approved/permissions.json",
+          "sha256": "259cd78c5725621cc50146b6928958aa03b672094edd448b0698029a29496198",
+          "byte_size": 2857
+        },
+        "host.stderr": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/ebnm-package-approved/host.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        }
+      }
+    },
+    {
+      "candidate": "bizicount",
+      "arm": "bare",
+      "registered_source_files": 61,
+      "registered_source_mismatches": [],
+      "control_files_byte_identical": true,
+      "scripted_requests": 12,
+      "permissions": 3,
+      "allow_once": true,
+      "session_closed": true,
+      "observation_error": null,
+      "owned_shutdown_returncode": -15,
+      "host_sha256": "2563a338c94868a34e1bfd2e5579067d5a472acf4cb0bf350a3bfe1092bbe59d",
+      "data_parse": "Wall time: 0.141 seconds\nterror data.frame 312 6 \n",
+      "raw_source_failure_returned": true,
+      "exact_authored_edit_rerun": true,
+      "pdf_read_rejected_as_binary": true,
+      "raw_refs": {
+        "observation.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/bizicount-bare-approved/observation.json",
+          "sha256": "120c6390d458e080c499152dff3c521a5ca8bbaeeb96fb1a8e892a38d3f0557c",
+          "byte_size": 7258
+        },
+        "requests.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/bizicount-bare-approved/requests.json",
+          "sha256": "e0e19df4844776f3a339a9eb1d3633c688971cf91a7fb4329998870adaedef24",
+          "byte_size": 1258203
+        },
+        "events.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/bizicount-bare-approved/events.json",
+          "sha256": "0978a3c485ec1228af06fe4fcee71ebd4cd874dbff2c78023cbd3115e8493f57",
+          "byte_size": 43979
+        },
+        "permissions.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/bizicount-bare-approved/permissions.json",
+          "sha256": "0cc6a1829ff3e46a15edc655c747742d5bfa2a33e44041ff7df94fca5407c41e",
+          "byte_size": 2857
+        },
+        "host.stderr": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/bizicount-bare-approved/host.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        }
+      }
+    },
+    {
+      "candidate": "bizicount",
+      "arm": "package",
+      "registered_source_files": 61,
+      "registered_source_mismatches": [],
+      "control_files_byte_identical": true,
+      "scripted_requests": 12,
+      "permissions": 3,
+      "allow_once": true,
+      "session_closed": true,
+      "observation_error": null,
+      "owned_shutdown_returncode": -15,
+      "host_sha256": "2563a338c94868a34e1bfd2e5579067d5a472acf4cb0bf350a3bfe1092bbe59d",
+      "data_parse": "Wall time: 0.160 seconds\nterror data.frame 312 6 \n",
+      "raw_source_failure_returned": true,
+      "exact_authored_edit_rerun": true,
+      "pdf_read_rejected_as_binary": true,
+      "raw_refs": {
+        "observation.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/bizicount-package-approved/observation.json",
+          "sha256": "39742ab73a3f6e4bc99c2d59f58d770271cffdfd59742d83b11f27e7745059d7",
+          "byte_size": 7264
+        },
+        "requests.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/bizicount-package-approved/requests.json",
+          "sha256": "dad4044d4a4b62185a745d3bed39f86efddd75237d505f2df423a318b96c5ab0",
+          "byte_size": 1307187
+        },
+        "events.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/bizicount-package-approved/events.json",
+          "sha256": "8b16bacc73d8a52e86b4214f5e1f5c8e1dc301e69110b4479f99b3c0ed58140e",
+          "byte_size": 44429
+        },
+        "permissions.json": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/bizicount-package-approved/permissions.json",
+          "sha256": "43197a4032928feb3b78ead79373896365b6ab3f82b4d1b3f345a9300649f0b6",
+          "byte_size": 2857
+        },
+        "host.stderr": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_native_access_20261004/bizicount-package-approved/host.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        }
+      }
+    }
+  ],
+  "established": "The planned text/source reads and file discovery, real CSV/RDA data parsing, opaque Python/R failure -> exact authored edit -> successful rerun are observed through actual native tools in both arms. All 482 registered source files across the six copies retain their frozen hashes; the original workspaces remain unactivated.",
+  "not_established": [
+    "No semantic paper understanding, theoretical correctness, method simulation, statistical efficacy or formal proof.",
+    "Read rejects PDFs; paired extraction is readable but extraction fidelity remains unqualified. The text-only Qwen checkpoint has no demonstrated vision ability; host image capability does not supply it.",
+    "Manual ACP approvals and native unrestricted shell are not matched standalone sandbox authority. CLI flag and ACP mode names have differing advertised meanings; freeze observed effective policy, not the flag label.",
+    "No long model session, complete tool suite, matched revision/confirmation opportunities, qualified numerical endpoint, independent assessment, roster/precision/rights or prospective freeze.",
+    "These are operator-local raw logs, not a public reproducible trajectory release; A03/R02 remain open. No official draws or author reference executions."
+  ],
+  "checklist_status": "Q06 remains open. No additional publication checklist item is checked."
+}

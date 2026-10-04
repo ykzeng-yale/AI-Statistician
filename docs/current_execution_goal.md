@@ -17,7 +17,8 @@ methods, validate empirically, and use Lean when task intent requires it.
 Do not substitute a toy demonstration, model agreement, test count or retrieved
 lemma for independently accepted statistical research.
 
-The single item-level roadmap is the [40-item publication checklist](publication_programme.md#delivery-checklist).
+The single item-level roadmap is the [40-item publication checklist](publication_programme.md#delivery-checklist),
+with its [concrete deliverable and manuscript map](publication_programme.md#execution-roadmap).
 It covers scope/qualification Q01--Q07, theory T01--T06, experiments E01--E06,
 case C01--C05, main texts W01--W05, appendices A01--A06 and release R01--R05.
 Only Q01, T01, C01 and W01 currently close their explicitly limited drafting/scope
@@ -74,8 +75,14 @@ Scientific instructions and consumed records are unchanged. The
 [native final-view follow-up](../benchmarks/publication_case_candidates/published_methods/native_final_projection.json)
 now carries exact selected projects and empirical/reconstruction files through the
 existing evaluator; it supplies no parser, confirmation or scientific credit.
-Next qualify actual access/opportunities and numerical interpretation/endpoints,
-then independent assessment and the prospective freeze.
+The [native access observation](../benchmarks/publication_case_candidates/published_methods/native_access_observation.json)
+now checks the planned text/source reads, actual CSV/RDA data parsing and opaque
+Python/R failure/edit/rerun through both H arms in six disposable copies. It uses
+scripted responses, not model inference; original sources and studies are unchanged.
+PDF `Read` fails, and paired text does not establish extraction fidelity or model
+understanding. Native manual approvals/unrestricted shell differ from S's sandbox.
+Next resolve these declared access/authority differences and long-session scope,
+qualify numerical interpretation/endpoints, independent assessment and the freeze.
 Do not open another reference panel, repeat
 package/version probes or build a new execution framework.
 
