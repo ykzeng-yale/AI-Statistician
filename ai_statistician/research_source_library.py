@@ -85,6 +85,7 @@ class PinnedProcessRuntime:
     runtime_read_roots: tuple[Path, ...]
     runtime_executables: tuple[tuple[Path, str], ...]
     runtime_environment: tuple[tuple[str, str], ...]
+    runtime_local_ports: tuple[int, ...] = ()
 
 
 def load_pinned_process_runtime(
@@ -143,8 +144,14 @@ def load_pinned_process_runtime(
                 or "\x00" in value or len(value) > 2048):
             raise ValueError("runtime_environment contains an invalid or controlled entry")
         environment.append((name, value))
+    raw_ports = payload.get("runtime_local_ports", [])
+    if (not isinstance(raw_ports, list)
+            or any(type(port) is not int or not 1 <= port <= 65535 for port in raw_ports)
+            or len(raw_ports) != len(set(raw_ports))):
+        raise ValueError("runtime_local_ports must be unique integer ports between 1 and 65535")
     return PinnedProcessRuntime(environment_root, interpreter_executable, expected_hash,
-                                tuple(roots), tuple(sorted(executables)), tuple(sorted(environment)))
+                                tuple(roots), tuple(sorted(executables)), tuple(sorted(environment)),
+                                tuple(sorted(raw_ports)))
 
 
 def normalized_internal_symlink_destination(*, link_path: str, target: str) -> str:
@@ -882,6 +889,7 @@ class ResearchSourceExecutionSpec:
     runtime_environment: tuple[tuple[str, str], ...] = ()
     command_selection_mode: str = SOURCE_COMMAND_OPERATOR_FIXED
     selected_command_reason: str = ""
+    runtime_local_ports: tuple[int, ...] = ()
 
     def descriptor(self, snapshot: ResearchSourceSnapshot) -> dict[str, Any]:
         entrypoint = snapshot.document(self.entrypoint_document_id)
@@ -936,6 +944,9 @@ class ResearchSourceExecutionSpec:
             descriptor["command_owned_by_model"] = True
         if self.schema_version < 3:
             descriptor["python_executable_sha256"] = self.interpreter_executable_sha256
+        if self.runtime_local_ports:
+            descriptor.update(runtime_local_ports=list(self.runtime_local_ports),
+                              network_access=True, external_network_outbound=False)
         return descriptor
 
 
@@ -956,7 +967,7 @@ def load_research_source_execution_spec(
         python_executable_relative_path python_executable_sha256 runtime_language
         interpreter_executable_relative_path interpreter_executable_sha256
         environment_probe_document_id runtime_read_roots runtime_executables
-        interpreter_arguments runtime_environment
+        interpreter_arguments runtime_environment runtime_local_ports
         working_directory_relative arguments package_distributions timeout_seconds
         max_output_bytes execution_workspace_mode result_artifact_paths
         command_selection_mode""".split()
@@ -1202,6 +1213,7 @@ def load_research_source_execution_spec(
         result_artifact_paths=tuple(result_artifact_paths),
         interpreter_arguments=tuple(raw_interpreter_arguments),
         runtime_environment=process_runtime.runtime_environment,
+        runtime_local_ports=process_runtime.runtime_local_ports,
         command_selection_mode=command_selection_mode,
     )
 
@@ -1521,7 +1533,8 @@ def source_replication_model_observation(
         source_workspace_hash_after staged_source_inputs_mutated
         unexpected_workspace_artifacts unexpected_execution_artifacts
         source_mutated runtime_edited_source
-        command_owned_by_model network_access secret_environment_inherited
+        command_owned_by_model network_access external_network_outbound
+        runtime_local_ports secret_environment_inherited
         execution_status runtime_generated model_authored proof_evidence_status
         kernel_verified boundary manifest_hash""".split()
     observation = {
@@ -2036,6 +2049,8 @@ def execute_research_source(
         "timeout_seconds": execution.timeout_seconds,
         "max_output_bytes": execution.max_output_bytes,
     }
+    if execution.runtime_local_ports:
+        common_executor_inputs["runtime_local_ports"] = execution.runtime_local_ports
     if not errors:
         probe_result = dict(
             executor(
@@ -2271,6 +2286,9 @@ def execute_research_source(
     if execution.schema_version < 3:
         manifest["python_executable_sha256"] = execution.interpreter_executable_sha256
         manifest["python_version"] = runtime_version
+    if execution.runtime_local_ports:
+        manifest.update(runtime_local_ports=list(execution.runtime_local_ports),
+                        network_access=True, external_network_outbound=False)
     if command_owned_by_model:
         manifest.update({
             "command_selection_mode": execution.command_selection_mode,
@@ -2322,6 +2340,7 @@ def _execute_pinned_process(
     timeout_seconds: int,
     max_output_bytes: int,
     python_path_root: Path | None = None,
+    runtime_local_ports: Sequence[int] = (),
 ) -> Mapping[str, Any]:
     sandbox_executable = shutil.which("sandbox-exec") if sys.platform == "darwin" else None
     if not sandbox_executable:
@@ -2342,6 +2361,7 @@ def _execute_pinned_process(
         runtime_executables=runtime_executables,
         source_paths=source_paths, cwd=cwd,
         output_dir=output_dir,
+        runtime_local_ports=runtime_local_ports,
     )
     sandbox_command = [
         sandbox_executable,
@@ -2452,6 +2472,7 @@ def _source_execution_sandbox_profile(
     runtime_executables: Sequence[tuple[Path, str]],
     source_paths: Sequence[Path], cwd: Path,
     output_dir: Path,
+    runtime_local_ports: Sequence[int] = (),
 ) -> str:
     read_subpaths = {
         "/Library/Apple/System/Library",
@@ -2500,9 +2521,17 @@ def _source_execution_sandbox_profile(
     process_rules = " ".join(
         f'(literal "{path}")' for path in sorted(process_literals)
     )
+    # Wildcard binds admit native worker listeners; only loopback egress is granted.
+    network_rules = "".join(
+        f'(allow network-bind (local ip "*:{port}")) '
+        f'(allow network-inbound (local ip "*:{port}")) '
+        f'(allow network-outbound (remote ip "localhost:{port}")) '
+        for port in runtime_local_ports
+    )
     return (
         "(version 1) (allow default) "
         "(deny network*) "
+        f"{network_rules}"
         "(deny process-exec) "
         f"(allow process-exec {process_rules}) "
         "(deny file-read*) "

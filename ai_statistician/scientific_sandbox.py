@@ -45,7 +45,8 @@ SCIENTIFIC_SANDBOX_PROFILES = (
 MAX_SCIENTIFIC_INPUT_ARTIFACT_BYTES = 64 * 1024 * 1024
 SCIENTIFIC_SANDBOX_BOUNDARY = (
     "Generated scientific code executes in an explicitly selected WASM or native R "
-    "secret-free, resource-bounded process with network denial and a host-filesystem "
+    "secret-free, resource-bounded process with external-network egress denial, explicitly "
+    "bound local-process communication and a host-filesystem "
     "allowlist. The host runtime records selected resources, package versions and execution "
     "artifacts. Successful execution is empirical engineering evidence, not production "
     "promotion and not theorem proof evidence."
@@ -1469,7 +1470,8 @@ def execute_scientific_sandbox(
                 "process": asdict(runtime.native_r.process),
             }} if native_r_selected and runtime.native_r else {}),
         },
-        "network_access": False,
+        "network_access": bool(native_r_selected and runtime.native_r
+                               and runtime.native_r.process.runtime_local_ports),
         "secret_environment_inherited": False,
         "host_filesystem_policy": (
             "read selected runtimes plus exact code/request artifacts; write owned "
@@ -1578,6 +1580,7 @@ def execute_scientific_sandbox(
                 runtime_read_roots=process_runtime.runtime_read_roots,
                 runtime_executables=process_runtime.runtime_executables,
                 runtime_environment=process_runtime.runtime_environment,
+                runtime_local_ports=process_runtime.runtime_local_ports,
                 source_paths=tuple(immutable_hashes), output_dir=native_workspace,
                 timeout_seconds=max(1, int(timeout_s)), max_output_bytes=max_output_bytes,
             )

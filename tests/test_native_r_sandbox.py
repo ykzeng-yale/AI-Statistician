@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import socket
 from pathlib import Path
 
 import pytest
@@ -110,6 +111,32 @@ def test_native_r_executes_library_project_and_exact_bound_estimator(tmp_path, n
     assert request["secret_environment_inherited"] is False
     assert "R_LIBS_USER" in result.subprocess_environment_keys
     assert result.isolation_provider == "macos_sandbox_exec+native_r"
+
+
+@pytest.mark.parametrize("worker_type", ["FORK", "PSOCK"])
+def test_native_r_local_workers_use_explicit_operator_resources(tmp_path, native_runtime, worker_type):
+    from dataclasses import replace
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+    payload = json.loads(Path(native_runtime.native_r.config_path).read_bytes())
+    payload["runtime_local_ports"] = [port]
+    payload["runtime_environment"]["R_PARALLEL_PORT"] = str(port)
+    config = tmp_path / "runtime.json"
+    config.write_text(json.dumps(payload), encoding="utf-8")
+    runtime = replace(native_runtime, native_r=load_native_r_runtime(config))
+    result = execute(tmp_path, runtime, f'''run_sandbox <- function(seed, replicates) {{
+      cluster <- parallel::makeCluster(2L, type="{worker_type}")
+      on.exit(parallel::stopCluster(cluster))
+      ids <- unlist(parallel::clusterCall(cluster, function() Sys.getpid()))
+      list(worker_count=length(unique(ids)), separate=all(ids != Sys.getpid()))
+    }}''', dependencies=["parallel"])
+    assert result.status == "EXECUTED", (result.errors, result.stderr_summary)
+    assert result.metrics == {"worker_count": 2, "separate": True}
+    request = json.loads(Path(result.request_path).read_bytes())
+    assert request["network_access"] is True
+    assert request["runtime"]["native_r"]["process"]["runtime_local_ports"] == [port]
+    assert request["runtime"]["native_r"]["configuration_sha256"] == runtime.native_r.config_sha256
 
 
 def test_native_r_raw_error_and_author_revision_are_separate_exact_attempts(tmp_path, native_runtime):

@@ -144,6 +144,8 @@ The model explicitly selects `scientific_native_r` in its existing source or scr
 tool. It uses the same project, estimator and input ABI, returns raw R observations
 to the same author, and never falls back to another backend. Native R currently
 requires macOS `sandbox-exec`; this is not yet a clean-machine cross-platform release.
+Operator-selected local worker ports are optional, not a model permission upgrade;
+their network boundary is described below.
 
 An explicit [offline native project tool](docs/research_harness_reuse_strategy.md#offline-native-project-tool)
 also lets Theory and Scientific owners run their own commands in a persistent
@@ -160,6 +162,14 @@ Set `AI_STATISTICIAN_NATIVE_R_CONFIG` to one operator-owned JSON file containing
   `interpreter_executable_sha256` for the installed Rscript.
 - `runtime_read_roots`, `runtime_executables` (absolute launcher paths mapped to
   SHA-256), and `runtime_environment` (for example, explicit R home/library paths).
+- Optional `runtime_local_ports`: unique integer ports, empty by default. The
+  source and native R executors permit bind/listen on those ports and outbound
+  connections only to loopback at those ports. Native worker listeners can bind
+  all interfaces: this is **not loopback-only inbound isolation**. Choose dedicated
+  unoccupied ports, not inference, assessor or other service ports; do not enable
+  it for tasks requiring complete network denial. Match and freeze this permission
+  across experimental arms. Set any library-specific worker-port environment in
+  `runtime_environment`; the executor neither invents it nor edits generated code.
 
 These reuse the source executor's resource fields, without task or paper bindings.
 Discovery validates resources; execution revalidates configuration and R/package

@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import os
+import socket
 import subprocess
 import sys
 from dataclasses import replace
@@ -380,17 +381,57 @@ def test_source_execution_rejects_invalid_timeout(tmp_path, timeout):
         load_research_source_execution_spec(manifest_path, research_sources=snapshot)
 
 
-def test_model_source_command_cannot_change_operator_timeout(tmp_path):
+def test_model_source_command_cannot_change_operator_resources(tmp_path):
     snapshot, execution, _, _ = _source_execution_fixture(tmp_path)
     execution = replace(execution, schema_version=4, timeout_seconds=7200,
-                        command_selection_mode=SOURCE_COMMAND_MODEL_SELECTED)
+                        command_selection_mode=SOURCE_COMMAND_MODEL_SELECTED,
+                        runtime_local_ports=(32123,))
     command = {"reason": "Inspect the supplied source", "entrypoint_document_id": "published-example",
                "working_directory_relative": ".", "arguments": [], "result_artifact_paths": []}
     selected = select_research_source_execution_command(execution, research_sources=snapshot, command=command)
     assert selected.timeout_seconds == 7200
-    with pytest.raises(ValueError, match="requires exactly"):
-        select_research_source_execution_command(execution, research_sources=snapshot,
-                                                command={**command, "timeout_seconds": 21600})
+    assert selected.runtime_local_ports == (32123,)
+    for override in ({"timeout_seconds": 21600}, {"runtime_local_ports": [8081]}):
+        with pytest.raises(ValueError, match="requires exactly"):
+            select_research_source_execution_command(execution, research_sources=snapshot,
+                                                    command={**command, **override})
+
+
+@pytest.mark.parametrize("ports", [None, "1234", [True], [0], [65536], [1.5], [[1]], [1234, 1234]])
+def test_source_execution_rejects_invalid_local_ports(tmp_path, ports):
+    snapshot, _, _, path = _source_execution_fixture(tmp_path)
+    payload = json.loads(path.read_bytes())
+    payload["runtime_local_ports"] = ports
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="runtime_local_ports"):
+        load_research_source_execution_spec(path, research_sources=snapshot)
+
+
+def test_source_local_resources_are_bound_forwarded_and_observed(tmp_path):
+    snapshot, original, _, path = _source_execution_fixture(tmp_path)
+    assert original.runtime_local_ports == ()
+    assert "runtime_local_ports" not in original.descriptor(snapshot)
+    payload = json.loads(path.read_bytes())
+    payload["runtime_local_ports"] = [32124, 32123]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    execution = load_research_source_execution_spec(path, research_sources=snapshot)
+    calls = []
+
+    def executor(**kwargs):
+        calls.append(kwargs)
+        return {"execution_attempted": True, "returncode": 0,
+                "stdout": json.dumps({"python_version": "3.test", "package_versions": {"Demo": "1.2.3"}}),
+                "stderr": "", "errors": []}
+
+    result = execute_research_source(execution=execution, research_sources=snapshot,
+        output_dir=tmp_path / "execution", question_id="resource-fixture", process_executor=executor)
+    assert result["execution_status"] == "EXECUTED"
+    assert len(calls) == 2
+    assert all(call["runtime_local_ports"] == (32123, 32124) for call in calls)
+    for observation in (result, execution.descriptor(snapshot), source_replication_model_observation(result)):
+        assert observation["runtime_local_ports"] == [32123, 32124]
+        assert observation["network_access"] is True
+        assert observation["external_network_outbound"] is False
 
 
 def _staged_source_execution_fixture(tmp_path, *, max_output_bytes=8192):
@@ -1482,6 +1523,42 @@ def test_source_sandbox_reads_only_inventory_and_executes_only_allowlist(
     assert f'(literal "{runtime_executable.resolve()}")' in read_clause
     assert "(subpath " not in process_clause
     assert "(deny process-fork)" not in profile
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="native macOS executor")
+@pytest.mark.parametrize("grant", [False, True])
+def test_pinned_process_local_ports_do_not_grant_unlisted_or_external_egress(tmp_path, grant):
+    from contextlib import ExitStack
+    with ExitStack() as stack:
+        listeners = [stack.enter_context(socket.socket()) for _ in range(2)]
+        for listener in listeners:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen()
+        ports = [listener.getsockname()[1] for listener in listeners]
+        source = tmp_path / "probe.py"
+        source.write_text(
+            "import errno, json, socket\n"
+            f"targets = [('127.0.0.1', {ports[0]}), ('127.0.0.1', {ports[1]}), ('203.0.113.1', {ports[0]})]\n"
+            "results = []\n"
+            "for host, port in targets:\n"
+            "    try:\n"
+            "        with socket.create_connection((host, port), timeout=1):\n"
+            "            results.append('connected')\n"
+            "    except OSError as error:\n"
+            "        results.append('denied' if error.errno in (errno.EPERM, errno.EACCES) else str(error))\n"
+            "print(json.dumps(results))\n", encoding="utf-8")
+        out = tmp_path / "attempt"
+        out.mkdir()
+        result = _execute_pinned_process(
+            command=(sys.executable, str(source)), cwd=tmp_path,
+            stdout_path=out / "stdout", stderr_path=out / "stderr",
+            environment_root=Path(sys.base_prefix), runtime_read_roots=(),
+            runtime_executables=(), runtime_environment=(), source_paths=(source,),
+            output_dir=out, timeout_seconds=5, max_output_bytes=8192,
+            runtime_local_ports=(ports[0],) if grant else (),
+        )
+    assert result["returncode"] == 0, result
+    assert json.loads(result["stdout"]) == ["connected" if grant else "denied", "denied", "denied"]
 
 
 def test_pinned_process_executes_resolved_virtualenv_launcher(
