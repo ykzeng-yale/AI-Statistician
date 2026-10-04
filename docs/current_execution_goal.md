@@ -135,6 +135,11 @@ package/version probes or build a new execution framework.
   template, decoding, hardware, schedule and randomness. A short deployment probe
   is not long-session qualification. Do not repeat the completed setup check or
   resume consumed research runs.
+  The separate [first long-input observation](../benchmarks/publication_deployment_qualification_20261003/retained_session_results.json)
+  processed 58134 input tokens but ended without the requested files. Its `auto`
+  choice differs from the product's `any`/`required`; actual batches were 8/16 calls
+  despite a false parallel flag. Preserve the failed condition, no text salvage or
+  retry. It qualifies neither scientific reasoning nor actual product/host contracts.
 
 Next substantive deliverable: one executable prospective study package, not
 another scorecard. It must bind public tasks, private evaluation authority,

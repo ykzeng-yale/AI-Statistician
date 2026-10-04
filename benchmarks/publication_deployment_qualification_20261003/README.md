@@ -61,8 +61,8 @@ evidence or a statistical-capability certificate.
 The [retained-session plan](retained_session_plan.json) addresses a different
 unobserved condition: accumulation of substantial actual input through the existing
 model/tool loop. It is not another run of the consumed short setup observation.
-One newly started session reads 24 artificial pages, writes a CSV ledger and
-Markdown report, and receives ordinary file-validation feedback. All revisions
+The planned session reads 24 artificial pages and aims to write a CSV ledger and
+Markdown report, with ordinary file-validation feedback available. All revisions
 remain model-authored. The tool choice is `auto`; there is no named-tool forcing,
 manual output patch, new scheduler or retry after the first terminal outcome.
 
@@ -86,3 +86,30 @@ native-host behavior or Theory/Python/R/Lean efficacy. Q06/Q07 remain open.
 Do not execute this command again after its first outcome. Any future different
 deployment condition needs separate prospective justification, not a retry of a
 failed result. Its first observation is recorded separately after execution.
+
+### First Outcome
+
+The [immutable record](retained_session_results.json) contains one startup and
+three actual local requests at prospective commit `5921b188`. Input counts were
+857, 19922 and 58134; output counts were 224, 334 and 5062. The model read all pages
+in batches of 8 and 16 native calls, despite the request's
+`parallel_tool_calls=false`; the existing loop executed them serially.
+
+The final response was plain text with proposed file-body JSON, not native tool
+calls. The loop stopped under its declared rule; neither `ledger.csv` nor
+`report.md` exists. No text is converted into a file, no receipt accuracy is graded,
+and no continuation or retry occurs. The observed outcome remains a failed file
+task, not a success because the input-length threshold was reached.
+
+The third request took about 888 seconds: its server reports about 459 seconds for
+37879 new prompt tokens and 428 seconds for generation. Total check time was about
+982 seconds. There was no timeout, output truncation or context exhaustion. The
+owned server exited zero; its PID and port listener were absent afterward.
+
+**Scope correction:** the observer used `auto`, while current Theory,
+scientific-code and Lean requests use `any` (mapped to `required` locally).
+This check does not qualify those actual product request contracts or native host
+tools, and cannot identify a causal length effect from one synthetic task. Actual
+prompt/token latency and multi-call responses are observed facts; useful scientific
+reasoning, long-horizon iteration and publication outcomes remain untested here.
+No product change or favorable replacement observation is made.
