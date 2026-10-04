@@ -386,6 +386,33 @@ and author reference execution are not relabelled autonomous agent contributions
 
 ## S7. Optional Formal and Library Materials
 
+### S7.1. Proposed Import Scope
+
+The supporting library is downstream of the pinned Statlib inference and QMD
+APIs, not a competing statistical vocabulary. The proposed compact import scope
+contains deterministic-risk and mean-zero-score consumers, a raw-second-moment
+identity, L1-bracketing GC conclusions, three L2-bracketing maximal inequalities
+and the entropic-barrier theorem. These are existing library materials selected
+by the operator; they are not newly produced agent outcomes. Exact modules,
+declarations, hypotheses, proof routes and verification identities are in the
+[source-bound import selection](../docs/publication_lean_integration_20261002.md#candidate-import-scope-for-the-shared-appendix-2026-10-04).
+It remains a candidate selection pending independent source-fidelity and release
+review, not a claim of three completed textbooks or a representative coverage
+estimate.
+
+The distinctions in that selection matter mathematically. The book-style GC
+predicate is disjunctive and its checked theorem uses outer-almost-sure
+convergence; the selected direct outer-probability theorem additionally requires
+countability, measurable class functions and a finite sampling measure. The L2
+inequalities use the centered `sqrt(n) (P_n-P)` process, an extended floored-log
+bracketing entropy integral, explicit envelope/localization assumptions and
+separate infinite-entropy cases. Their explicit constants are not claimed sharp.
+The entropic-barrier selection does not include the source's universal-barrier
+claim. Kernel checking these precise statements cannot remove their hypotheses
+or establish faithful correspondence to every source result.
+
+### S7.2. Evidence And Comparison Boundary
+
 A formal result identifies the informal source statement, Lean target, imports,
 dependencies, active project/toolchain pins, exact submitted file, fresh kernel
 check and allowed axioms. Source correspondence is reviewed independently of

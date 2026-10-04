@@ -36,7 +36,7 @@ execution contract, without falsely completing it.
 | Portable release | Fresh same-host wheel/CLI and synthetic Python/R projects; separately labelled host activation/compatibility observations | Qualified researcher workflow, clean-machine scope, rights and Paper H efficacy |
 | Case and roster | Exposed TSCI B1/Card inputs; three source-assisted StepMix/ebnm/bizicount candidates with prepared inputs and source environments | Complete case/reference obligations, independent scientific authority, final roster and precision |
 | Manuscripts | Separate H/S methods masters and shared methods appendix | Assessed case arguments, fresh comparative results, final discussion and submission review |
-| Lean | Active 4.30.0 Mathlib/Statlib/StatInference pin db6c7718 and selected checks | Curated source-faithful public API, rights and passing clean reconstruction; historical strict closure remains 0/2 |
+| Lean | Active 4.30.0 Mathlib/Statlib/StatInference pin db6c7718, candidate nine-theorem/eight-module import scope and selected checks | Independent source-fidelity/API review, rights and passing clean reconstruction; historical strict closure remains 0/2 |
 
 Detailed outcomes and immutable record links belong in
 [main_worker_status.json](main_worker_status.json), not a growing execution-goal
@@ -63,6 +63,9 @@ Theory, exploratory coding and cheap simulations inform one another. Confirmatio
 uses stabilized claims and frozen evaluation inputs; simulation is not a proof.
 Lean support T06/A05 is optional unless the task or a paper claim requires formal
 evidence. It does not gate non-formal study progress.
+The [candidate import scope](publication_lean_integration_20261002.md#candidate-import-scope-for-the-shared-appendix-2026-10-04)
+and S7 now state exact convergence modes, assumptions, upstream reuse and check
+identities. They do not close source fidelity, clean release or proving efficacy.
 
 ## Immediate Work
 

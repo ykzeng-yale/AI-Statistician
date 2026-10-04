@@ -417,6 +417,12 @@ theory assessment or matched-arm qualification. Scientific checklist items stay 
   and human/agent attribution. Qualify zero-shot, compile-feedback and scoped-RAG
   comparisons only if prover performance is claimed. No non-formal task must wait
   for textbook coverage, a migration or a new proving benchmark.
+  A [candidate nine-theorem/eight-module import scope](publication_lean_integration_20261002.md#candidate-import-scope-for-the-shared-appendix-2026-10-04)
+  now distinguishes Statlib consumers, GC convergence modes and exact bracketing
+  and barrier assumptions. Five newly selected existing declarations passed a
+  current guarded module/axiom check; five others retain their unchanged earlier
+  kernel-only evidence. This advances A05 preparation, not source fidelity,
+  whole-library API certification, clean reconstruction or agent performance.
 
 ### 3. Experiments and Simulation
 
