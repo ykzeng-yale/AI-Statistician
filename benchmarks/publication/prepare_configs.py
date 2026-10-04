@@ -24,6 +24,7 @@ from ai_statistician.research_schema import load_open_research_questions, resear
 from ai_statistician.research_source_library import load_research_source_execution_spec, load_research_source_snapshot
 from ai_statistician.scientific_sandbox import load_native_scientific_runtime
 from ai_statistician.simulation_engineer_llm import SimulationEngineerConfig
+from benchmarks.publication.evaluate_final_artifacts import publication_dimension_requirements
 
 
 MODES = ("free_planning", "same_workflow", "no_cross_role_revision", "full_collaboration")
@@ -79,6 +80,7 @@ def prepare(*, out, questions, question_id, deployment, sources, source_executio
     if len(matches) != 1:
         raise ValueError("configuration preparation requires exactly one selected question")
     question = matches[0]
+    publication_dimension_requirements(question.task_intent)
     errors = frozen_estimator_execution_contract_errors(question.estimator_execution_contract,
         label="selected question estimator contract",
         required=research_task_intent_requirement(question.task_intent, "scientific_code") == "required")

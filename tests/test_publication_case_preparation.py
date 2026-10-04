@@ -56,9 +56,19 @@ def inputs(tmp_path, monkeypatch):
         "interpreter_executable_sha256": hashlib.sha256(Path(sys.executable).resolve().read_bytes()).hexdigest(),
         "runtime_read_roots": [], "working_directory_relative": ".", "arguments": [],
         "package_distributions": {"Opaque": "opaque"}, "timeout_seconds": 30, "max_output_bytes": 8192}))
+    questions = tmp_path / "questions.json"
+    field = {key: "opaque" for key in (
+        "name", "meaning", "json_type", "shape", "units", "indexing", "edge_cases")}
+    questions.write_text(json.dumps([{"id": "opaque-config-question", "title": "Opaque configuration",
+        "description": "Mechanism fixture, not a statistical result.",
+        "task_intent": {"theory": "required", "scientific_code": "required", "empirical": "required",
+                        "formal": "not_applicable", "source_replication": "required"},
+        "estimator_execution_contract": {"schema_version": 1, "estimator_id": "opaque-estimator",
+            "entrypoint": "run_estimator", "request_fields": [{**field, "clause_id": "request",
+                "binding": "per_replicate_data"}],
+            "response_fields": [{**field, "clause_id": "response", "normalization": "opaque"}]}}]))
     return dict(out=tmp_path / "prepared",
-        questions=Path("benchmarks/publication_case_candidates/tsci_b1_card/questions.json").resolve(),
-        question_id="tsci_b1_card_integrated_candidate_v2",
+        questions=questions, question_id="opaque-config-question",
         deployment=deployment, sources=sources, source_execution=execution,
         call_limit=19, output_tokens=1703, temperature=0.23, seed=17, confirmation_base=90211,
         replicates=23, execution_timeout=117, model_timeout=211.0, no_progress_turns=5)
@@ -74,7 +84,7 @@ def test_candidate_uses_existing_configs_with_explicit_data_and_output_settings(
         assert hashlib.sha256(raw).hexdigest() == ref["sha256"] and len(raw) == ref["byte_size"]
         configs[mode] = json.loads(raw)
     for mode, config in configs.items():
-        assert config["question_id"] == "tsci_b1_card_integrated_candidate_v2"
+        assert config["question_id"] == "opaque-config-question"
         assert config["backend"] == {"base_url": "http://127.0.0.1:8081/v1", "timeout_s": 211.0}
         assert config["source_execution_ref"]["path"] == str(args["source_execution"].resolve())
         assert config["native_execution_refs"] == {}
@@ -220,21 +230,46 @@ def test_invalid_selected_question_does_not_write_arm_files(tmp_path, monkeypatc
     assert not args["out"].exists()
 
 
+@pytest.mark.parametrize("requirement", ["required", "optional"])
+def test_unsupported_active_intent_is_rejected_before_configuration_preparation(tmp_path, monkeypatch, requirement):
+    args = inputs(tmp_path, monkeypatch)
+    questions = json.loads(args["questions"].read_bytes())
+    questions[0]["task_intent"]["opaque_unsupported"] = requirement
+    path = tmp_path / "unsupported.json"
+    path.write_text(json.dumps(questions))
+    args["questions"] = path
+    with pytest.raises(ValueError, match="does not support active dimensions"):
+        prepare(**args)
+    assert not args["out"].exists()
+
+
+def test_preserved_tsci_draft_is_not_silently_declared_assessable(tmp_path, monkeypatch):
+    args = inputs(tmp_path, monkeypatch)
+    args.update(questions=Path("benchmarks/publication_case_candidates/tsci_b1_card/questions.json").resolve(),
+                question_id="tsci_b1_card_integrated_candidate_v2")
+    before = args["questions"].read_bytes()
+    with pytest.raises(ValueError, match="unresolved_gaps"):
+        prepare(**args)
+    assert not args["out"].exists() and args["questions"].read_bytes() == before
+
+
 @pytest.mark.parametrize("question_id,estimator_id", [
-    ("stepmix_external_variables_source_assisted_candidate_v2", "stepmix_external_variables"),
-    ("ebnm_prior_families_source_assisted_candidate_v2", "ebnm_prior_families"),
-    ("bizicount_joint_count_source_assisted_candidate_v2", "bizicount_joint_count"),
+    ("stepmix_external_variables_source_assisted_candidate_v3", "stepmix_external_variables"),
+    ("ebnm_prior_families_source_assisted_candidate_v3", "ebnm_prior_families"),
+    ("bizicount_joint_count_source_assisted_candidate_v3", "bizicount_joint_count"),
 ])
 def test_unactivated_execution_tasks_keep_integrated_intent_and_explicit_transport(
     tmp_path, monkeypatch, question_id, estimator_id,
 ):
     args = inputs(tmp_path, monkeypatch)
-    args.update(questions=Path("benchmarks/publication_case_candidates/published_methods/execution_questions_v2.json").resolve(),
+    args.update(questions=Path("benchmarks/publication_case_candidates/published_methods/execution_questions.json").resolve(),
                 question_id=question_id)
     questions = load_open_research_questions(args["questions"])
     selected = next(row for row in questions if row.id == question_id)
     assert all(selected.task_intent[dimension] == "required" for dimension in (
-        "theory", "scientific_code", "empirical", "source_replication", "unresolved_gaps"))
+        "theory", "scientific_code", "empirical", "source_replication"))
+    assert "unresolved_gaps" not in selected.task_intent
+    assert "unresolved" in selected.description.lower()
     assert selected.task_intent["formal"] == selected.task_intent["novelty"] == "not_applicable"
     assert research_question_payload(selected)["estimator_execution_contract"]["estimator_id"] == estimator_id
     refs = prepare(**args)

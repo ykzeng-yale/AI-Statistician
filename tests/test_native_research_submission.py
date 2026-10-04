@@ -15,6 +15,7 @@ from ai_statistician.research_gold_evaluation import _hidden_execution_summary, 
 from ai_statistician.research_schema import OpenResearchQuestion, research_question_payload
 from ai_statistician.scientific_project import scientific_project_hash
 from ai_statistician.scientific_sandbox import ScientificEstimatorBinding, discover_scientific_sandbox_runtime
+from benchmarks.publication.evaluate_final_artifacts import native_final_artifact_paths
 
 
 def native_fixture(tmp_path, *, language="python", offset=0, returncode=0):
@@ -103,6 +104,63 @@ def test_uncaptured_native_streams_remain_unknown_not_empty_verified_output(tmp_
     result = load_native_research_submission(ref, question=question, artifact_paths=paths, snapshot_dir=store)
     assert result["host_process"]["stdout_sha256"] is None
     assert result["host_process"]["stderr_sha256"] is None
+
+
+def test_frozen_final_roots_collect_arbitrary_filenames_and_binary_files_without_draft_selection(tmp_path):
+    root, store, question, _, process, _ = native_fixture(tmp_path)
+    files = {"final/theory/claims/note.tex": b"Unresolved opaque claim.\r\n",
+        "final/code/entry.py": b"# Opaque unexecuted source.\n",
+        "final/code/helpers/nested.py": b"# Opaque support.\n",
+        "final/empirical/results.bin": b"\xff\x00\x01"}
+    for name, raw in files.items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    roots = {"theory": "final/theory", "scientific_code": "final/code", "empirical": "final/empirical",
+             "report": "final/report", "formal": "final/formal"}
+    paths = native_final_artifact_paths(workspace_root=root, artifact_roots=roots)
+    assert paths["scientific_code"] == ["final/code/entry.py", "final/code/helpers/nested.py"]
+    assert paths["report"] == paths["formal"] == []
+    assert not any("earlier" in name for names in paths.values() for name in names)
+    ref = collect_native_research_submission(question=question, workspace_root=root, artifact_paths=paths,
+        host_result=process, snapshot_dir=store)
+    for name in files:
+        (root / name).unlink()
+    result = load_native_research_submission(ref, question=question, artifact_paths=paths, snapshot_dir=store)
+    assert {name: raw for scope in result["artifact_bytes"].values() for name, raw in scope.items()} == files
+    assert result["artifact_bytes"]["report"] == {}  # No report is invented from a draft outside the final tree.
+
+
+@pytest.mark.parametrize("bad", ["empty", "dot", "parent", "absolute", "noncanonical", "overlap", "duplicate",
+                                 "root_symlink", "file_symlink", "not_directory"])
+def test_native_final_roots_reject_ambiguous_or_escaping_trees(tmp_path, bad):
+    root = tmp_path / "workspace"
+    root.mkdir()
+    roots = {"theory": "final/theory", "source": "final/code"}
+    if bad == "empty":
+        roots = {}
+    elif bad in {"dot", "parent", "absolute", "noncanonical"}:
+        roots["theory"] = {"dot": ".", "parent": "../other", "absolute": "/other", "noncanonical": "final//theory"}[bad]
+    elif bad == "overlap":
+        roots["source"] = "final/theory/code"
+    elif bad == "duplicate":
+        roots["source"] = roots["theory"]
+    else:
+        (root / "final").mkdir()
+        if bad == "not_directory":
+            (root / "final/theory").write_text("not a directory")
+        elif bad == "root_symlink":
+            outside = tmp_path / "other"
+            outside.mkdir()
+            (root / "final/theory").symlink_to(outside, target_is_directory=True)
+        else:
+            (root / "final/theory").mkdir()
+            outside = tmp_path / "other.tex"
+            outside.write_text("not selected research")
+            (root / "final/theory/link.tex").symlink_to(outside)
+    with pytest.raises(ValueError):
+        native_final_artifact_paths(workspace_root=root, artifact_roots=roots)
+    assert not (root / "submission.json").exists()
 
 
 @pytest.mark.parametrize("bad", ["../outside", "/absolute", "a/../b", "./report.md", "a\\b", "duplicate", "string", "symlink", "in_workspace", "running"])

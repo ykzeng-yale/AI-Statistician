@@ -103,6 +103,22 @@ def require_runtime(language):
         pytest.skip("scientific runtime is not prepared")
 
 
+@pytest.mark.parametrize("dimension", ["unresolved_gaps", "novelty", "opaque_unsupported"])
+@pytest.mark.parametrize("requirement", ["required", "optional"])
+def test_unsupported_active_dimensions_reject_before_evaluation(tmp_path, monkeypatch, dimension, requirement):
+    kwargs = outcome_fixture(tmp_path, intent={"theory": "required", dimension: requirement})
+    reviews = scripted_semantics(monkeypatch)
+    with pytest.raises(ValueError, match="does not support active dimensions"):
+        outcomes.evaluate_final_research_artifacts(**kwargs)
+    assert not reviews and not kwargs["out_dir"].exists()
+
+
+def test_not_applicable_extra_intent_does_not_request_unimplemented_authority():
+    assert outcomes.publication_dimension_requirements({"theory": "required", "novelty": "not_applicable"}) == {
+        "theory": "required", "scientific_code": "optional", "empirical": "optional",
+        "formal": "optional", "novelty": "not_applicable"}
+
+
 @pytest.mark.parametrize("language", ["python", "r"])
 def test_frozen_native_estimator_profile_reaches_common_outcome_executor(tmp_path, monkeypatch, language):
     config = os.environ.get("AI_STATISTICIAN_TEST_NATIVE_" + language.upper() + "_CONFIG", "")
@@ -345,7 +361,7 @@ def test_invalid_semantic_authority_fails_without_calling_a_model(tmp_path):
     assert result["task_passed"] is False and not calls
 
 
-@pytest.mark.parametrize("intent", [{}, {"theory": "optional"}, {"formal": "required"}, {"novelty": "required"}])
+@pytest.mark.parametrize("intent", [{}, {"theory": "optional"}, {"formal": "required"}])
 def test_no_required_success_or_boolean_formal_claim_cannot_pass(tmp_path, intent):
     kwargs = outcome_fixture(tmp_path, intent=intent)
     kwargs.update(theory_documents=(), estimator_bindings=(), empirical_artifact=None,
@@ -354,8 +370,6 @@ def test_no_required_success_or_boolean_formal_claim_cannot_pass(tmp_path, inten
     assert result["task_passed"] is False
     if intent.get("formal") == "required":
         assert result["dimension_status"]["formal"]["status"] == "failed"
-    if intent.get("novelty") == "required":
-        assert result["dimension_status"]["novelty"]["status"] == "missing"
 
 
 def test_frozen_inputs_survive_callback_mutation_and_later_harness_file_change(tmp_path, monkeypatch):

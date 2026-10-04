@@ -33,6 +33,56 @@ from ai_statistician.scientific_sandbox import ScientificEstimatorBinding, execu
 from ai_statistician.theory_workspace import load_theory_workspace_documents
 
 
+def publication_dimension_requirements(task_intent: Mapping[str, Any]) -> dict[str, str]:
+    """Reject active intent dimensions this common outcome cannot assess."""
+    requirements = research_dimension_requirements(task_intent)
+    requirements.update({dimension: research_task_intent_requirement(task_intent, dimension)
+                         for dimension in task_intent if dimension not in requirements})
+    unsupported = sorted(dimension for dimension, requirement in requirements.items()
+                         if requirement != "not_applicable" and dimension not in {
+                             "theory", "scientific_code", "empirical", "formal", "source_replication"})
+    if unsupported:
+        raise ValueError("publication outcome does not support active dimensions: " + ", ".join(unsupported))
+    return requirements
+
+
+def native_final_artifact_paths(*, workspace_root: Path, artifact_roots: Mapping[str, str]) -> dict[str, list[str]]:
+    """Resolve every selected final-tree file after the trusted host terminates.
+
+    The study freezes roots before calls. Authors choose filenames within them;
+    this does not search drafts, select a better source or judge completeness.
+    Pass the returned lists to the existing native snapshot collector once and
+    retain them with the frozen root contract, not a later workspace rescan.
+    """
+    root = workspace_root.resolve()
+    if not root.is_dir() or not artifact_roots:
+        raise ValueError("native final collection requires a workspace and explicit artifact roots")
+    paths, prefixes = {}, []
+    for scope, relative in artifact_roots.items():
+        if not isinstance(scope, str) or not scope.strip() or not isinstance(relative, str):
+            raise ValueError("native artifact roots require named canonical relative directories")
+        prefix = Path(relative)
+        if (not relative or not prefix.parts or "\\" in relative or "\x00" in relative
+            or prefix.is_absolute() or relative != prefix.as_posix()
+            or any(part in {".", ".."} for part in prefix.parts)):
+            raise ValueError("native artifact root is not canonical and relative")
+        if any(prefix == other or prefix in other.parents or other in prefix.parents for other in prefixes):
+            raise ValueError("native artifact roots overlap")
+        prefixes.append(prefix)
+        if any((root / Path(*prefix.parts[:index])).is_symlink() for index in range(1, len(prefix.parts) + 1)):
+            raise ValueError("native artifact root contains a symlink")
+        directory = root / prefix
+        if directory.exists() and not directory.is_dir():
+            raise ValueError("native artifact root is not a directory")
+        paths[scope] = []
+        for path in sorted(directory.rglob("*")) if directory.is_dir() else ():
+            if path.is_symlink() or not (path.is_file() or path.is_dir()):
+                raise ValueError("native final tree contains a symlink or unsupported file type")
+            if path.is_file():
+                paths[scope].append(path.relative_to(root).as_posix())
+    return paths
+
+
 def publication_material_from_submission(
     submission: Mapping[str, Any], *, source_kind: str,
     control_estimator_scopes: Mapping[str, str] | None = None,
@@ -210,9 +260,7 @@ def evaluate_final_research_artifacts(
         or submission_identity.get("question_hash") != stable_hash(public)
         or submission_identity.get("task_intent") != intent):
         raise ValueError("publication authority/submission differs from the frozen question")
-    requirements = research_dimension_requirements(intent)
-    requirements.update({dimension: research_task_intent_requirement(intent, dimension)
-                         for dimension in intent if dimension not in requirements})
+    requirements = publication_dimension_requirements(intent)
     documents = deepcopy(list(theory_documents))
     bindings = deepcopy(tuple(estimator_bindings))
     empirical, replication, formal = deepcopy((empirical_artifact, source_replication_artifact, formal_artifacts))

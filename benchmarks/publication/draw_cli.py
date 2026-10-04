@@ -22,7 +22,7 @@ from ai_statistician.research_source_discovery import PublicResearchSourceDiscov
 from ai_statistician.research_source_library import load_research_source_execution_spec, load_research_source_snapshot
 from ai_statistician.simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
 from ai_statistician.scientific_sandbox import load_native_scientific_runtime
-from benchmarks.publication.evaluate_final_artifacts import publication_material_from_submission
+from benchmarks.publication.evaluate_final_artifacts import publication_dimension_requirements, publication_material_from_submission
 from benchmarks.publication.run_control_draw import run_single_context_research_draw
 from benchmarks.publication.run_collaborative_draw import run_collaborative_research_draw
 
@@ -60,6 +60,7 @@ def main(argv=None):
     matches = [row for row in questions if row.id == config["question_id"]]
     if len(matches) != 1:
         raise ValueError("study draw requires exactly one declared question")
+    publication_dimension_requirements(matches[0].task_intent)
     if os.environ.get("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", "").strip():
         raise ValueError("study draw does not declare native-project tools; unset AI_STATISTICIAN_NATIVE_PROJECT_CONFIG")
     native_refs = config.get("native_execution_refs")

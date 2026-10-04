@@ -105,15 +105,19 @@ def test_native_codex_discovers_portable_skill_without_a_model_turn(tmp_path):
     os.environ.get("AI_STATISTICIAN_KIMI_SKILL_CONFORMANCE") != "1",
     reason="opt-in native Kimi Code discovery/activation; no live inference",
 )
-@pytest.mark.parametrize("activate_skill", [False, True], ids=["discovery", "activation"])
-def test_native_kimi_skill_discovery_and_activation_without_live_inference(tmp_path, activate_skill):
+@pytest.mark.parametrize("condition", ["discovery", "activation", "prospective_bare", "prospective_package"])
+def test_native_kimi_skill_discovery_and_activation_without_live_inference(tmp_path, condition):
+    packaged = condition != "prospective_bare"
+    call_model = condition != "discovery"
+    prospective = condition.startswith("prospective_")
     executable = os.environ.get("AI_STATISTICIAN_KIMI_EXECUTABLE") or shutil.which("kimi")
     assert executable is not None
     project = tmp_path / "project"
     destination = project / ".agents" / "skills" / SKILL.name
-    destination.parent.mkdir(parents=True)
-    destination.symlink_to(SKILL, target_is_directory=True)
-    (project / ".git").mkdir()
+    if packaged:
+        destination.parent.mkdir(parents=True)
+        destination.symlink_to(SKILL, target_is_directory=True)
+    (project / ".git").mkdir(parents=True)
     home = tmp_path / "home"
     home.mkdir()
     data = home / "kimi-code"
@@ -124,7 +128,7 @@ def test_native_kimi_skill_discovery_and_activation_without_live_inference(tmp_p
         def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             requests.append({"path": self.path, "body": body})
-            if not activate_skill:
+            if not call_model:
                 self.send_error(500, "skill discovery must not call a model")
                 return
             self.send_response(200)
@@ -160,7 +164,11 @@ def test_native_kimi_skill_discovery_and_activation_without_live_inference(tmp_p
         f'base_url = "http://127.0.0.1:{server.server_port}/v1"\n'
         'api_key = "local-conformance-placeholder"\n'
         '[models.local-qwen]\nprovider = "local"\n'
-        'model = "Qwen3-4B-Instruct-2507"\nmax_context_size = 32768\n',
+        'model = "Qwen3-4B-Instruct-2507"\n' +
+        ('max_context_size = 131072\nmax_output_size = 16384\n'
+         '[loop_control]\nmax_steps_per_turn = 256\nmax_retries_per_step = 0\n'
+         'reserved_context_size = 16384\ncompaction_trigger_ratio = 0.8\n' if prospective
+         else 'max_context_size = 32768\n'),
         encoding="utf-8",
     )
     selector = selectors.DefaultSelector()
@@ -207,12 +215,13 @@ def test_native_kimi_skill_discovery_and_activation_without_live_inference(tmp_p
                 assert update["sessionId"] == session_id
                 matches = [command for command in update["update"]["availableCommands"]
                            if command["name"] == "skill:" + SKILL.name]
-                assert len(matches) == 1
-                assert "statistical methods research" in matches[0]["description"]
+                assert len(matches) == int(packaged)
+                if packaged:
+                    assert "statistical methods research" in matches[0]["description"]
                 assert requests == []
-                if activate_skill:
+                if call_model:
                     send("session/prompt", {"sessionId": session_id, "prompt": [{
-                        "type": "text", "text": "/skill:" + SKILL.name + " transport conformance",
+                        "type": "text", "text": ("/skill:" + SKILL.name + " " if packaged else "") + "transport conformance",
                     }]}, 4)
                     prompted = receive(lambda row: row.get("id") == 4)["result"]
                     assert prompted["stopReason"] == "end_turn"
@@ -225,8 +234,10 @@ def test_native_kimi_skill_discovery_and_activation_without_live_inference(tmp_p
                         contents.extend([content] if isinstance(content, str) else
                                         [part.get("text", "") for part in content or []])
                     skill_body = (SKILL / "SKILL.md").read_text().split("---", 2)[2].strip()
-                    assert any(skill_body in content for content in contents)
+                    assert any(skill_body in content for content in contents) is packaged
                     assert any("transport conformance" in content for content in contents)
+                    if prospective:
+                        assert requests[0]["body"]["max_tokens"] == 16384
                 send("session/close", {"sessionId": session_id}, 3)
                 receive(lambda row: row.get("id") == 3)
             finally:

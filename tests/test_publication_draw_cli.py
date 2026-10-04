@@ -147,6 +147,19 @@ def test_cli_rejects_undeclared_native_project_tools_before_inference(tmp_path, 
     assert not requests and not (tmp_path / "draw").exists()
 
 
+@pytest.mark.parametrize("requirement", ["required", "optional"])
+def test_cli_rejects_unsupported_active_intent_before_inference(tmp_path, monkeypatch, requirement):
+    config = configuration(tmp_path, monkeypatch)
+    path = tmp_path / config["question_ref"]["path"]
+    questions = json.loads(path.read_bytes())
+    questions[0]["task_intent"]["opaque_unsupported"] = requirement
+    config["question_ref"] = write_reference(path, questions)
+    requests, _ = wire(monkeypatch, tmp_path, [])
+    with pytest.raises(ValueError, match="does not support active dimensions"):
+        invoke(tmp_path, config)
+    assert not requests and not (tmp_path / "draw").exists()
+
+
 def test_cli_projects_only_observed_selected_markdown_not_the_latest_working_file(tmp_path, monkeypatch, capsys):
     config = configuration(tmp_path, monkeypatch)
     document = "# Unresolved derivation\n\n## C\n\nA reviewable open claim, not a mathematical result.\n"
@@ -445,7 +458,7 @@ def replication_configuration(tmp_path, monkeypatch, mode, *, model_selected=Fal
     question = json.loads((tmp_path / "questions.json").read_text())[0]
     question["task_intent"] = {"source_replication": "required", "theory": "not_applicable",
         "scientific_code": "not_applicable", "empirical": "not_applicable", "formal": "not_applicable",
-        "novelty": "not_applicable", "unresolved_gaps": "required"}
+        "novelty": "not_applicable"}
     config["question_ref"] = write_reference(tmp_path / "questions.json", [question])
     if collaborative:
         config["runtime"]["local_model_call_limit"] = 8
