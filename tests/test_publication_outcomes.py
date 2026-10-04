@@ -105,6 +105,107 @@ def require_runtime(language):
         pytest.skip("scientific runtime is not prepared")
 
 
+@pytest.mark.parametrize("dimension", ["empirical", "source_replication"])
+@pytest.mark.parametrize("defect", ["none", "corrupt", "missing", "wrong_expectation"])
+def test_common_r_artifact_evaluator_reads_exact_rds_without_python_conversion(tmp_path, monkeypatch, dimension, defect):
+    config = os.environ.get("AI_STATISTICIAN_TEST_NATIVE_R_CONFIG", "")
+    if not config:
+        pytest.skip("explicit native R artifact environment is not configured")
+    monkeypatch.setenv("AI_STATISTICIAN_NATIVE_R_CONFIG", config)
+    profile = "scientific_native_r"
+    intent = {name: "required" if name == dimension else "not_applicable" for name in (
+        "theory", "scientific_code", "empirical", "source_replication", "formal")}
+    kwargs = outcome_fixture(tmp_path, intent=intent)
+    # Fresh opaque R 4.4.2/version-2 compressed serialization, not an author result.
+    rds = (
+        "H4sIAAAAAAAAA21RwU6EMBAtLCzuRg3ZvXjwYIw/sFy88hneTIUuaVJahC6uXtxv8Uv8JI+e"
+        "xCntIBAnKTPDvJk3fX1YE0J8EgQ+8Rcm3MJnCSe2/8kKfKQq+nxgyTTdQXhpUOk96e1zQ5z5"
+        "5n+QXtssvXH+1vk7xAErIZ4bu8h5Ce6iJx7OBHIGEElL1kC8dZjxokGtXpJRvJvXMyWSUWzq"
+        "P8CMnN4/nEvBWiaa2STvDQM6w4eZoA3ChyF7mmlVW7pBY6OS9/5llIg+3NW9k5XG1r5RqTG2"
+        "t9itu+rAwK//eqfroF5xT4raMCrwNbnUrGA1voKk0oXnlWq45i175HKPnZodNXYKVfAMBvW3"
+        "IlemuyMnu0DYzThDQZ8Yki5bKg6wlstKqmt+HARU+VCKSt40XBaYVvRVKJobyl/g2P5XuwIA"
+        "AA=="
+    )
+    raw = b"not an RDS object" if defect == "corrupt" else base64.b64decode(rds, validate=True)
+    candidate = {"files": {"selected.rds": {"base64": base64.b64encode(raw).decode(),
+        "sha256": hashlib.sha256(raw).hexdigest(), "byte_size": len(raw)}},
+        "missing_files": ["declared-but-absent.rds"], "report": "Unresolved opaque fixture.\r\n"}
+    if defect == "missing":
+        candidate["files"] = {}
+    kwargs[dimension + "_artifact"] = candidate
+    code = (
+        "evaluate_artifact <- function(candidate, seed, replicates) {\n"
+        "    if (is.null(candidate$files[['selected.rds']])) stop('opaque selected file absent')\n"
+        "    p <- tempfile(fileext='.rds')\n"
+        "    on.exit(unlink(p))\n"
+        "    writeBin(jsonlite::base64_dec(candidate$files[['selected.rds']]$base64), p)\n"
+        "    x <- readRDS(p)\n"
+        "    list(echo=x$values[[1]], types=\n"
+        "        identical(x$label, c('opaque2','opaque1')) &&\n"
+        "        identical(x$matrix, matrix(c(7,8,9,10), nrow=2,\n"
+        "            dimnames=list(c('row2','row1'), c('col2','col1')))) &&\n"
+        "        identical(x$codes, factor(c('z','a'),levels=c('z','a'))) &&\n"
+        "        identical(x$missing$real, NA_real_) &&\n"
+        "        identical(x$missing$integer, NA_integer_) &&\n"
+        "        is.nan(x$missing$nan) && identical(x$missing$positive_inf, Inf) &&\n"
+        "        identical(x$missing$text, NA_character_) && identical(x$missing$logical, NA) &&\n"
+        "        identical(x$payload, as.raw(c(255,0,128))),\n"
+        "        context=identical(candidate$missing_files, list('declared-but-absent.rds')) &&\n"
+        "            identical(candidate$report, 'Unresolved opaque fixture.\\r\\n') &&\n"
+        "            seed==99173 && replicates==5)\n"
+        "}\n"
+    )
+    harness = tmp_path / "external-authority" / "opaque-reader.R"
+    harness.write_text(code)
+    kwargs["task"]["hidden_" + dimension + "_evaluator"] = {
+        "language": "r", "harness_path": str(harness),
+        "harness_sha256": hashlib.sha256(code.encode()).hexdigest(),
+        "dependencies": ["jsonlite"], "execution_profile": profile,
+        "seed": 99173, "replicates": 5, "timeout_seconds": 30,
+        "acceptance_checks": [{"path": ["echo"], "operator": "eq", "expected": 24 if defect == "wrong_expectation" else 23},
+            {"path": ["types"], "operator": "eq", "expected": True},
+            {"path": ["context"], "operator": "eq", "expected": True}],
+    }
+    before = deepcopy(kwargs)
+    calls = scripted_semantics(monkeypatch)
+    result = outcomes.evaluate_final_research_artifacts(**kwargs)
+    row = result["dimension_status"][dimension]
+    assert row["status"] == ("passed" if defect == "none" else "failed")
+    assert result["task_passed"] is (defect == "none") and not calls
+    assert kwargs == before
+    execution = row["execution"]
+    assert execution["execution_profile"] == profile
+    assert execution["backend"] == "native_r"
+    request = json.loads(Path(execution["request_path"]).read_text())
+    assert request["language"] == "r" and request["execution_profile"] == profile
+    if defect in {"corrupt", "missing"}:
+        assert execution["execution_passed"] is False
+    elif defect == "wrong_expectation":
+        assert execution["execution_passed"] is True and execution["checks_passed"] is False
+
+
+def test_r_artifact_evaluator_without_jsonlite_does_not_fall_back_to_native(tmp_path, monkeypatch):
+    kwargs = outcome_fixture(tmp_path, intent={"empirical": "required", "theory": "not_applicable",
+        "scientific_code": "not_applicable", "formal": "not_applicable"})
+    kwargs["task"]["hidden_empirical_evaluator"].update(language="r", dependencies=["jsonlite"])
+    calls = scripted_semantics(monkeypatch)
+    result = outcomes.evaluate_final_research_artifacts(**kwargs)
+    execution = result["dimension_status"]["empirical"]["execution"]
+    assert execution["execution_attempted"] is False
+    assert execution["execution_profile"] == "scientific_wasm" and execution["backend"] == "webr"
+    assert "generated code declares unsupported dependencies: jsonlite" in execution["errors"]
+    assert result["task_passed"] is False and not calls
+
+
+def test_r_artifact_evaluator_rejects_mismatched_profile_before_assessment(tmp_path, monkeypatch):
+    kwargs = outcome_fixture(tmp_path, intent={"empirical": "required"})
+    kwargs["task"]["hidden_empirical_evaluator"].update(language="r", execution_profile="scientific_native_python")
+    calls = scripted_semantics(monkeypatch)
+    with pytest.raises(ValueError, match="execution profile is invalid"):
+        outcomes.evaluate_final_research_artifacts(**kwargs)
+    assert not calls and not kwargs["out_dir"].exists()
+
+
 @pytest.mark.parametrize("language", ["python", "r"])
 @pytest.mark.parametrize("profile", ["scientific_wasm", "native"])
 @pytest.mark.parametrize("defect", ["none", "source", "empirical"])

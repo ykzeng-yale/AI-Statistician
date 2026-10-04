@@ -1148,9 +1148,11 @@ def test_strict_source_replication_gold_rejects_model_selected_command(
     ]
 
 
+@pytest.mark.parametrize("language", ["python", "r"])
 def test_hidden_artifact_harness_transports_large_candidate_as_data(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    language: str,
 ) -> None:
     captured: dict[str, object] = {}
 
@@ -1179,15 +1181,21 @@ def test_hidden_artifact_harness_transports_large_candidate_as_data(
         harness_code=(
             "def evaluate_artifact(candidate, seed, replicates):\n"
             "    return {'ok': len(candidate['raw_text']) == 200000}\n"
+        ) if language == "python" else (
+            "evaluate_artifact <- function(candidate, seed, replicates) {\n"
+            "    list(ok=nchar(candidate$raw_text)==200000)\n"
+            "}\n"
         ),
         harness_dependencies=(),
         candidate_artifact=candidate,
         seed=1,
         replicates=1,
         timeout_s=10,
+        harness_language=language,
     )
 
     assert result["metrics"] == {"ok": True}
+    assert captured["language"] == language
     assert len(str(captured["code"])) < 100_000
     assert "x" * 1_000 not in str(captured["code"])
     input_artifacts = captured["input_artifacts"]
@@ -1197,6 +1205,18 @@ def test_hidden_artifact_harness_transports_large_candidate_as_data(
     assert input_artifacts[0].content_sha256 == hashlib.sha256(
         input_artifacts[0].content.encode("utf-8")
     ).hexdigest()
+
+
+def test_hidden_artifact_harness_rejects_unknown_language_before_execution(monkeypatch, tmp_path):
+    def forbidden(**kwargs):
+        raise AssertionError("invalid language must not start an executor")
+    monkeypatch.setattr(gold_evaluation_module, "execute_scientific_sandbox", forbidden)
+    with pytest.raises(ValueError, match="language must be python or r"):
+        gold_evaluation_module._run_hidden_artifact_harness(
+            sandbox_dir=tmp_path, artifact_id="opaque", harness_code="opaque",
+            harness_dependencies=(), candidate_artifact={"opaque": True},
+            seed=1, replicates=1, timeout_s=10, harness_language="unknown",
+        )
 
 
 @pytest.mark.parametrize(

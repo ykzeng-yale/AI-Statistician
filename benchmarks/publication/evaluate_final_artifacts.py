@@ -385,8 +385,6 @@ def evaluate_final_research_artifacts(
             evaluator, task_index=0, label=dimension, project_root=project_root,
             require_estimator=dimension == "scientific_code", allowed_contract_clause_ids=None,
         )
-        if dimension != "scientific_code" and evaluator.get("language") != "python":
-            errors.append("artifact evaluator must use the existing Python evaluate_artifact ABI")
         if errors:
             raise ValueError("; ".join(errors))
         raw = _project_path(str(evaluator["harness_path"]), project_root=project_root).read_bytes()
@@ -473,6 +471,7 @@ def evaluate_final_research_artifacts(
                 execution = _run_hidden_artifact_harness(
                     **execution_options, harness_code=harness, harness_dependencies=tuple(evaluator.get("dependencies", [])),
                     harness_execution_profile=evaluator.get("execution_profile", "scientific_wasm"),
+                    harness_language=evaluator["language"],
                     candidate_artifact=candidate,
                 )
             summary = _hidden_execution_summary(execution, evaluator=evaluator, required_estimator_id=required_id)

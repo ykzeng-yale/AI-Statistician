@@ -2284,27 +2284,33 @@ def _run_hidden_artifact_harness(
     replicates: int,
     timeout_s: int,
     harness_execution_profile: str = "scientific_wasm",
+    harness_language: str = "python",
 ) -> Mapping[str, Any]:
-    candidate_json = json.dumps(
-        candidate_artifact,
-        ensure_ascii=True,
-        separators=(",", ":"),
+    """Use the selected executor; R JSON parsing requires its jsonlite dependency."""
+    if harness_language not in SCIENTIFIC_SANDBOX_LANGUAGES:
+        raise ValueError("artifact harness language must be python or r")
+    candidate_json = json.dumps(candidate_artifact, ensure_ascii=True, separators=(",", ":"))
+    executable_code = f"""import json as _gold_json
+{harness_code.rstrip()}
+
+def run_sandbox(seed, replicates, artifacts):
+    return evaluate_artifact(
+        _gold_json.loads(artifacts['candidate-artifact.json']['content']),
+        seed=seed, replicates=replicates,
     )
-    executable_code = (
-        "import json as _gold_json\n"
-        + harness_code.rstrip()
-        + "\n\ndef run_sandbox(seed, replicates, artifacts):\n"
-        + "    _gold_candidate = _gold_json.loads(\n"
-        + "        artifacts['candidate-artifact.json']['content']\n"
-        + "    )\n"
-        + "    return evaluate_artifact(\n"
-        + "        _gold_candidate, seed=seed, replicates=replicates\n"
-        + "    )\n"
+""" if harness_language == "python" else f"""{harness_code.rstrip()}
+
+run_sandbox <- function(seed, replicates, artifacts) {{
+    .gold_candidate <- jsonlite::fromJSON(
+        artifacts[['candidate-artifact.json']]$content, simplifyVector=FALSE
     )
+    evaluate_artifact(.gold_candidate, seed=seed, replicates=replicates)
+}}
+"""
     execution = execute_scientific_sandbox(
         sandbox_dir=sandbox_dir,
         artifact_id=artifact_id,
-        language="python",
+        language=harness_language,
         execution_profile=harness_execution_profile,
         code=executable_code,
         dependencies=harness_dependencies,
@@ -2315,9 +2321,7 @@ def _run_hidden_artifact_harness(
             ScientificInputArtifactBinding(
                 artifact_id="candidate-artifact.json",
                 content=candidate_json,
-                content_sha256=hashlib.sha256(
-                    candidate_json.encode("utf-8")
-                ).hexdigest(),
+                content_sha256=hashlib.sha256(candidate_json.encode("utf-8")).hexdigest(),
                 media_type="application/json",
             ),
         ),
