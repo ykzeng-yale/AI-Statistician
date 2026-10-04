@@ -234,3 +234,32 @@ uncertainty and the same declared estimands and methods. It cannot resolve the
 missing aggregation definition or comparator implementation. Do not demand the
 author's seed as a universal capability gate, infer original seeds from results,
 or label a new schedule an exact historical replay.
+
+## Bounded Missing-Material Search, 2026-10-04
+
+A current remote-ref check still returned only `main` at `ca73f039` and no tags.
+The public GitHub forks endpoint returned an empty list with no next-page link;
+the linked-account issue search returned no items. The connector does not support
+the forks URL (HTTP 400), so the fork observation came from a separate anonymous
+GET of [the public API](https://api.github.com/repos/zijguo/TSCI-Replication/forks?per_page=100),
+not an inference from that error.
+GitHub code searches for the missing filename, its two heteroskedastic function
+names and the Card output prefix recovered producer references and this project's
+own records, not the requested helper or aggregation implementation. Web exact-name
+searches recovered no relevant primary implementation. These are bounded searches,
+not proof of absence from every distribution or unindexed private history.
+
+Exact-filename searches in the current project, the operator-provided older
+`Documents/Codex/2026-06-25/now/AI-Statistician` tree (excluding dependency/run
+directories) and Downloads recovered no requested helper or Card aggregation
+material in ordinary rg-visible files; archive members and hidden/ignored files
+were not exhaustively searched. No old numerical output, model-draft or credential
+content was read or rescored. The prior official-history checks are not repeated.
+No source was edited, model called, author contacted, statistical script run or
+study activated.
+
+The result does not resolve Q03/C02/C03. Further unchanged-author reconstruction
+needs supplied original material or a separately attributed, prospectively
+qualified reconstruction decision; do not keep repeating the same source search
+or silently insert a homoskedastic helper. The final article and exposed case
+scope remain unchanged. Primary comparison qualification can advance separately.

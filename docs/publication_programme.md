@@ -268,6 +268,10 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   pandas 1.5.3 rendering and malformed inputs without reading old author outcomes.
   It supplies no complete-stage/grid verdict, numerical accuracy/tolerance or
   theoretical assessment; Q04 remains open.
+  The assessment draft now states complete literal source-stage/grid coordinates,
+  raw/display-label maps, timing multiplicities and distinct application/simulation
+  model conventions for the three primary candidates. These definitions precede
+  any draw, but do not qualify accuracy, alternatives, authority or confirmation.
   Opaque RDS/native-dispatch and negative checks pass; typed missing/nonfinite
   values remain in the captured object. These are mechanism checks, not author
   RDS/RData assessment or scientific endpoint qualification. The protocol now

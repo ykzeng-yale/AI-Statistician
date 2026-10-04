@@ -251,6 +251,45 @@ result and qualify no method endpoint, inference or scientific tolerance. Exact
 task-specific numerical assessors, expert review, confirmation design and study
 freeze remain required.
 
+### Complete Source-Scope Accounting
+
+The following coordinates come from the unchanged producer scripts, not old
+numerical outputs. They define literal source scope for the prospective assessment;
+they do not choose a tolerance, certify a computation or freeze scientific authority.
+Bind script arguments and individual stage status alongside these coordinates.
+Presence of a table or a last-command exit zero does not establish all stages.
+An explicitly attributed alternative representation needs a one-to-one coordinate
+map; neither substring matching nor a different scientific target is accepted
+merely because it produces the same number of cells.
+
+| Source scope | Required coordinate accounting |
+| --- | --- |
+| StepMix six Python stages | `paper_examples.py`; response and covariate `run_bakk_simulation.py -s 500` (covariate adds `-c`); `run_bakk_simulation_complete.py -s 500`; `run_real_example.py --n_repetitions 100 --max_iter 10000`; `run_package_comparison.py`. Preserve each status, arguments and full streams. The paper examples' four subsection outputs are raw material, not a table-reader execution certificate. |
+| StepMix simulation tables | Each variant has nine scenario/sample-size pairs and five requested methods, with separately reported Bias/RMSE: 45 method coordinates and 90 printed cells per variant. Response/covariate use separation 0.7/0.8/0.9; complete uses missingness 0/0.25/0.50. All use sample sizes 500/1000/2000. There are 22,500 requested fit slots per variant; no retained-fit denominator is recovered from the 90 printed cells. |
+| StepMix GSS | Keep Table 8 measurement coordinates `(model_name, param, variable, class)` and class weights distinct. Required classes are Low/Middle/High. Table 9 means and errors each have five method-by-three-class coordinates. Five separate class-prevalence outputs use numeric class labels. Table 10 has five methods, two Low-referenced contrasts (High/Middle) and four reported statistics (mean, standard deviation, Z and two-sided p-value). In GSS the naive method is printed `3-step`, whereas simulation prints `3-step (Naive)`; declare that display map, do not normalize every `3-step` substring to one method. |
+| StepMix package comparison | Separate six datasets (`carcinoma`, `bakk_sim_dist`, `bakk_sim_cov`, `iris`, `diabetes`, `banknote`) in both likelihood and elapsed-second channels. These twelve printed values are not six independent agent outcomes or a cross-hardware speed comparison. Other software remains excluded. |
+| ebnm default simulation | Require the Cartesian product of `SimFn={normal, point_t, asymm_tophat}`, trial 1--10 and the ten raw `Function` labels below: 300 keys, not 300 necessarily finite likelihoods. Preserve all three metric states at every present key. The serialized object precedes removal of `ebnm_` for display; any unprefixed alternative needs an explicit map. Default data length is 1000, not the script's `test` mode. |
+| ebnm default timing | Nine timing functions below, five requested `n=10^seq(2,4,by=0.5)` labels and twenty measurements per combination: 900 rows. Require the group multiplicities, preserve each source-row position, and do not invent cross-function paired trial IDs. Default is neither `test` nor `full`; stored labels and actual generated integer vector lengths remain distinct. The timing `point_t` uses a 0.5/0.5 mixture, whereas simulation uses 0.8/0.2. Do not silently share one DGP between these channels. |
+| ebnm other main-text material | The introduction/shrinkage example and both wOBA stages remain part of the default script. Preserve observation/player identities, fitted normal/unimodal/npmle results, the PA-defined top-50 selection, displayed posterior intervals and the scaled deconvolver operation. A six-row `head` display is not the complete fitted dataset; full data/figure correspondence needs separate assessment. The excluded appendix and million-observation timing are not added. |
+| bizicount simulation | Source order is the repeated eight-row `expand.grid(n=500, psi1=c(0.1,0.6), psi2=c(0.1,0.6), dep=c(0.15,0.85))`, 500 repetitions. Preserve all 4000 list positions, including `NULL` and conditions. Only a complete, unchanged-order list supports assigning a slot to its grid row; verify stored numeric setting fields when present. Do not infer the four methods' separate failure causes from a whole-slot `NULL`. |
+| bizicount model/field accounting | The simulation fits joint Gaussian-copula ZIP/ZIP, joint Gaussian-copula Poisson/Poisson and separate univariate ZIP margins 1/2. Numeric returns retain original namespaced coefficient/SE fields, two joint optimizer codes and four likelihoods, distinct from the four setting fields. A returned vector is not a convergence verdict. The source plotting populations and exclusions described above remain separate. |
+| bizicount application | Preserve the `terror` observations and scaling of `xcoord`, `ycoord`, `pop`, `mtns`; the two response identities, interaction and count/zero-inflation formulas; all three **Frank**-copula joint fits (Poisson, ZIP, ZINB); Table 3 outputs and specified diagnostics. Do not transplant the Gaussian simulation copula. DHARMa diagnostics request 5000 simulations with seeds 789443/12473; the source's likelihood-ratio calculation and information-criterion conventions require interpretation, not automatic inferential endorsement. |
+
+The ten ebnm simulation labels are `ebnm_flat`, `ebnm_normal`,
+`ebnm_point_normal`, `ebnm_point_laplace`, `ebnm_normal_scale_mixture`,
+`ebnm_unimodal_symmetric`, `ebnm_unimodal`, `ebnm_npmle`, `ebnm_deconvolver`
+and `ebnm_horseshoe`. Timing uses those except `ebnm_flat`; its original order
+places `ebnm_deconvolver` before `ebnm_npmle`. Preserve source labels/order where
+meaningful, without treating an order difference as a changed estimand.
+
+Report requested scope, present coordinates, unavailable metrics and verified
+execution separately. Do not turn a completeness check into a finite-value-only
+success gate, an independence assumption, nominal-coverage demand or claim that
+all fits converged. Fixed-input accuracy, application parsers, scientific validity,
+valid alternative argument/method rules, new confirmatory design and independent
+assessment remain outstanding. This scope map advances Q04/A01 preparation;
+it does not activate Q07, close those items or alter a consumed result.
+
 ## Assessor Appointment and Blinding
 
 Before freezing, name the mathematical assessor(s), relevant statistical

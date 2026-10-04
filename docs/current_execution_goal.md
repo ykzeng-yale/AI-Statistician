@@ -105,6 +105,9 @@ reading old author outcomes or entering model tools/context. Source-defined
 quantities are explicit in the assessment draft; numerical agreement, complete
 stage/grid scope, tolerances, independent authority and new confirmation remain
 unfinished. Production graph/loop and scientific sources are unchanged.
+The same assessment draft now binds literal stage/grid accounting, raw versus
+display labels, timing multiplicities and application/simulation model distinctions.
+It is not yet an executable accuracy criterion or qualified mathematical rubric.
 Next resolve these declared access/authority differences and long-session scope,
 qualify numerical interpretation/endpoints, independent assessment and the freeze.
 Do not open another reference panel, repeat
@@ -116,6 +119,9 @@ package/version probes or build a new execution framework.
   from cached numbers, salvage the failed theory preparation or call an example
   the full case. Original seeds are required for exact historical replay, not
   every prospectively scheduled stochastic reproduction.
+  The bounded 2026-10-04 fork/issue/local-copy follow-up recovered no missing
+  implementation. Further resolution needs original material or an explicitly
+  qualified reconstruction decision, not another repeat of the same searches.
 - **Published-method candidates:** preserve the prepared paper/code/data capsules,
   exact author files and all declared background exposure. StepMix's journal/source
   differences, ebnm's bounded default scope and bizicount's failure/numerical
