@@ -2283,6 +2283,7 @@ def _run_hidden_artifact_harness(
     seed: int,
     replicates: int,
     timeout_s: int,
+    harness_execution_profile: str = "scientific_wasm",
 ) -> Mapping[str, Any]:
     candidate_json = json.dumps(
         candidate_artifact,
@@ -2304,6 +2305,7 @@ def _run_hidden_artifact_harness(
         sandbox_dir=sandbox_dir,
         artifact_id=artifact_id,
         language="python",
+        execution_profile=harness_execution_profile,
         code=executable_code,
         dependencies=harness_dependencies,
         seed=seed,

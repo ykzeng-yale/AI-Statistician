@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import replace
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -100,6 +101,67 @@ def require_runtime(language):
     runtime = discover_scientific_sandbox_runtime()
     if not runtime.python_available or (language == "r" and not runtime.r_available):
         pytest.skip("scientific runtime is not prepared")
+
+
+@pytest.mark.parametrize("language", ["python", "r"])
+def test_frozen_native_estimator_profile_reaches_common_outcome_executor(tmp_path, monkeypatch, language):
+    config = os.environ.get("AI_STATISTICIAN_TEST_NATIVE_" + language.upper() + "_CONFIG", "")
+    if not config:
+        pytest.skip("explicit native outcome fixture environment is not configured")
+    monkeypatch.setenv("AI_STATISTICIAN_NATIVE_" + language.upper() + "_CONFIG", config)
+    kwargs = outcome_fixture(tmp_path, language=language, intent={"scientific_code": "required"})
+    profile = "scientific_native_" + language
+    kwargs["task"]["hidden_algorithm_evaluator"]["execution_profile"] = profile
+    original = deepcopy(kwargs)
+    result = outcomes.evaluate_final_research_artifacts(**kwargs)
+    execution = result["dimension_status"]["scientific_code"]["execution"]
+    assert result["task_passed"] is True
+    assert execution["execution_profile"] == profile
+    assert execution["backend"] == "native_" + language
+    assert execution["estimator_invocation_count"] == 1
+    request = json.loads(Path(execution["request_path"]).read_bytes())
+    assert request["execution_profile"] == profile
+    assert stable_hash(request) == execution["request_hash"]
+    assert request["runtime"]["native_" + language]["configuration_path"] == str(Path(config).resolve())
+    assert kwargs == original
+
+
+@pytest.mark.parametrize("dimension", ["empirical", "source_replication"])
+def test_frozen_native_artifact_profile_reaches_common_outcome_executor(tmp_path, monkeypatch, dimension):
+    config = os.environ.get("AI_STATISTICIAN_TEST_NATIVE_PYTHON_CONFIG", "")
+    if not config:
+        pytest.skip("explicit native artifact fixture environment is not configured")
+    monkeypatch.setenv("AI_STATISTICIAN_NATIVE_PYTHON_CONFIG", config)
+    kwargs = outcome_fixture(tmp_path, intent={dimension: "required"})
+    evaluator = kwargs["task"]["hidden_empirical_evaluator"]
+    evaluator["execution_profile"] = "scientific_native_python"
+    if dimension == "source_replication":
+        kwargs["task"]["hidden_source_replication_evaluator"] = deepcopy(evaluator)
+        kwargs["source_replication_artifact"] = kwargs["empirical_artifact"]
+    original = deepcopy(kwargs)
+    result = outcomes.evaluate_final_research_artifacts(**kwargs)
+    execution = result["dimension_status"][dimension]["execution"]
+    assert result["task_passed"] is True
+    assert execution["execution_profile"] == "scientific_native_python"
+    assert execution["backend"] == "native_python"
+    request = json.loads(Path(execution["request_path"]).read_bytes())
+    assert request["execution_profile"] == "scientific_native_python"
+    assert stable_hash(request) == execution["request_hash"]
+    assert request["input_artifacts"][0]["artifact_id"] == "candidate-artifact.json"
+    assert kwargs == original
+
+
+def test_missing_frozen_native_environment_is_not_replaced_by_wasm(tmp_path, monkeypatch):
+    monkeypatch.setenv("AI_STATISTICIAN_NATIVE_PYTHON_CONFIG", str(tmp_path / "missing.json"))
+    kwargs = outcome_fixture(tmp_path, intent={"scientific_code": "required"})
+    kwargs["task"]["hidden_algorithm_evaluator"]["execution_profile"] = "scientific_native_python"
+    result = outcomes.evaluate_final_research_artifacts(**kwargs)
+    execution = result["dimension_status"]["scientific_code"]["execution"]
+    assert result["task_passed"] is False
+    assert execution["execution_attempted"] is False
+    assert execution["execution_profile"] == "scientific_native_python"
+    assert execution["backend"] == "native_python"
+    assert any("configuration rejected" in error for error in execution["errors"])
 
 
 @pytest.mark.parametrize("language", ["python", "r"])

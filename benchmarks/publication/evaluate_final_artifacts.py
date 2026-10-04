@@ -316,15 +316,19 @@ def evaluate_final_research_artifacts(
                     continue
                 execution = execute_scientific_sandbox(
                     **execution_options, language=evaluator["language"], code=harness,
+                    execution_profile=evaluator.get("execution_profile", "scientific_wasm"),
                     dependencies=tuple(evaluator.get("dependencies", [])), estimator_bindings=bindings,
                 ).to_json()
             else:
                 required_id = ""
                 execution = _run_hidden_artifact_harness(
                     **execution_options, harness_code=harness, harness_dependencies=tuple(evaluator.get("dependencies", [])),
+                    harness_execution_profile=evaluator.get("execution_profile", "scientific_wasm"),
                     candidate_artifact=candidate,
                 )
             summary = _hidden_execution_summary(execution, evaluator=evaluator, required_estimator_id=required_id)
+            summary.update({key: execution[key] for key in
+                            ("execution_profile", "backend", "request_path", "request_hash") if key in execution})
             row["execution"] = summary
             passed = summary["passed"]
         if dimension == "theory":
