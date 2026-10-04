@@ -35,11 +35,11 @@ contract without falsely completing or replacing that goal.
 | Portable package | One skill and two references; host discovery; Kimi/local-Qwen body uptake and file access; separately labelled Claude Code compatibility; committed application wheel in a fresh same-host venv with installed Python/R project/error fixtures | Scientific efficacy, clean-machine full researcher workflow, cross-platform execution or researcher time savings |
 | Manuscripts | [Harness draft](../manuscripts/portable_harness.md), [system draft](../manuscripts/collaborative_system.md), and [shared methods appendix](../manuscripts/supplementary_methods.md), with distinct contrasts and explicit mathematical/Monte Carlo definitions | Independently reviewed mathematics, complete case arguments or submission-ready papers; official comparative results do not exist |
 | Case inputs | Integrated B1/Card E.1 v2 distinguishes seven methods; explicit four-arm assembly; 76-file available-input capsule and native source-environment probe | Activated study, complete author replication, release reconstruction or mathematical gold; B1 helper and original data rights remain unresolved |
-| Qwen development | Four standalone known-result draws had no final selection; both native FDA draws failed; earlier native R draws failed without demonstrated skill uptake | A publication baseline, reliable theory development or a measured harness benefit |
+| Qwen development | Four standalone known-result draws had no final selection; native FDA/R draws failed; exposed TSCI preparation made 21 requests and wrote one unselected document before handoff failure | A publication baseline, independently correct theory, a measured harness benefit or complete case |
 | Lean foundation | Active Lean 4.30.0 Mathlib/Statlib/StatInference pin; selected kernel checks and source-mapped retrieval | Complete textbook coverage, clean reconstruction or source-faithful public API |
-| Verification | Latest default full suite: 2141 passed, 30 skipped and one existing xfail; installed Python/R WASM fixtures executed separately; earlier failed/interrupted attempts retained | Mathematical correctness, skipped opt-in checks, matched experimental arms or publication readiness |
+| Verification | Latest default full suite: 2145 passed, 30 skipped and one existing xfail; installed Python/R WASM fixtures executed separately; earlier failed/interrupted attempts retained | Mathematical correctness, skipped opt-in checks, matched experimental arms or publication readiness |
 
-AI code checkpoint and tested code: df160156.
+AI code checkpoint and tested code: 4fb51df2.
 Lean pin: db6c7718349f3c14a7e37905f3529675f1ebaa52.
 The [status record](main_worker_status.json) links detailed immutable evidence.
 Historical mixed-scope Haiku credits are archived, not forward baselines.
@@ -77,6 +77,29 @@ assessment or consumed-result change occurred. The earlier deployment record
 keeps its original named-selector limitation; it was not rerun or reinterpreted.
 The 76-file input identity still matches; the missing B1 helper remains absent.
 Q06/Q07 and all scientific delivery items remain open.
+
+The subsequent [TSCI theory preparation](../benchmarks/publication_case_candidates/tsci_b1_card/theory_preparation_results.json)
+is consumed and failed. One preflight lacked the required source-execution binding
+and stopped before inference; the amended committed plan preserved the integrated
+question, inputs and already-started cold Qwen process. Its 21 research requests
+produced one unselected Markdown file and no checkpoint. No source probe, scratch,
+simulation, Lean or independent assessment ran. TSCI is now explicitly assigned
+to exposed preparation/illustration, not an untouched main-study test. All raw
+errors and partial state remain immutable, not salvaged, resumed or rescored.
+The integrated source/executable obligations also mean this is not an isolated
+Theory reasoning benchmark. Missing source and independent authority remain real
+scientific obligations; the failed handoff does not decide mathematics.
+
+The separate shared-tool correction declares each writable artifact's existing
+top-level type in the model schema. Runtime checks and atomic replacement are
+unchanged. There is no mathematical field rule, content conversion, source patch
+or new repair loop. The consumed preparation was not rerun. Exact code 4fb51df2
+passed the default full suite: 2145 passed, 30 skipped, one existing xfail in
+1349.37 seconds, exit zero. JUnit SHA-256:
+`c4c6a14a4c2cd0e55777f2846d70c0de113f1402d5060bddfbb9d7ada68ec2dc`.
+Focused checks passed 396 with one skip after retaining two obsolete-schema
+assertion failures. All follow-up checks are deterministic, with zero model calls.
+This is contract evidence only, not improved reasoning or a completed paper item.
 
 The preceding TSCI configuration follow-up changed no product mechanism. Its 116 focused
 deterministic tests include all four existing draw entries with mocked transport;

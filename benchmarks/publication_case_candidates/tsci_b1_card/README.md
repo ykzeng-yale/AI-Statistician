@@ -99,6 +99,16 @@ checkpoint is a selected draft; partial files are retained but not salvaged.
 The preparation is consumed once, without resume, retries or mathematical scores.
 Independent assessment and all publication-draw prerequisites remain separate.
 
+The [consumed preparation result](theory_preparation_results.json) records one
+failed preflight before inference and one subsequent 21-request research session.
+TheoryDeveloper read supplied sources and wrote an unselected Markdown file, but
+repeated invalid handoff batches ended the session without a checkpoint. No scratch,
+source probe, simulation, Lean or independent argument assessment ran. The raw
+failure and partial file are retained, not repaired, resumed, salvaged or rescored.
+This is a preparation failure, not an official accuracy numerator or mathematical
+rejection. The exposed family is reserved for preparation/illustration, not an
+untouched main-study test.
+
 ## Existing Four-Arm Configuration Assembly
 
 `prepare_configs.py` only instantiates existing role/runtime configurations and

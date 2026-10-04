@@ -264,6 +264,10 @@ independent mathematical acceptance or a reason to mark Q02/Q04 complete.
   explanation and equation-level derivations from the actual research agents.
   Distinguish invoked published results from independently derived claims;
   preserve conditional conclusions, counterexamples and unresolved dependencies.
+  The [consumed TSCI preparation](../benchmarks/publication_case_candidates/tsci_b1_card/theory_preparation_results.json)
+  read sources and wrote one unselected file, but rejected handoff writes ended
+  the session without a checkpoint. No argument is selected or independently
+  assessed; T02 stays open. Do not salvage the partial file or rerun this result.
 - [ ] **T03. Independent argument assessment.** Assess every substantive claim
   and its exact selected argument under Q05. Localize unsupported steps, changes
   in assumptions, normalization and rate errors; retain disagreements and unresolved
