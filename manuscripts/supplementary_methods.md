@@ -1,6 +1,6 @@
 # Supplementary Methods for the Two AI-Statistician Studies
 
-Methods draft, 2026-10-03. Shared by Paper H and Paper S, with overlap disclosed.
+Methods draft, 2026-10-04. Shared by Paper H and Paper S, with overlap disclosed.
 No official study is activated and no result is supplied here. The calculations
 below are standard evaluation and Monte Carlo methods, not new statistical
 theory or proof of an agent's scientific argument. Independent review and a
@@ -359,8 +359,19 @@ proposal identities and consumed evaluations are preserved at their recorded pin
 For H, all files in predeclared final directories are selected through the
 unchanged native snapshot collector, allowing arbitrary local helpers. Missing
 directories stay empty; no intermediate selection or content repair is performed.
+The native numerical view uses the existing `main.py`/`main.R` project ABI,
+with estimator identities, roots and languages fixed before author calls.
+It preserves source/helper bytes and passes empirical/reconstruction files
+losslessly as base64 bytes, original paths, hashes, lengths and missing-file
+inventory. This is transport, not a parser, execution receipt or confirmation
+claim. Independent assessment receives the complete captured final submission,
+including reports and binary ancillary files. Invalid or missing material is
+retained rather than repaired or replaced. The numerical interpretation and
+endpoints must still be qualified and frozen identically within each study's
+arms; H's file view and S's checkpoint-derived view are not equivalent scientific
+conditions merely because their evaluator entrypoint is shared.
 The separate same-host workspaces and mock request checks are preparation evidence,
-not native scientific execution, common numerical adjudication or a release study.
+not native agent research, qualified numerical adjudication or a release study.
 
 Case trace analysis identifies a finding, its exact source/input version, the
 source owner's response, the revised artifact and independent final outcome.

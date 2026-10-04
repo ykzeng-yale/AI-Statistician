@@ -29,6 +29,20 @@ final selections and their exact source, input and execution identities.
 An absent final stays absent; an attractive intermediate file is not a substitute.
 Final collection, outcome availability and scientific acceptance are separate.
 
+For the native-host study, assessment receives the complete captured final tree,
+including reports and binary ancillary material, not only the numerical view.
+The prospective contract selects `main.py` or `main.R` through the existing
+executor ABI and freezes estimator IDs, project roots and languages before calls;
+helper paths and exact source bytes are preserved. Empirical and reconstruction
+files reach the common evaluator as base64 bytes with their original paths,
+hashes, lengths and missing-file inventory. This supplies no numerical parser,
+confirmation status or mathematical authority. Freeze the actual numerical
+interpretation and endpoints separately, identically within each study's arms.
+H's file view and S's checkpoint-derived view are not equivalent scientific
+conditions merely because they reach the same evaluation entrypoint.
+Preserve invalid submissions and projection failures as scheduled outcomes;
+do not repair them, discard their draws or substitute an earlier source.
+
 This draft adds no scientific answer, failure location, reference number or source
 patch to the model's input capsule. Evaluator-only material stays outside author
 tools. The public source papers already contain their published conclusions;

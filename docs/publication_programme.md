@@ -227,8 +227,14 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   instructions and binds twelve corrected S configurations plus six paired H
   workspaces. Native host mock checks establish body activation/output settings,
   not research or matched access. Final-tree collection uses the existing reader;
-  actual permissions/PDF/data access, long sessions, common numerical projection,
-  independent authority and freeze remain open. Q06 is not complete.
+  the [native final-view follow-up](../benchmarks/publication_case_candidates/published_methods/native_final_projection.json)
+  now preserves exact multi-file Python/R projects and binary result files through
+  the common evaluator. Opaque execution fixtures verify dispatch and distinct
+  source/result failures, not scientific interpretation or acceptance. Six new
+  paired H workspaces bind the explicit entrypoint contract; earlier unactivated
+  preparation is unchanged. Actual permissions/PDF/data access, long sessions,
+  qualified numerical endpoints, independent authority and freeze remain open.
+  Q06 is not complete.
 - [ ] **Q07. Prospective freeze.** Bind exact code/package, local Qwen weights,
   quantization/runtime/template/decoding/hardware, task and authority versions,
   schedule/RNG/order, stopping, all outcomes and analysis. Confirm the chosen

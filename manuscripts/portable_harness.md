@@ -1,6 +1,6 @@
 # A Portable Harness for Reviewable Statistical Research with Coding Agents
 
-Working methods draft, 2026-10-03. Not submission-ready. Authors and affiliations
+Working methods draft, 2026-10-04. Not submission-ready. Authors and affiliations
 are not yet supplied. Comparative results, installation qualification and release rights
 remain unresolved; this draft does not claim an efficacy result.
 
@@ -237,8 +237,12 @@ contract. Only the package arm contains the skill and invokes its native ACP
 activation command. Mock host checks establish exact body uptake and the proposed
 output cap, not scientific efficacy or long-session behavior. Every ordinary file
 in predeclared final directories is collected at termination; arbitrary helper
-filenames are allowed and absent finals remain absent. Tool permissions, actual
-PDF/data access, final numerical adjudication and independent authority are still
+filenames are allowed and absent finals remain absent. The prospectively fixed
+entrypoint uses the existing `main.py`/`main.R` executor ABI. Exact source/helpers
+and empirical files now reach the common evaluator without content repair;
+the complete captured report remains available to independent assessment.
+This transport supplies no scientific acceptance or confirmation credit.
+Tool permissions, actual PDF/data access, qualified numerical adjudication and independent authority are still
 unqualified. No official host draw has run.
 
 ## 4. Simulation and Statistical Analysis

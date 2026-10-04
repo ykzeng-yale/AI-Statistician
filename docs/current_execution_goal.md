@@ -30,8 +30,8 @@ execution contract, without falsely completing it.
 | Area | Established scope | Still missing |
 | --- | --- | --- |
 | Architecture | Sole outer graph, shared retained loop, file-backed mathematics and same-source-owner feedback | Scientific efficacy and useful collaboration; execution is serial/interleaved, not independently concurrent |
-| Scientific execution | Shared native executors and frozen assessment dispatch; twelve corrected S configurations and six paired H workspaces are prepared | Actual matched arm execution, evaluator qualification, final native numerical view and clean reconstruction |
-| Verification | Prospective intent/final-tree regressions and native host mock activation/output-cap checks pass; complete regression is recorded in the follow-up | Fixtures are not scientific results; skipped execution and the process-lifetime xfail remain unqualified |
+| Scientific execution | Shared native executors, exact final-file numerical transport and twelve prospective S configurations plus six H workspaces | Actual matched arm execution, qualified numerical interpretation/assessment and clean reconstruction |
+| Verification | Native Python/R project and result fixtures, prospective intent/final-tree checks and host mock activation/output-cap checks | Fixtures are not scientific results; skipped execution and the process-lifetime xfail remain unqualified |
 | Portable release | Fresh same-host wheel/CLI and synthetic Python/R projects; separately labelled host activation/compatibility observations | Qualified researcher workflow, clean-machine scope, rights and Paper H efficacy |
 | Case and roster | Exposed TSCI B1/Card inputs; three source-assisted StepMix/ebnm/bizicount candidates with prepared inputs and source environments | Complete case/reference obligations, independent scientific authority, final roster and precision |
 | Manuscripts | Separate H/S methods masters and shared methods appendix | Assessed case arguments, fresh comparative results, final discussion and submission review |
@@ -70,9 +70,12 @@ Native execution and common assessment dispatch are regression-verified. The
 binds corrected prospective task metadata, twelve S configurations and six H
 workspaces. The earlier proposal required an unsupported gap-reporting score;
 that error is now rejected before calls, not converted into invented authority.
-Scientific instructions and consumed records are unchanged. Next qualify actual
-access/opportunities and the native final numerical view through existing interfaces,
-then scientific assessment and the prospective freeze.
+Scientific instructions and consumed records are unchanged. The
+[native final-view follow-up](../benchmarks/publication_case_candidates/published_methods/native_final_projection.json)
+now carries exact selected projects and empirical/reconstruction files through the
+existing evaluator; it supplies no parser, confirmation or scientific credit.
+Next qualify actual access/opportunities and numerical interpretation/endpoints,
+then independent assessment and the prospective freeze.
 Do not open another reference panel, repeat
 package/version probes or build a new execution framework.
 
