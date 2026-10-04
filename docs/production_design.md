@@ -148,7 +148,7 @@ It writes one findings-first authoritative Markdown report. Its compact envelope
 
 AlgorithmEngineer and SimulationEngineer own complete source and use the shared
 `ScientificCodeWorkspace` loop. Python and R are first-class languages. The
-Pyodide/WebR and explicit [native R](../README.md#native-r-execution) check declared packages, isolate execution and omit secrets. Network is denied by default. An operator may explicitly bind dedicated native worker ports; outbound remains loopback/port-limited, but listening on those ports can include all interfaces. This is not complete network or inbound-loopback isolation and cannot silently enter a frozen study. Models cannot change that resource grant.
+Pyodide/WebR and explicit native [Python](../README.md#native-python-execution)/[R](../README.md#native-r-execution) check configured versions, isolate execution and omit secrets. Native package access is determined by the installed environment, not an import-security claim about the model's declared dependencies. Network is denied by default. An operator may explicitly bind dedicated native worker ports; outbound remains loopback/port-limited, but listening on those ports can include all interfaces. This is not complete network or inbound-loopback isolation and cannot silently enter a frozen study. Models cannot change that resource grant.
 Native R shares the existing R ABI/executor and revalidates configuration, versions and input hashes; no new scheduler or automatic fallback.
 Hidden evaluators choose their own frozen profile; separate OCI project observations remain exploratory. Safety comes from isolation, not banning scientific packages.
 
@@ -390,7 +390,7 @@ The preferred response is deletion and consolidation, not moving code behind a n
 - `agent_runtime.py`: typed scheduling, task references, artifacts, and evidence.
 - `research_agent_runtime.py`: canonical outer graph and subsystem adapters.
 - `scientific_code_workspace.py`: shared direct Algorithm/Simulation Python/R source-feedback loop; neither owner has a separate planner packet.
-- `scientific_sandbox.py` / `native_project.py`: isolated Pyodide/WebR or explicit native R execution, and separately configured offline source-owner OCI commands; OCI receipts remain exploratory, not acceptance.
+- `scientific_sandbox.py` / `native_project.py`: isolated Pyodide/WebR or explicit native Python/R execution, and separately configured offline source-owner OCI commands; OCI receipts remain exploratory, not acceptance.
 - Lean revision and kernel-promotion modules: direct checks and exact evidence gate.
 - `formal_source_index.py` and scoped retrievers: declaration-level formal RAG.
 - `packet_validation.py`: typed validation failures and no-generation JSON reading.

@@ -1,0 +1,273 @@
+{
+  "scope": "deterministic_native_scientific_execution_not_scientific_evaluation",
+  "code_commit": "b2569e262caac442e4c2bd962d754801d9f5959f",
+  "model_calls": 0,
+  "author_studies_executed": 0,
+  "official_study_activated": false,
+  "implementation": "Python and R share the pinned local process executor, native configuration loader, existing project/estimator ABIs and result finalizer. Explicit profiles; no backend fallback, source patch, mathematical answer, AST repair, new scheduler or network infrastructure.",
+  "configured_regression": {
+    "command": "AI_STATISTICIAN_TEST_NATIVE_PYTHON_CONFIG=runs/native_python_execution_mechanism_20261003/native_python_runtime.json AI_STATISTICIAN_TEST_NATIVE_R_CONFIG=runs/native_r_execution_mechanism_20261003/native_r_runtime.json .venv/bin/pytest -q tests/test_native_python_sandbox.py tests/test_native_r_sandbox.py tests/test_core.py::test_canonical_control_plane_has_a_regression_budget --junitxml=runs/native_python_execution_mechanism_20261003/native-regression_3.xml",
+    "passed": 47,
+    "elapsed_seconds": 17.07,
+    "scope": "23 native Python checks, 23 native R checks and one existing package-size regression check; no model inference.",
+    "junit_ref": {
+      "path": "runs/native_python_execution_mechanism_20261003/native-regression_3.xml",
+      "sha256": "56df026d924c6af809b61db49573f12805e3549fe11fca5c762cb3e3421c184b",
+      "byte_size": 6484
+    }
+  },
+  "representative_checks": {
+    "passed": 3,
+    "elapsed_seconds": 6.12,
+    "overlap": "These are repeated deterministic fixtures from the configured regression, not additional independent scientific observations.",
+    "scope": "Installed StepMix class construction (no fit or paper study), multi-file project, exact estimator/input bindings, raw source failure and distinct replacement attempt, and Theory scratch dispatch.",
+    "junit_ref": {
+      "path": "runs/native_python_execution_mechanism_20261003/representative.xml",
+      "sha256": "6337d42462344e9705ca7be6d40c393f7d6c458b819148098578a1b84a89f209",
+      "byte_size": 678
+    },
+    "stdout_ref": {
+      "path": "runs/native_python_execution_mechanism_20261003/representative.stdout.log",
+      "sha256": "41e5f4e037e66b42efe87024d8b19f390015849cadc5853182a8c438b0b8c238",
+      "byte_size": 98
+    },
+    "stderr_ref": {
+      "path": "runs/native_python_execution_mechanism_20261003/representative.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "byte_size": 0
+    },
+    "attempts": [
+      {
+        "request_ref": {
+          "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_executes_li0/native-python-fixture_cca1f908bafdfa0a_7cr41f_g/native-python-fixture_cca1f908bafdfa0a_scientific_request.json",
+          "sha256": "f6ec64cf11e827ae44e4041c22ebd3cbd185f26830349806798bdb3672e942fe",
+          "byte_size": 5620
+        },
+        "envelope_ref": {
+          "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_executes_li0/native-python-fixture_cca1f908bafdfa0a_7cr41f_g/native-python-fixture_cca1f908bafdfa0a_scientific_result.json",
+          "sha256": "e3bde8f85c24803676b78347847a4c7e0e5952887aad8e852cb8f9e43eb7a3cb",
+          "byte_size": 747
+        },
+        "ok": true,
+        "raw_refs": [
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_executes_li0/native-python-fixture_cca1f908bafdfa0a_7cr41f_g/native-python-fixture_cca1f908bafdfa0a_generated_draft.py",
+            "sha256": "6b6360c3257c8e9fa383341dc922361b66de062afc5e0415189473ab9556cad8",
+            "byte_size": 348
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_executes_li0/native-python-fixture_cca1f908bafdfa0a_7cr41f_g/native_execution.py",
+            "sha256": "e879724ad4f59c7d6bca9d05a250d80c985865b6457d783c9bf336cfcdf5187c",
+            "byte_size": 13596
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_executes_li0/native-python-fixture_cca1f908bafdfa0a_7cr41f_g/native_workspace/raw_result.json",
+            "sha256": "7a6d85f2c171f82f5cb7ec09cfb6e05c4c17f6dca22c5ecf8ed5cde09f2dfdef",
+            "byte_size": 291
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_executes_li0/native-python-fixture_cca1f908bafdfa0a_7cr41f_g/native_workspace/stderr.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "byte_size": 0
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_executes_li0/native-python-fixture_cca1f908bafdfa0a_7cr41f_g/native_workspace/stdout.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "byte_size": 0
+          }
+        ]
+      },
+      {
+        "request_ref": {
+          "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_74d4fedba4aef300_3w_qmhm8/native-python-fixture_74d4fedba4aef300_scientific_request.json",
+          "sha256": "23bf0898ba7300b531c73b4caafc4ca8c52b1e1ca718975520c00e6848ef7fcf",
+          "byte_size": 3342
+        },
+        "envelope_ref": {
+          "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_74d4fedba4aef300_3w_qmhm8/native-python-fixture_74d4fedba4aef300_scientific_result.json",
+          "sha256": "4668857bf1aadce4989787b4874fead6b5ffe3372b2dc435b0e8df3fadee194c",
+          "byte_size": 347
+        },
+        "ok": true,
+        "raw_refs": [
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_74d4fedba4aef300_3w_qmhm8/native-python-fixture_74d4fedba4aef300_generated_draft.py",
+            "sha256": "1a58f74d68bd25db0437e3433691fb9cbc53ce54571690b44295388a104672fc",
+            "byte_size": 59
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_74d4fedba4aef300_3w_qmhm8/native_execution.py",
+            "sha256": "8c3ef2522c5e01f0ca990722d29ed63b3354aea356df2c63242711fe91340224",
+            "byte_size": 6354
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_74d4fedba4aef300_3w_qmhm8/native_workspace/raw_result.json",
+            "sha256": "197203c1dd5d59aa73c2ebdfe74b647db69b067ec6476db6a9d4f96a7f8c1b8a",
+            "byte_size": 83
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_74d4fedba4aef300_3w_qmhm8/native_workspace/stderr.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "byte_size": 0
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_74d4fedba4aef300_3w_qmhm8/native_workspace/stdout.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "byte_size": 0
+          }
+        ]
+      },
+      {
+        "request_ref": {
+          "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_d9c06db196d0ecea_yuhab2sh/native-python-fixture_d9c06db196d0ecea_scientific_request.json",
+          "sha256": "2cc01c20dd087b0916724afb5b8a6fd4237f562c219e4c6cd6d2d6a0578f41aa",
+          "byte_size": 3342
+        },
+        "envelope_ref": {
+          "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_d9c06db196d0ecea_yuhab2sh/native-python-fixture_d9c06db196d0ecea_scientific_result.json",
+          "sha256": "d2ee8b6e35bc09d8eb7ef21aeb767a3c566951b30c9242b76e897e6e0cff3a73",
+          "byte_size": 1843
+        },
+        "ok": false,
+        "raw_refs": [
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_d9c06db196d0ecea_yuhab2sh/native-python-fixture_d9c06db196d0ecea_generated_draft.py",
+            "sha256": "fca1ff9d581511364da235bc2dd23249df4183c3630bd6d2252930ba822dae14",
+            "byte_size": 81
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_d9c06db196d0ecea_yuhab2sh/native_execution.py",
+            "sha256": "b646a03e159d23673eb281f33bf97f71d807745fa975e4cfd709782db7d22007",
+            "byte_size": 6376
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_d9c06db196d0ecea_yuhab2sh/native_workspace/raw_result.json",
+            "sha256": "d4a370567073152a4cccd860f26c4ad64fb1f85c4b984e0e658d1120a02198ff",
+            "byte_size": 1526
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_d9c06db196d0ecea_yuhab2sh/native_workspace/stderr.txt",
+            "sha256": "1669d63be8d45d715788cb1caba01e2e862cbb9c3b76f6f317bcb98c4ddeb0e8",
+            "byte_size": 1402
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_raw_error_a0/native-python-fixture_d9c06db196d0ecea_yuhab2sh/native_workspace/stdout.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "byte_size": 0
+          }
+        ]
+      },
+      {
+        "request_ref": {
+          "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_theory_scra0/e71adb14bea277ad/scratch_f03368a81a216370_838_08qx/scratch_f03368a81a216370_scientific_request.json",
+          "sha256": "3632ad9f16d1b6538df34f04fd9a4a3621d9aa21c3d1503258690020dfc519f8",
+          "byte_size": 3331
+        },
+        "envelope_ref": {
+          "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_theory_scra0/e71adb14bea277ad/scratch_f03368a81a216370_838_08qx/scratch_f03368a81a216370_scientific_result.json",
+          "sha256": "e1c97cc2918f4712a1fe2e24406835edc932be81101ffbfadb4bb46919c608c2",
+          "byte_size": 399
+        },
+        "ok": true,
+        "raw_refs": [
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_theory_scra0/e71adb14bea277ad/scratch_f03368a81a216370_838_08qx/native_execution.py",
+            "sha256": "069226619eeb353bed446cace2452623e729d69ef00793410cf51f1aa24c16bb",
+            "byte_size": 4682
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_theory_scra0/e71adb14bea277ad/scratch_f03368a81a216370_838_08qx/native_workspace/raw_result.json",
+            "sha256": "71827a3aacd78247feb91e92dcc44be609e859cfbe35034750aeb70c34ca769a",
+            "byte_size": 42
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_theory_scra0/e71adb14bea277ad/scratch_f03368a81a216370_838_08qx/native_workspace/stderr.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "byte_size": 0
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_theory_scra0/e71adb14bea277ad/scratch_f03368a81a216370_838_08qx/native_workspace/stdout.txt",
+            "sha256": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+            "byte_size": 2
+          },
+          {
+            "path": "runs/native_python_execution_mechanism_20261003/representative_fixtures/test_native_python_theory_scra0/e71adb14bea277ad/scratch_f03368a81a216370_838_08qx/scratch_f03368a81a216370_generated_draft.py",
+            "sha256": "49d901f9a6d88d09b0913fe9227e3c2792c9d0f9089b2e4712ab1b1d51906a9c",
+            "byte_size": 79
+          }
+        ]
+      }
+    ]
+  },
+  "native_python_configuration_ref": {
+    "path": "runs/native_python_execution_mechanism_20261003/native_python_runtime.json",
+    "sha256": "6a39f2bdc7dcc2ada356d5a7c4d98b3dd05fe738ff150d730a7a153a1afc0e8d",
+    "byte_size": 889
+  },
+  "environment_identity": {
+    "scope": "Existing StepMix native environment only, not clean reconstruction, author methods or R environment qualification.",
+    "file_count": 6611,
+    "changed_entries": [],
+    "original_inventory_sha256": "c6d0531b986082f6813258927dfe69aea930bd904176ed655f8485a149050b1d",
+    "verification_ref": {
+      "path": "runs/native_python_execution_mechanism_20261003/environment_identity.json",
+      "sha256": "5e66cf86786e5bac4bee8984bf094520eb287bc586741a1cf0abdfe3e1791a7f",
+      "byte_size": 196
+    }
+  },
+  "earlier_mechanism_attempts": [
+    {
+      "passed": 40,
+      "failed": 1,
+      "cause": "Consolidated schema omitted original-case native R distribution names. Kept canonical and original configured names; no statistical content change.",
+      "junit_ref": {
+        "path": "runs/native_python_execution_mechanism_20261003/native-regression_1.xml",
+        "sha256": "d3f135df1ef043e02652cdce27d4da5013a88fdb9ffa736531125deeaf335903",
+        "byte_size": 7101
+      }
+    },
+    {
+      "passed": 42,
+      "scope": "Configured regression before five additional native integrity/observation checks; overlapping fixture evidence.",
+      "junit_ref": {
+        "path": "runs/native_python_execution_mechanism_20261003/native-regression_2.xml",
+        "sha256": "ca69d55f9f726635058b8e46550df7dda1e2d5d0bcd5d46bcaec700ff7c4acd3",
+        "byte_size": 5830
+      }
+    }
+  ],
+  "full_default_regression": {
+    "status": "completed",
+    "code_commit": "b2569e262caac442e4c2bd962d754801d9f5959f",
+    "command": ".venv/bin/pytest -q --junitxml=runs/native_python_execution_mechanism_20261003/full-regression.xml",
+    "returncode": 0,
+    "passed": 2173,
+    "skipped": 49,
+    "xfailed": 1,
+    "elapsed_seconds": 1836.87,
+    "junit_ref": {
+      "path": "runs/native_python_execution_mechanism_20261003/full-regression.xml",
+      "sha256": "e5fa762b37e3917b6c6ae7257577f4a8b7eb9a6e3ca222b8218d669f443ccfb8",
+      "byte_size": 741061
+    },
+    "stdout_ref": {
+      "path": "runs/native_python_execution_mechanism_20261003/full-regression.stdout.log",
+      "sha256": "093789d2890370dd542017e490a357f76e5224b205fac7e77852709cd783395e",
+      "byte_size": 2537
+    },
+    "stderr_ref": {
+      "path": "runs/native_python_execution_mechanism_20261003/full-regression.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "byte_size": 0
+    },
+    "limitation": "Default skips are not passed native executions; configured fixtures have separate scope. Existing detached-process lifetime xfail remains unresolved. No scientific outcome or proof credit."
+  },
+  "limitations": [
+    "Mechanism fixtures do not establish autonomous native use, mathematical correctness, author replication or a publication effect.",
+    "Native execution currently requires macOS isolation; package versions do not freeze package bytes.",
+    "Installed native Python packages determine import access; the model dependency list is not an import-security boundary.",
+    "Existing optional local-port listener and detached-process-lifetime limitations remain; no complete sandbox-security claim.",
+    "Actual matched arms, final estimator interfaces, independent authority, source/PDF access, rights, roster/precision and prospective freeze remain open."
+  ],
+  "verified_on": "2026-10-04"
+}

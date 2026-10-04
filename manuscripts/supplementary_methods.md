@@ -311,7 +311,7 @@ This supplement contains no operator-authored replacement proof or numerical gol
 | B1 output | Declared 18 settings and 25 rounds per setting, each source batch containing 20 repetitions; performance, failures and uncertainty | Source-declared grid/counts, not executed observations |
 | Card E.1 | Exact data/covariates, four alternative bases, split/aggregation and interpretation | Original-data rights, aggregate definition and complete execution/reference unresolved; the inspected producer does not record its original RNG sequence |
 | Theory | Complete selected explanation with stated assumptions and dependency scope | Independent authority unappointed; source proof findings unresolved |
-| Environment | Explicit native scientific R configuration and exact package/library reconstruction across arms | Local mechanism is verified, not autonomous use or clean release |
+| Environment | Explicit native Python/R configurations and exact package/library reconstruction across arms | Local mechanisms are verified, not autonomous use or clean release |
 
 The code-to-display mapping and known source gaps are recorded in the evaluator's
 [qualification review](../benchmarks/publication_reference_qualification_20261002/tsci_scientific_source_review.md).

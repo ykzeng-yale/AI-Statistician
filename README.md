@@ -138,11 +138,11 @@ runs in bounded subprocesses without inherited secrets or network access. If a
 required runtime is absent, the system records a capability blocker instead of
 silently selecting an unconfigured host interpreter.
 
-For installed native R packages, set `AI_STATISTICIAN_NATIVE_R_CONFIG` to an
-operator-owned [runtime configuration](#native-r-execution).
-The model explicitly selects `scientific_native_r` in its existing source or scratch
-tool. It uses the same project, estimator and input ABI, returns raw R observations
-to the same author, and never falls back to another backend. Native R currently
+For installed native packages, configure [Python](#native-python-execution) or
+[R](#native-r-execution) explicitly. The model selects `scientific_native_python`
+or `scientific_native_r` in its existing source or scratch tool. Both reuse the
+same project, estimator and input ABI, return raw observations to the same author,
+and never fall back to another backend. Native Python/R currently
 requires macOS `sandbox-exec`; this is not yet a clean-machine cross-platform release.
 Operator-selected local worker ports are optional, not a model permission upgrade;
 their network boundary is described below.
@@ -151,6 +151,24 @@ An explicit [offline native project tool](docs/research_harness_reuse_strategy.m
 also lets Theory and Scientific owners run their own commands in a persistent
 Linux project. It requires a configured Apple container service and pinned images;
 it does not replace reviewed source execution or confirmatory evaluation.
+
+### Native Python Execution
+
+Set `AI_STATISTICIAN_NATIVE_PYTHON_CONFIG` to an operator-owned JSON file using
+the [same process resource fields](#native-r-execution), with `schema_version: 1`,
+`runtime_language: "python"`, exact `runtime_version` and `package_versions` for
+the selected environment. Bind the environment's Python executable and SHA-256;
+include its base interpreter/library read roots if it is a virtual environment.
+Python uses `-B -s`, preserving the bound virtual environment without inherited
+secrets or user-site access. No additional package such as `jsonlite` is needed.
+
+The trusted adapter reuses the existing Python project/estimator ABI. It checks
+the interpreter and declared package versions before model source runs, and
+returns raw tracebacks without AST content patches or WASM import restrictions.
+The installed environment controls native package access; the model's dependency
+list documents intent, not a native import-security boundary. Freeze package bytes
+separately for experiments. The resource, immutable-input and local-port limitations
+below also apply. Node's heap bound is not a native Python memory limit.
 
 ### Native R Execution
 
@@ -163,7 +181,7 @@ Set `AI_STATISTICIAN_NATIVE_R_CONFIG` to one operator-owned JSON file containing
 - `runtime_read_roots`, `runtime_executables` (absolute launcher paths mapped to
   SHA-256), and `runtime_environment` (for example, explicit R home/library paths).
 - Optional `runtime_local_ports`: unique integer ports, empty by default. The
-  source and native R executors permit bind/listen on those ports and outbound
+  source and native scientific executors permit bind/listen on those ports and outbound
   connections only to loopback at those ports. Native worker listeners can bind
   all interfaces: this is **not loopback-only inbound isolation**. Choose dedicated
   unoccupied ports, not inference, assessor or other service ports; do not enable

@@ -1,6 +1,6 @@
 # Publication Programme
 
-Updated: 2026-10-03. Status: design and release work in progress; no new scientific
+Updated: 2026-10-04. Status: design and release work in progress; no new scientific
 benchmark result. The native chat goal is active and covers both publications.
 
 ## Two Research Questions
@@ -64,7 +64,7 @@ does not establish novelty or mathematical truth.
 | Portable host | Native host file/edit/search/execution tools and Agent Skills format | Clean installation, actual body activation, reference/tool access and a substantive reproducible use case |
 | Retained research session | `client_tool_loop.py`, hash-bound files and raw observations | Local Qwen conformance for every workspace and long-session recovery |
 | Collaboration | `agent_runtime.py`, scoped roles and reference handoffs | Dependency-aware independent work, exact-input joins and evidence invalidation; current execution is serial/interleaved |
-| Scientific execution | Existing local Python/R tools and project snapshots | Native environment reconstruction and Python/R reproduction on clean machines |
+| Scientific execution | Existing local Python/R projects; native Python/R share the pinned local executor | Actual matched study access, environment reconstruction and clean-machine reproduction |
 | Verification | Independent review, frozen confirmation and exact Lean checks | Qualified independent Qwen-era evaluation plus expert calibration |
 | Lean foundation | Pinned Mathlib/Statlib/StatInference and retrieval | Audited statement/proof/dependency maps and a compact curated public API |
 
@@ -280,6 +280,13 @@ execute. Its inbound-listener limitation is disclosed. This does not change the
 earlier failure, configure the candidate studies, establish multi-agent concurrency
 or close Q06/Q07. Native Python and actual matched scientific access remain open.
 
+The subsequent [shared native scientific check](../benchmarks/publication_case_candidates/published_methods/native_scientific_execution.json)
+qualifies native Python/R configuration and ABI mechanisms at b2569e26: 47 configured
+checks and the full default regression pass. Existing StepMix package construction,
+project/estimator/input binding and Theory scratch execute; all 6,611 environment
+entries remain exact. This is not an author-method run, model study, independent
+theory assessment or matched-arm qualification. Scientific checklist items stay open.
+
 ### 2. Theory and Scientific Agreement
 
 - [x] **T01. Evaluation-method appendix draft.** The shared
@@ -440,14 +447,23 @@ names the required tables, figures and supplements without inventing their value
 
 ### Immediate Execution Order
 
-Close Q03/Q04's named source/reference gaps; in parallel, finish the roster and
-Q05 assessor decisions without exposing held answers to product authors. Then
-qualify Q06, freeze Q07/E01 and execute E02/E03. Adjudicate before reporting an
-effect; assemble T02--T04, E04 and the case into the main texts and supplements.
+For selected primary tasks, finish Q02/Q04 reference/access scope and Q05 assessor
+decisions without exposing evaluation findings to authors. Qualify Q06, freeze
+Q07/E01 and execute E02/E03. The exposed TSCI case's missing inputs are separate
+Q03/C02/C03 dependencies: advance them in parallel, rather than hold every
+otherwise qualified primary comparison for an unavailable case helper.
+Adjudicate before reporting an effect; assemble T02--T04, E04 and the case into
+the main texts and supplements.
 Release rights and clean reconstruction can advance while assessment is pending.
 Optional Lean supports scoped claims, not the non-formal study's critical path.
 
-The current native-R mechanism and shared appendix drafting advance prerequisites
+Experiment completion does not require every agent draw to pass or a positive
+harness effect. A fully executed, independently assessed negative comparison is
+reportable. Keep that distinction from accepted statistical claims, complete
+case reconstruction and working releases; never change task acceptance after
+observing results just to close a checklist item.
+
+The current native scientific mechanisms and shared appendix drafting advance prerequisites
 only. Missing author sources, data rights and qualified assessor appointments
 remain external decisions. Until resolved, advance unblocked items of this same
 programme; do not replace the case, invent authority or launch a knowingly

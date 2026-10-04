@@ -103,11 +103,13 @@ earlier failure evidence. The runtime does not infer a statistical answer from
 an error message or inject a hand-written fix into model-authored code.
 
 The default scientific executor uses pinned Pyodide and webR in bounded local
-subprocesses. An explicit native-R profile reuses the same R ABI and existing
+subprocesses. Explicit native Python/R profiles reuse their existing ABIs and one
 pinned local executor; installed packages come from the operator's environment,
 not task rules. Raw observations return to the source owner without automatic
-backend fallback. Native R currently requires macOS isolation, and package
-versions do not establish frozen package bytes. The offline native project tool
+backend fallback. Native execution currently requires macOS isolation. Configured
+interpreter/package versions are checked before source execution; they do not
+establish frozen package bytes. The installed native Python environment determines
+import access; a declared dependency list is not its security boundary. The offline native project tool
 is separate. Local execution fixtures establish these mechanism scopes, not
 autonomous use, arbitrary dependency reconstruction or clean-machine replication.
 Network is denied by default. Explicit operator-selected worker ports permit

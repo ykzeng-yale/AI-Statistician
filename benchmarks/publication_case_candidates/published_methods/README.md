@@ -123,6 +123,15 @@ Q02/Q04/Q05/Q06/Q07 remain open in the
 
 ## Verification Scope
 
+The later [native scientific verification](native_scientific_execution.json)
+binds shared code b2569e26: 47 configured Python/R/core checks and a complete default
+regression (2173 passed, 49 skipped, one existing xfail). Native Python uses the
+prepared StepMix environment, whose 6,611 entries remain unchanged. Synthetic
+class construction and exact ABI/feedback fixtures do not qualify the paper's
+statistical methods, actual model arms or independent scientific assessment.
+Earlier preparation records keep their original unqualified generated-Python
+scope; they are not retroactively edited or rerun.
+
 The existing loader accepts all three questions and preserves their required
 theory, code, empirical and source-reconstruction intent through the runtime
 payload round trip. `frozen_direct_initial_task` returns no single-lane shortcut
