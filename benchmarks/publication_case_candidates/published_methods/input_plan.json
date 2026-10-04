@@ -1,0 +1,93 @@
+[
+  {
+    "question_id": "stepmix_external_variables_source_assisted_candidate_v1",
+    "snapshot_id": "stepmix_jss_author_inputs_v1",
+    "title": "StepMix: A Python Package for Pseudo-Likelihood Estimation of Generalized Mixture Models with External Variables",
+    "doi": "10.18637/jss.v113.i08",
+    "publication_date": "2025-07-14",
+    "paper": {
+      "path": "runs/publication_reference_qualification_20261003/stepmix/sources/paper.pdf",
+      "sha256": "2a68123809bdddb46feacba106daa586106f2e50945d03ea79f76fb1afc1e9b2",
+      "url": "https://www.jstatsoft.org/index.php/jss/article/download/v113i08/4699",
+      "license_context": "Journal paper; redistribution terms not qualified here."
+    },
+    "package": {
+      "path": "runs/publication_reference_qualification_20261003/stepmix/sources/package.tar.gz",
+      "sha256": "6ddc76f10a40033061812ac16c7d7d2ca7ed2444b62006d9a0f684dee85edc2e",
+      "url": "https://www.jstatsoft.org/index.php/jss/article/download/v113i08/4700",
+      "root": "stepmix-2.2.3/",
+      "license_context": "MIT software, original LICENSE retained; dataset redistribution is not established by this license.",
+      "excluded_prefixes": []
+    },
+    "replication": {
+      "path": "runs/publication_reference_qualification_20261003/stepmix/sources/replication.zip",
+      "sha256": "af7051cffbb520e625b7f4064e663eb272225da93e5290c54066939680b079a3",
+      "url": "https://www.jstatsoft.org/index.php/jss/article/download/v113i08/4702",
+      "root": "",
+      "license_context": "No separate replication license; script correspondence to MIT package is recorded separately. Original data rights remain unresolved.",
+      "excluded_prefixes": ["R/"],
+      "exclusion_reason": "R wrapper is outside the declared Python task."
+    }
+  },
+  {
+    "question_id": "ebnm_prior_families_source_assisted_candidate_v1",
+    "snapshot_id": "ebnm_jss_author_inputs_v1",
+    "title": "ebnm: An R Package for Solving the Empirical Bayes Normal Means Problem Using a Variety of Prior Families",
+    "doi": "10.18637/jss.v114.i03",
+    "publication_date": "2025-09-12",
+    "paper": {
+      "path": "runs/publication_reference_qualification_20261002/ebnm/sources/paper.pdf",
+      "sha256": "16f950e06396a072cd85e53b5f82ba3654ed857992de1a09fface0667ac7a5d3",
+      "url": "https://www.jstatsoft.org/index.php/jss/article/view/v114i03/4733",
+      "license_context": "Journal paper; redistribution terms not qualified here."
+    },
+    "package": {
+      "path": "runs/publication_reference_qualification_20261002/ebnm/sources/package.tar.gz",
+      "sha256": "21430b926c650a08456ade645ea0927f4719ef672a095cc3834e0d882a7c1830",
+      "url": "https://www.jstatsoft.org/index.php/jss/article/download/v114i03/4734",
+      "root": "ebnm/",
+      "license_context": "GPL >=3 software per DESCRIPTION; original data redistribution terms require separate qualification.",
+      "excluded_prefixes": ["inst/doc/", "build/"],
+      "exclusion_reason": "Generated rendered vignettes/build assets; original source vignettes and documentation remain visible."
+    },
+    "replication": {
+      "path": "runs/publication_reference_qualification_20261002/ebnm/sources/replication.zip",
+      "sha256": "12651e2587f419e9798089b23f85f3a8441d1c467ca90ca9724f9ea0844e9578",
+      "url": "https://www.jstatsoft.org/index.php/jss/article/download/v114i03/4735",
+      "root": "",
+      "license_context": "MIT replication code, original LICENSE retained; no implied license for paper or original data.",
+      "excluded_prefixes": ["output/", "code/code_appendix.R"],
+      "exclusion_reason": "Cached numerical outputs and licensed-solver appendix outside the declared default main-text task."
+    }
+  },
+  {
+    "question_id": "bizicount_joint_count_source_assisted_candidate_v1",
+    "snapshot_id": "bizicount_jss_author_inputs_v1",
+    "title": "bizicount: Bivariate Zero-Inflated Count Copula Regression Using R",
+    "doi": "10.18637/jss.v109.i01",
+    "publication_date": "2024-05-08",
+    "paper": {
+      "path": "runs/publication_roster_downloads_20261003/bizicount_paper.pdf",
+      "sha256": "7d81e2488a318d737e5ab7eca382aadfd28c289ca8f92cca39358091d37a9ab2",
+      "url": "https://www.jstatsoft.org/index.php/jss/article/view/v109i01/4558",
+      "license_context": "Journal paper; redistribution terms not qualified here."
+    },
+    "package": {
+      "path": "runs/publication_reference_qualification_20261002/sources/bizicount_package.tar.gz",
+      "sha256": "bb61a86f3f44746d337a45c3393cdaf4fd40f28ddc545c157203d6809897d838",
+      "url": "https://www.jstatsoft.org/index.php/jss/article/view/v109i01/4560",
+      "root": "bizicount/",
+      "license_context": "GPL >=3 software per DESCRIPTION; original data redistribution terms require separate qualification.",
+      "excluded_prefixes": []
+    },
+    "replication": {
+      "path": "runs/publication_reference_qualification_20261002/sources/bizicount_replication.zip",
+      "sha256": "ff40055cdbc34a77737cfd1b7713c8ffce6c70b2dab2674d6b5a4edb43383384",
+      "url": "https://www.jstatsoft.org/index.php/jss/article/view/v109i01/4561",
+      "root": "",
+      "license_context": "Replication archive and original data redistribution rights not independently qualified.",
+      "excluded_prefixes": ["Figures/", "output_montes_small.RData", "v109i01-replication.txt", "README.html"],
+      "exclusion_reason": "Cached fitted results, figures, execution log and duplicate rendered README; source README and sessioninfo remain visible."
+    }
+  }
+]

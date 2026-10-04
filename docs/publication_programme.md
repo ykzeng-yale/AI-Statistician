@@ -257,9 +257,16 @@ now supplies three loader-readable integrated candidates for StepMix external
 variables, ebnm prior-family comparison and bizicount reconstruction/assessment.
 All use declared paper/code access, not blind rediscovery. Background EM and
 normal-means exposure remains explicit; TSCI stays an exposed case/illustration.
-The source records support only their qualified numerical scope. Task input/ABI,
-rights, independent argument assessment, actual arms and roster/precision freeze
-remain required; candidate selection does not close Q02/Q04 or activate a study.
+The source records support only their qualified numerical scope. The
+[input preparation](../benchmarks/publication_case_candidates/published_methods/input_preparation.json)
+now supplies three existing-format model-visible snapshots with exact original
+assets and cached-output exclusions. All 225 selected author files are byte-identical;
+the three PDF/text pairs make 231 registered files. The bizicount text extraction
+has an explicit rotated-text omission warning; full PDFs remain available, but
+text fidelity and actual host PDF access are unqualified. Eight existing source/import
+tests passed without a model call or scientific script. Execution bindings, task
+ABIs, rights, independent assessment, actual arms and roster/precision freeze remain
+required. This prerequisite does not close Q02/Q04 or activate a study.
 
 ### 2. Theory and Scientific Agreement
 

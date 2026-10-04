@@ -102,11 +102,13 @@ Input identities already exist in the original preparation records:
   The package is GPL >=3; replication-archive and original-data redistribution
   terms are not independently qualified. Do not commit third-party bytes here.
 
-The tasks do not yet carry frozen estimator ABIs or authoritative source-execution
-capsules. Before activation, construct those through existing interfaces, specify
-method inputs/outputs without prescribing an answer, bind exact data/runtime access
-in all arms, and qualify the complete native scientific execution path. An installed
-author reference environment is not automatically the model workspace environment.
+The existing-format source snapshots are now prepared at the identities in
+[input_preparation.json](input_preparation.json). They are input identity evidence,
+not authoritative numerical references or source-execution bindings. The tasks do
+not yet carry frozen estimator ABIs. Before activation, specify method inputs and
+outputs without prescribing an answer, bind exact data/runtime access in all arms,
+and qualify the complete native scientific execution path. An installed author
+reference environment is not automatically the model workspace environment.
 No new adapter, scheduler, repair loop or model call is justified by this document.
 
 Next finish the independent claim/implementation rubrics and rights, then common
@@ -134,3 +136,55 @@ The existing contract tests passed: 15 tests in 60.30 seconds, exit zero.
 No model, assessor, scientific script or consumed evaluation ran. Product source
 is unchanged from the previously full-tested code checkpoint `4fb51df2`; no new
 full regression or deployment check was needed for these task/document edits.
+
+## Prepared Author Inputs
+
+The offline [preparer](prepare_inputs.py) reads only the nine journal assets in
+[input_plan.json](input_plan.json), verifies their hashes and writes the existing
+`ResearchSourceSnapshot` format. It does not read the reference results or operator
+diagnoses, call a model, execute scientific code or install dependencies. Original
+archives and consumed execution directories are unchanged. A fresh output directory
+is required; an existing preparation cannot be overwritten.
+
+| Input capsule | Registered files | Byte-identical author files | Excluded archive files |
+| --- | --- | --- | --- |
+| StepMix | 66 | 64 | 2 |
+| ebnm | 108 | 106 | 20 |
+| bizicount | 57 | 55 | 25 |
+
+Each capsule additionally contains its exact PDF and a mechanically extracted text
+view. The original paper intentionally exposes published results. Author source
+tests, source vignettes, README and session metadata are visible background, not
+independent gold. Separate cached execution outputs, figures and logs are excluded;
+out-of-task R wrapper/solver appendix and generated duplicate/build documentation
+are excluded according to the plan. Binary R data and internal package assets are
+retained unchanged. All selected archive bytes, declared exclusions and registered
+on-disk file sets were checked, along with existing identity/list/read/search access.
+
+Preparation used `pypdf==6.16.1`, `extract_text(extraction_mode="layout")`, with
+page markers and no OCR, mathematical reconstruction or content correction.
+**bizicount emitted a rotated-text omission warning.** Its full PDF is retained;
+the text view is incomplete and cannot substitute for the PDF. Text-symbol,
+formula and layout fidelity are not qualified for any of the three papers.
+The snapshots do not establish that every eventual host can inspect PDF content;
+actual model/host access remains part of Q06 qualification.
+
+With the exact downloaded assets available at the plan's repository-relative
+paths, the same preparation is:
+
+```sh
+.venv/bin/python -m benchmarks.publication_case_candidates.published_methods.prepare_inputs \
+  --out runs/publication_roster_inputs_20261003
+```
+
+The plan supplies download URLs and expected hashes; acquisition and the PDF
+preparation dependency are not a clean-machine scientific environment lock.
+Raw source/data/PDF bytes remain under ignored `runs/`; only their identities,
+selection rules and preparation code are committed. Redistribution rights remain
+unresolved, and no public data release is claimed.
+
+Eight existing source/import contract tests passed in 3.49 seconds, exit zero;
+the record binds JUnit and the exact preparation script. The binary import tests
+use deterministic fixtures, not these studies. No product mechanism changed,
+scientific endpoint was assessed, consumed evaluation was retried, model was
+called, official study was activated or checklist item was closed by this work.

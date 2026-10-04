@@ -1,0 +1,247 @@
+{
+  "scope": "candidate_source_input_preparation_only",
+  "study_activated": false,
+  "model_calls": 0,
+  "scientific_scripts_executed": 0,
+  "mathematical_assessments": 0,
+  "plan_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/input_plan.json",
+    "sha256": "2236fdf25ad1738f3f9cf2c62127ac529fb9a5f2cc88bbdd65036b7c915bac16",
+    "byte_size": 5527
+  },
+  "questions_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/questions.json",
+    "sha256": "a940b69ab0e2ef0744f7483663f7839b1332b1a8184ca96b149767b7712f7cba",
+    "byte_size": 10973
+  },
+  "preparer_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/prepare_inputs.py",
+    "sha256": "95ae41f8776a1cc7fff97e3ce23975f86c0cc37a3cb0bec29c5010cc2e9260b9",
+    "byte_size": 8844
+  },
+  "authority": "Existing ResearchSourceSnapshot identity/read/search, not source execution, scientific validity, blind rediscovery, release rights or arm qualification.",
+  "raw_preparation_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_roster_inputs_20261003/input_preparation.json",
+    "sha256": "075ae7b8fcae344f524b9965db4f4a5909665b233db59b69815700d88471842d",
+    "byte_size": 26801
+  },
+  "candidates": [
+    {
+      "question_id": "stepmix_external_variables_source_assisted_candidate_v1",
+      "manifest_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_roster_inputs_20261003/stepmix_jss_author_inputs_v1/research_sources.json",
+        "sha256": "de7e48abd472a766450626519119f83c59a83e4359586bbb9dc35e1fcacf9e80",
+        "byte_size": 56939
+      },
+      "snapshot": {
+        "schema_version": 1,
+        "artifact_kind": "ResearchSourceSnapshotDescriptor",
+        "snapshot_id": "stepmix_jss_author_inputs_v1",
+        "source_horizon": "2025-07-14",
+        "snapshot_hash": "0b95573c5279ae091d5743360c4ecb7368853c957fa79e22ec6a0546f36f55a8",
+        "manifest_sha256": "de7e48abd472a766450626519119f83c59a83e4359586bbb9dc35e1fcacf9e80",
+        "document_count": 66,
+        "source_kind_counts": {
+          "author_package": 50,
+          "author_replication": 14,
+          "paper": 1,
+          "paper_text_extraction": 1
+        },
+        "document_index_hash": "65e26a9f8fb2c9645cd051a2cf5510a02f846a7a53bea84c21679deede2549a5",
+        "model_visible": true,
+        "proof_evidence_status": "RESEARCH_SOURCE_OBSERVATION_NOT_PROOF_EVIDENCE",
+        "boundary": "This descriptor binds a model-visible research-source snapshot. Source text may ground or contradict a theory proposal, but a retrieved passage is not proof that the proposal is correct."
+      },
+      "original_assets": {
+        "paper": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_reference_qualification_20261003/stepmix/sources/paper.pdf",
+          "sha256": "2a68123809bdddb46feacba106daa586106f2e50945d03ea79f76fb1afc1e9b2",
+          "byte_size": 689781
+        },
+        "package": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_reference_qualification_20261003/stepmix/sources/package.tar.gz",
+          "sha256": "6ddc76f10a40033061812ac16c7d7d2ca7ed2444b62006d9a0f684dee85edc2e",
+          "byte_size": 61528
+        },
+        "replication": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_reference_qualification_20261003/stepmix/sources/replication.zip",
+          "sha256": "af7051cffbb520e625b7f4064e663eb272225da93e5290c54066939680b079a3",
+          "byte_size": 60602
+        }
+      },
+      "extraction": {
+        "parser": "pypdf",
+        "version": "6.16.1",
+        "mode": "layout",
+        "page_marker": "[PDF page N]",
+        "pages": 39,
+        "warnings": "",
+        "text_sha256": "686000c41cb231255b831cecace5f8325749d89d3c452770c4d63b369b824cfd",
+        "semantic_or_visual_fidelity_qualified": false
+      },
+      "static_tool_checks": {
+        "identity_errors": [],
+        "paper_read_ok": true,
+        "search_hit_count": 1,
+        "registered_file_count": 66,
+        "binary_assets": [
+          "paper/article.pdf"
+        ]
+      },
+      "excluded_regular_files": 2,
+      "byte_identical_author_files": 64
+    },
+    {
+      "question_id": "ebnm_prior_families_source_assisted_candidate_v1",
+      "manifest_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_roster_inputs_20261003/ebnm_jss_author_inputs_v1/research_sources.json",
+        "sha256": "bfa89ce56c8ac46241a6f5fa8b02ce75b5808f37d34c58a8ae743015d070ad92",
+        "byte_size": 91041
+      },
+      "snapshot": {
+        "schema_version": 1,
+        "artifact_kind": "ResearchSourceSnapshotDescriptor",
+        "snapshot_id": "ebnm_jss_author_inputs_v1",
+        "source_horizon": "2025-09-12",
+        "snapshot_hash": "2523a214f970b8df0aad2c0d000cf4eae564f9e4e47e9b5c080f9c584500398b",
+        "manifest_sha256": "bfa89ce56c8ac46241a6f5fa8b02ce75b5808f37d34c58a8ae743015d070ad92",
+        "document_count": 108,
+        "source_kind_counts": {
+          "author_package": 102,
+          "author_replication": 4,
+          "paper": 1,
+          "paper_text_extraction": 1
+        },
+        "document_index_hash": "42587491401027630d25cd1396d11066b14416da175a3ae54b45cdff6ed600de",
+        "model_visible": true,
+        "proof_evidence_status": "RESEARCH_SOURCE_OBSERVATION_NOT_PROOF_EVIDENCE",
+        "boundary": "This descriptor binds a model-visible research-source snapshot. Source text may ground or contradict a theory proposal, but a retrieved passage is not proof that the proposal is correct."
+      },
+      "original_assets": {
+        "paper": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_reference_qualification_20261002/ebnm/sources/paper.pdf",
+          "sha256": "16f950e06396a072cd85e53b5f82ba3654ed857992de1a09fface0667ac7a5d3",
+          "byte_size": 978132
+        },
+        "package": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_reference_qualification_20261002/ebnm/sources/package.tar.gz",
+          "sha256": "21430b926c650a08456ade645ea0927f4719ef672a095cc3834e0d882a7c1830",
+          "byte_size": 599175
+        },
+        "replication": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_reference_qualification_20261002/ebnm/sources/replication.zip",
+          "sha256": "12651e2587f419e9798089b23f85f3a8441d1c467ca90ca9724f9ea0844e9578",
+          "byte_size": 43231
+        }
+      },
+      "extraction": {
+        "parser": "pypdf",
+        "version": "6.16.1",
+        "mode": "layout",
+        "page_marker": "[PDF page N]",
+        "pages": 32,
+        "warnings": "",
+        "text_sha256": "803db86f9917b80ab392b00ca2e6657672ef1c75c37c0064d9f82403beb52eee",
+        "semantic_or_visual_fidelity_qualified": false
+      },
+      "static_tool_checks": {
+        "identity_errors": [],
+        "paper_read_ok": true,
+        "search_hit_count": 1,
+        "registered_file_count": 108,
+        "binary_assets": [
+          "package/R/sysdata.rda",
+          "package/data/wOBA.rda",
+          "paper/article.pdf"
+        ]
+      },
+      "excluded_regular_files": 20,
+      "byte_identical_author_files": 106
+    },
+    {
+      "question_id": "bizicount_joint_count_source_assisted_candidate_v1",
+      "manifest_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_roster_inputs_20261003/bizicount_jss_author_inputs_v1/research_sources.json",
+        "sha256": "881b82ebd2c2ef082f6a3fc3cdd08eab94ed7177306d1ee5dbf1b8c9e7091f46",
+        "byte_size": 45121
+      },
+      "snapshot": {
+        "schema_version": 1,
+        "artifact_kind": "ResearchSourceSnapshotDescriptor",
+        "snapshot_id": "bizicount_jss_author_inputs_v1",
+        "source_horizon": "2024-05-08",
+        "snapshot_hash": "83bdae48e4eac7f145e7523d85eb5f25c9a4d1dafc8b63e549ba01e855919fa9",
+        "manifest_sha256": "881b82ebd2c2ef082f6a3fc3cdd08eab94ed7177306d1ee5dbf1b8c9e7091f46",
+        "document_count": 57,
+        "source_kind_counts": {
+          "author_package": 47,
+          "author_replication": 8,
+          "paper": 1,
+          "paper_text_extraction": 1
+        },
+        "document_index_hash": "24c68044a132f1ed3b97ee00ae0c0970e12482364adc70c7b4b9cfc94eb5ff8d",
+        "model_visible": true,
+        "proof_evidence_status": "RESEARCH_SOURCE_OBSERVATION_NOT_PROOF_EVIDENCE",
+        "boundary": "This descriptor binds a model-visible research-source snapshot. Source text may ground or contradict a theory proposal, but a retrieved passage is not proof that the proposal is correct."
+      },
+      "original_assets": {
+        "paper": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_roster_downloads_20261003/bizicount_paper.pdf",
+          "sha256": "7d81e2488a318d737e5ab7eca382aadfd28c289ca8f92cca39358091d37a9ab2",
+          "byte_size": 1382879
+        },
+        "package": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_reference_qualification_20261002/sources/bizicount_package.tar.gz",
+          "sha256": "bb61a86f3f44746d337a45c3393cdaf4fd40f28ddc545c157203d6809897d838",
+          "byte_size": 56435
+        },
+        "replication": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_reference_qualification_20261002/sources/bizicount_replication.zip",
+          "sha256": "ff40055cdbc34a77737cfd1b7713c8ffce6c70b2dab2674d6b5a4edb43383384",
+          "byte_size": 2311691
+        }
+      },
+      "extraction": {
+        "parser": "pypdf",
+        "version": "6.16.1",
+        "mode": "layout",
+        "page_marker": "[PDF page N]",
+        "pages": 42,
+        "warnings": "Rotated text discovered. Output will be incomplete.\n",
+        "text_sha256": "5e9b76a10249ecf9687073a8192cf13a9003d79244aaee55f83068a98e1d5652",
+        "semantic_or_visual_fidelity_qualified": false
+      },
+      "static_tool_checks": {
+        "identity_errors": [],
+        "paper_read_ok": true,
+        "search_hit_count": 1,
+        "registered_file_count": 57,
+        "binary_assets": [
+          "package/data/terror.rda",
+          "paper/article.pdf"
+        ]
+      },
+      "excluded_regular_files": 25,
+      "byte_identical_author_files": 55
+    }
+  ],
+  "verification": {
+    "static_archive_check": "Every included member matches its original archive bytes; exclusions and exact registered on-disk file sets match. Existing output guard and snapshot directory access passed. No source execute or model import session was run.",
+    "tests": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "8",
+      "time": "3.487",
+      "timestamp": "2026-10-03T21:26:09.616365-04:00",
+      "hostname": "Yukangs-MacBook-Pro.local"
+    },
+    "junit_ref": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_roster_inputs_20261003/source_contract_tests.xml",
+      "sha256": "afa11084eae636314f5ea41e173d3038738ef9575313e4849fb6033708342c9c"
+    },
+    "command": ".venv/bin/pytest -q tests/test_research_source_library.py tests/test_scientific_code_workspace.py -k \"source_snapshot or source_search or hash_bound_source_snapshot or shared_source_client_tools or model_imports_observed_frozen_project_files\" --junitxml=runs/publication_roster_inputs_20261003/source_contract_tests.xml",
+    "py_compile": "passed"
+  }
+}

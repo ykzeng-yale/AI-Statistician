@@ -96,9 +96,17 @@ StepMix, ebnm and bizicount references rather than another execution panel. They
 require reviewable arguments, scientific source and empirical analysis together.
 Background exposure and source/software discrepancies remain declared, not renamed
 into fresh discovery or silently accepted as gold. TSCI remains the substantive
-exposed case. Exact input/ABI and common assessment, rights, arm access/resources
-and roster/precision freeze still precede official calls. No new scientific draw,
-reference rerun or product mechanism change occurred in this selection work.
+exposed case. The subsequent
+[input preparation](../benchmarks/publication_case_candidates/published_methods/input_preparation.json)
+binds three existing-format source snapshots: 231 files, including 225 byte-identical
+author files, excluding separate cached execution outputs and operator findings.
+These are input identities, not source-execution bindings, estimator ABIs, common
+assessment or matched actual arm access. The bizicount text view has an explicit
+rotated-text omission warning; the exact PDF is retained and text fidelity is
+unqualified. Eight existing source/import tests passed with zero model calls or
+scientific script execution. Rights and roster/precision freeze remain open.
+No new scientific draw, reference rerun or product mechanism change occurred.
+Next finish execution/access and common assessment, not another acquisition panel.
 
 The separate shared-tool correction declares each writable artifact's existing
 top-level type in the model schema. Runtime checks and atomic replacement are
