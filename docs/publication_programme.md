@@ -256,6 +256,11 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   parser, tolerance, precision or authority is frozen, so Q04 remains open.
   The [native R assessment follow-up](../benchmarks/publication_case_candidates/published_methods/r_artifact_assessment.json)
   removes the Python-only artifact restriction using the same executor and ABI.
+  The assessment-only R reader now preserves the three declared R result
+  channels' keys, slots and nonfinite states; fresh native/CLI fixtures pass.
+  Source-defined endpoint quantities are explicit in the assessment draft.
+  This is not author-result comparison, scope completeness, tolerance qualification
+  or a scientific verdict; no further item is checked.
   Opaque RDS/native-dispatch and negative checks pass; typed missing/nonfinite
   values remain in the captured object. These are mechanism checks, not author
   RDS/RData assessment or scientific endpoint qualification. The protocol now

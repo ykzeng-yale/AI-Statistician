@@ -128,6 +128,40 @@ rationale. No counts, budgets, tolerances, split or study are frozen here.
 Q02/Q04/Q05/Q06/Q07 remain open in the
 [single delivery checklist](../../../docs/publication_programme.md#delivery-checklist).
 
+### Assessment-Only Result Reader
+
+[read_submitted_simulation.R](read_submitted_simulation.R) reads the declared ebnm
+`simstudy.rds`/`timecomps.rds` and bizicount `output_montes_small.RData` channels.
+It is an offline assessment utility, outside product tools and author input
+capsules. It does not execute stored functions, rerun source code, compare with
+cached numbers or assign acceptance. The original binary files stay authoritative;
+its JSON view preserves numerical fields/states, keys and slot positions, not
+every arbitrary serialized R attribute or saved closure.
+
+Run in the explicitly configured native R environment, with `jsonlite`:
+
+```sh
+Rscript --vanilla benchmarks/publication_case_candidates/published_methods/read_submitted_simulation.R ebnm_simstudy SELECTED_SIMSTUDY.rds
+Rscript --vanilla benchmarks/publication_case_candidates/published_methods/read_submitted_simulation.R ebnm_timecomps SELECTED_TIMECOMPS.rds
+Rscript --vanilla benchmarks/publication_case_candidates/published_methods/read_submitted_simulation.R bizicount_montes SELECTED_MONTES.RData
+Rscript --vanilla benchmarks/publication_case_candidates/published_methods/test_submitted_simulation_reader.R benchmarks/publication_case_candidates/published_methods/read_submitted_simulation.R
+```
+
+The last command creates and deletes fresh artificial serialization fixtures. It
+passed under the existing R 4.4.2 configuration with jsonlite 2.0.0; an additional
+fresh child R process exercised the JSON CLI on a tibble-shaped 300-key object.
+No author result or consumed reference was read. The absent-file negative check
+emits its retained R warning. Source-defined counts and quantities now appear in
+the [assessment draft](assessment_protocol.md#source-level-endpoint-definitions).
+
+The reader deliberately has no source-grid completeness gate or numerical
+tolerance: reading 4,000 slots is not observing 4,000 successful fits. A future
+hash-bound evaluator must bind exact selected file paths, coordinate mapping,
+scope and justified comparison rules before calls, including valid alternative
+representations. StepMix parsing, fixed-input accuracy, application material,
+scientific authority and full confirmation remain unfinished. This utility does
+not close Q04/E01/E05 or make any main-paper outcome available.
+
 ## Prospective Arm Conditions
 
 The historical [assembly record](arm_conditions_preparation.json) binds twelve local
