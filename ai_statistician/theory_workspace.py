@@ -833,7 +833,7 @@ def prepare_theory_artifact_workspace(
             integrated_source_replication_required
         ),
         document_authority_enabled=require_document_authority,
-        writable_artifact_names=selected_writable_names,
+        writable_artifact_shapes=writable_artifact_shapes,
     )
     if resolved_workspace_dir is not None:
         tools = (*tools, workspace_history_tool())
@@ -3305,8 +3305,9 @@ def _theory_workspace_tools(
     source_replication_checkpoint_enabled: bool = False,
     integrated_source_replication_required: bool = False,
     document_authority_enabled: bool = False,
-    writable_artifact_names: Sequence[str],
+    writable_artifact_shapes: Mapping[str, str],
 ) -> tuple[ClientToolDefinition, ...]:
+    writable_artifact_names = tuple(writable_artifact_shapes)
     source_commit_properties = {
         "report_document_path": {
             "type": "string",
@@ -3579,7 +3580,9 @@ def _theory_workspace_tools(
                 "infers content."
             )
             + (
-                f" Current writable names: {', '.join(writable_artifact_names)}. "
+                " Preserve each value's declared JSON type. Writable values: "
+                + ", ".join(f"{name} ({shape})" for name, shape in writable_artifact_shapes.items())
+                + ". "
                 f"Claim kinds: {', '.join(THEORY_FILE_CLAIM_KINDS)}; claim statuses: "
                 f"{', '.join(THEORY_FILE_CLAIM_STATUSES)}."
                 if document_authority_enabled else ""
@@ -3593,21 +3596,22 @@ def _theory_workspace_tools(
                         "type": "array",
                         "minItems": 1,
                         "items": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": ["artifact_name", "value"],
-                            "properties": {
-                                "artifact_name": {
-                                    "type": "string",
-                                    "enum": list(writable_artifact_names),
-                                },
-                                "value": {
-                                    "anyOf": [
-                                        {"type": "object"},
-                                        {"type": "array"},
-                                    ]
-                                },
-                            },
+                            "anyOf": [
+                                {
+                                    "type": "object",
+                                    "additionalProperties": False,
+                                    "required": ["artifact_name", "value"],
+                                    "properties": {
+                                        "artifact_name": {"type": "string", "enum": [
+                                            name for name, value_shape in writable_artifact_shapes.items()
+                                            if value_shape == shape
+                                        ]},
+                                        "value": {"type": shape if shape != "scalar"
+                                                  else ["string", "number", "boolean", "null"]},
+                                    },
+                                }
+                                for shape in dict.fromkeys(writable_artifact_shapes.values())
+                            ],
                         },
                     },
                 },

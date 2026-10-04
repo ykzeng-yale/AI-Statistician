@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from ai_statistician.client_tool_loop import (
     CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY,
@@ -1793,15 +1794,12 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
     item_schema = writes_schema["items"]
     assert write_schema["required"] == ["writes"]
     assert writes_schema["minItems"] == 1
-    assert item_schema["required"] == ["artifact_name", "value"]
-    assert item_schema["properties"]["artifact_name"] == {
-        "type": "string",
-        "enum": ["lemma_cards", "problem_card"],
+    branches = item_schema["anyOf"]
+    assert all(branch["required"] == ["artifact_name", "value"] for branch in branches)
+    assert {branch["properties"]["value"]["type"]:
+            branch["properties"]["artifact_name"]["enum"] for branch in branches} == {
+        "array": ["lemma_cards"], "object": ["problem_card"],
     }
-    assert item_schema["properties"]["value"]["anyOf"] == [
-        {"type": "object"},
-        {"type": "array"},
-    ]
     write_tool = next(
         tool
         for tool in backend.requests[0].tools
@@ -3125,18 +3123,45 @@ def test_targeted_revision_rejects_duplicate_artifact_names_atomically() -> None
     assert "repeats 'problem_card'" in rejected_payload["detail"]
 
 
+@pytest.mark.parametrize("scalar", ["opaque", 0.25, False, None])
+def test_write_tool_schema_matches_existing_replacement_shapes_without_content_rules(scalar) -> None:
+    shapes = {"opaque_index": "object", "opaque_rows": "array", "opaque_label": "scalar"}
+    tool = next(tool for tool in _theory_workspace_tools(
+        document_authority_enabled=True, writable_artifact_shapes=shapes,
+    ) if tool.name == THEORY_WORKSPACE_WRITE_TOOL)
+    Draft202012Validator.check_schema(tool.input_schema)
+    validator = Draft202012Validator(tool.input_schema)
+    current = {"opaque_index": {}, "opaque_rows": [], "opaque_label": 1}
+    authored = {"opaque_index": {"arbitrary_key": "arbitrary content"},
+                "opaque_rows": ["arbitrary row"], "opaque_label": scalar}
+    writes = _artifact_writes(authored)
+    assert validator.is_valid(writes)
+    replaced, _ = _replace_theory_workspace_artifacts(current, writes["writes"], writable_artifact_shapes=shapes)
+    assert replaced == authored and current == {"opaque_index": {}, "opaque_rows": [], "opaque_label": 1}
+    for name, invalid in (("opaque_index", []), ("opaque_rows", {}), ("opaque_label", [])):
+        bad = _artifact_writes({**authored, name: invalid})
+        assert not validator.is_valid(bad)
+        with pytest.raises(ClientToolInputError, match="to remain"):
+            _replace_theory_workspace_artifacts(current, bad["writes"], writable_artifact_shapes=shapes)
+    assert not validator.is_valid(_artifact_writes({"unexposed": {}}))
+    assert "opaque_index (object)" in tool.description
+    assert "opaque_rows (array)" in tool.description
+    assert "opaque_label (scalar)" in tool.description
+
+
 def test_theory_workspace_accepts_one_coherent_complete_write_batch() -> None:
     tools = _theory_workspace_tools(
         scratchpad_enabled=False,
-        writable_artifact_names=("problem_card", "lemma_cards", "theorem_cards"),
+        writable_artifact_shapes={"problem_card": "object", "lemma_cards": "array", "theorem_cards": "array"},
     )
     write_tool = next(tool for tool in tools if tool.name == THEORY_WORKSPACE_WRITE_TOOL)
 
     writes_schema = write_tool.input_schema["properties"]["writes"]
     assert "maxItems" not in writes_schema
-    assert writes_schema["items"]["properties"]["artifact_name"] == {
-        "type": "string",
-        "enum": ["problem_card", "lemma_cards", "theorem_cards"],
+    branches = writes_schema["items"]["anyOf"]
+    assert {branch["properties"]["value"]["type"]:
+            branch["properties"]["artifact_name"]["enum"] for branch in branches} == {
+        "object": ["problem_card"], "array": ["lemma_cards", "theorem_cards"],
     }
 
     artifacts, writes = _replace_theory_workspace_artifacts(

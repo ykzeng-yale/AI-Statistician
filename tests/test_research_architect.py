@@ -2115,12 +2115,11 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         for tool in first_request.tools
         if tool.name == THEORY_WORKSPACE_WRITE_TOOL
     )
-    assert write_tool.input_schema["properties"]["writes"]["items"][
-        "properties"
-    ]["artifact_name"] == {
-        "type": "string",
-        "enum": sorted(core_artifacts),
-    }
+    branches = write_tool.input_schema["properties"]["writes"]["items"]["anyOf"]
+    declared_shapes = {name: branch["properties"]["value"]["type"]
+        for branch in branches for name in branch["properties"]["artifact_name"]["enum"]}
+    assert declared_shapes == {name: "array" if isinstance(value, list) else "object"
+                               for name, value in core_artifacts.items()}
     assert ", ".join(THEORY_FILE_CLAIM_KINDS) in write_tool.description
     assert ", ".join(THEORY_FILE_CLAIM_STATUSES) in write_tool.description
     assert "sanity statuses" not in write_tool.description
@@ -2301,11 +2300,11 @@ def test_nonformal_initial_workspace_checkpoints_without_theorem_abi() -> None:
         for tool in first_request.tools
         if tool.name == THEORY_WORKSPACE_WRITE_TOOL
     )
-    assert write_tool.input_schema["properties"]["writes"]["items"][
-        "properties"
-    ]["artifact_name"] == {
-        "type": "string",
-        "enum": ["problem_card", "theory_derivation_packet"],
+    branches = write_tool.input_schema["properties"]["writes"]["items"]["anyOf"]
+    assert len(branches) == 1
+    assert branches[0]["properties"] == {
+        "artifact_name": {"type": "string", "enum": ["problem_card", "theory_derivation_packet"]},
+        "value": {"type": "object"},
     }
     initial_prompt = str(first_request.messages[0]["content"])
     assert "required compact handoffs are: problem_card, theory_derivation_packet" in (
