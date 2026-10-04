@@ -230,6 +230,17 @@ That study is an optional extension, not an additional prerequisite for the
 present installation and scientific-outcome comparison. No human usability or
 time-saving effect is claimed here.
 
+The [prospective condition preparation](../benchmarks/publication_case_candidates/published_methods/prospective_conditions_followup.json)
+stages separate bare/package workspaces with identical selected public question,
+registered source inputs, scientific environment descriptor and final-selection
+contract. Only the package arm contains the skill and invokes its native ACP
+activation command. Mock host checks establish exact body uptake and the proposed
+output cap, not scientific efficacy or long-session behavior. Every ordinary file
+in predeclared final directories is collected at termination; arbitrary helper
+filenames are allowed and absent finals remain absent. Tool permissions, actual
+PDF/data access, final numerical adjudication and independent authority are still
+unqualified. No official host draw has run.
+
 ## 4. Simulation and Statistical Analysis
 
 There are two different experimental levels. Agent draws assess the package;

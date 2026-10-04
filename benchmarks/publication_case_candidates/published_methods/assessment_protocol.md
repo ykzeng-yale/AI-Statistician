@@ -9,11 +9,15 @@ issued or numerical acceptance threshold is set by this document.
 The original intent edition [questions.json](questions.json), SHA-256
 `a940b69ab0e2ef0744f7483663f7839b1332b1a8184ca96b149767b7712f7cba`, remains
 unchanged in the input-preparation records. This prospective draft now refers to
-the three v2 tasks in [execution_questions_v2.json](execution_questions_v2.json),
-whose exact identity is bound by [arm_conditions_preparation.json](arm_conditions_preparation.json).
+the three v3 tasks in [execution_questions.json](execution_questions.json),
+whose exact identity is bound by [prospective_conditions_followup.json](prospective_conditions_followup.json).
 The new edition supplies public estimator transport metadata, not a mathematical
 solution, numerical endpoint or acceptance threshold. It has not been consumed or
 frozen. Final authority must bind the selected edition before official calls.
+The preceding unactivated v2 proposal required an unsupported `unresolved_gaps`
+score; that preparation defect is recorded, not hidden or rescored. Current
+metadata leaves gap reporting in the scientific obligations below rather than
+invent a separate evaluator dimension. Original instructions are unchanged.
 The questions intentionally expose the published paper, code and data. They test
 reconstruction, derivation, implementation and scientific assessment, not blind
 rediscovery or novelty. Lean is not required. Paper H and Paper S use distinct
@@ -67,9 +71,9 @@ official calls; task completeness cannot be redefined after observing a failure.
 
 | Candidate | Argument and implementation | Computation and interpretation |
 | --- | --- | --- |
-| `stepmix_external_variables_source_assisted_candidate_v2` | Measurement/structural targets, classification uncertainty, one-step, two-step, naive three-step, BCH and ML correction; relevant objectives/updates, assumptions and class alignment | Complete declared Python examples, three simulation grids, five-method GSS and StepMix package-comparison fits; convergence/exclusions, missing-data and bootstrap interpretation. Other packages and the R wrapper are excluded. |
-| `ebnm_prior_families_source_assisted_candidate_v2` | Normal-means sampling/latent targets, prior-family fitting, posterior estimation and used uncertainty summaries; distinguish posterior and repeated-sampling assertions | Default main-text timing, three-DGP ten-prior simulation and wOBA; unavailable likelihoods, warnings/failures and approximation assumptions. Million-observation timing, solver comparisons and the appendix script are excluded. |
-| `bizicount_joint_count_source_assisted_candidate_v2` | Joint/marginal count targets, zero inflation, dependence, likelihood, competing methods and stated identifiability/boundary/inference conditions | Full declared empirical study and eight-setting, 500-repetition source simulation; all requested fits, unconditional delivery/failure rates versus completed-fit summaries, aggregation and observational Nigeria interpretation. |
+| `stepmix_external_variables_source_assisted_candidate_v3` | Measurement/structural targets, classification uncertainty, one-step, two-step, naive three-step, BCH and ML correction; relevant objectives/updates, assumptions and class alignment | Complete declared Python examples, three simulation grids, five-method GSS and StepMix package-comparison fits; convergence/exclusions, missing-data and bootstrap interpretation. Other packages and the R wrapper are excluded. |
+| `ebnm_prior_families_source_assisted_candidate_v3` | Normal-means sampling/latent targets, prior-family fitting, posterior estimation and used uncertainty summaries; distinguish posterior and repeated-sampling assertions | Default main-text timing, three-DGP ten-prior simulation and wOBA; unavailable likelihoods, warnings/failures and approximation assumptions. Million-observation timing, solver comparisons and the appendix script are excluded. |
+| `bizicount_joint_count_source_assisted_candidate_v3` | Joint/marginal count targets, zero inflation, dependence, likelihood, competing methods and stated identifiability/boundary/inference conditions | Full declared empirical study and eight-setting, 500-repetition source simulation; all requested fits, unconditional delivery/failure rates versus completed-fit summaries, aggregation and observational Nigeria interpretation. |
 
 Reuse the qualified reference scope in [README.md](README.md); do not reopen
 consumed executions. The assessor may disagree with a published argument or a

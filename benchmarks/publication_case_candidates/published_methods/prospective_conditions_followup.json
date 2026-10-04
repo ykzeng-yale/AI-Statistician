@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "scope": "prospective_condition_correction_and_native_host_preparation_only",
+  "code_commit": "3595d478fa039c4e37388b7422b27d1aa0b271b7",
+  "study_activated": false,
+  "publication_result": false,
+  "scientific_evaluation_performed": false,
+  "actual_model_calls": 0,
+  "author_study_executions": 0,
+  "consumed_evaluations_modified": false,
+  "previous_unactivated_proposal": {
+    "record_ref": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/arm_conditions_preparation.json",
+      "sha256": "042f4eccc6523e16285713cf524d765a21a922e6c503170ddf2da0a20246048f",
+      "byte_size": 22079
+    },
+    "code_commit": "c5a025557dd47f92b0de6d2aebae50772c6a4802",
+    "status": "Historical proposal: retired v2 question bytes available at its Git pin, not current executable study conditions."
+  },
+  "question_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/execution_questions.json",
+    "sha256": "b0b1826f9ec32cbfd5fd78c2945b7f8c70cdcde636df44b999ca1c5fb276bc2a",
+    "byte_size": 34386
+  },
+  "original_question_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/questions.json",
+    "sha256": "a940b69ab0e2ef0744f7483663f7839b1332b1a8184ca96b149767b7712f7cba",
+    "byte_size": 10973
+  },
+  "correction": {
+    "observed_defect": "Unactivated proposals required unresolved_gaps as a scored dimension, but the common evaluator cannot assess that dimension; required full-task success was impossible.",
+    "change": "Prospective v3 IDs remove only that redundant intent axis. All descriptions, scientific instructions, public estimator clauses and other metadata match v2 exactly.",
+    "mechanism": "Preparation, draw and common outcome reject unsupported active dimensions before calls. Gap reporting remains in scientific obligations; no new grader or mathematical authority.",
+    "preserved_tsci": "Consumed case/draft bytes and failed preparation unchanged. Its unsupported active dimension is rejected, not silently repaired or rerun."
+  },
+  "standalone_preparation_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/standalone-preparation.json",
+    "sha256": "6498fd4a8a71897ab61827f4484aa7de4bdc1239152245a526222bc1c2b4545a",
+    "byte_size": 12736
+  },
+  "native_host_preparation_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/native-host-preparation.json",
+    "sha256": "a6e51130be7806770ab4f719c377425dc2675b8393afc04b86bd2efbd7882a1b",
+    "byte_size": 20786
+  },
+  "selection_contract_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication/native_host_selection.md",
+    "sha256": "e7abe18f63ae38dd23c24bfe4efb5f279db976e36fd181d01dc675aaf10d90f6",
+    "byte_size": 1600
+  },
+  "shared_code_refs": {
+    "prepare_configs.py": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication/prepare_configs.py",
+      "sha256": "900e264578ca8152c7623cc378d0eb2e353f159279364a083b5fd8155f7e023c",
+      "byte_size": 13020
+    },
+    "draw_cli.py": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication/draw_cli.py",
+      "sha256": "382fdaa54d0df7fc19e7aa7832964b98faf52c031a3fc730b57f745866a0dedd",
+      "byte_size": 13777
+    },
+    "evaluate_final_artifacts.py": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication/evaluate_final_artifacts.py",
+      "sha256": "a797208bf4dc50e1089d93e05dcd6f3dd06c79eba0fc23bf99323996b5b4c31a",
+      "byte_size": 26221
+    }
+  },
+  "verification": {
+    "completed": [
+      {
+        "name": "focused-initial",
+        "junit_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/focused-initial.xml",
+          "sha256": "1d6a052ea0e774a26d442fab4abde9595841adfc4717c7ee29485500e261cf6c",
+          "byte_size": 247339
+        },
+        "junit_summary": {
+          "tests": "254",
+          "failures": "43",
+          "errors": "0",
+          "skipped": "4",
+          "time": "116.295"
+        },
+        "stdout_ref": null,
+        "stderr_ref": null
+      },
+      {
+        "name": "focused-final",
+        "junit_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/focused-final.xml",
+          "sha256": "2d912ba31e5e8b3b010db475382fb427d7bb299982c1d1028257269bc38b19ec",
+          "byte_size": 45468
+        },
+        "junit_summary": {
+          "tests": "260",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "9",
+          "time": "118.650"
+        },
+        "stdout_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/focused-final.stdout",
+          "sha256": "d480ed2807663d4c9984cb92119dfd18b236b4fd9cd1fa980b752fe474fc321b",
+          "byte_size": 363
+        },
+        "stderr_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/focused-final.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        }
+      },
+      {
+        "name": "preserved-draft",
+        "junit_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/preserved-draft.xml",
+          "sha256": "d543cdbb92c241b407e18abb762514577475260e9fb128f5aa78812bc7ab2fd2",
+          "byte_size": 407
+        },
+        "junit_summary": {
+          "tests": "1",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "time": "0.310"
+        },
+        "stdout_ref": null,
+        "stderr_ref": null
+      },
+      {
+        "name": "native-host",
+        "junit_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/native-host.xml",
+          "sha256": "a9f07f87cdd7e70798c8263f1836bcdf06a7484fd02ba50996dcd38deb0cad65",
+          "byte_size": 3105
+        },
+        "junit_summary": {
+          "tests": "4",
+          "failures": "1",
+          "errors": "0",
+          "skipped": "0",
+          "time": "4.793"
+        },
+        "stdout_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/native-host.stdout",
+          "sha256": "12da33251d08d0517775fbd483a3a3a03ecf17825d3942277900f47b8050eb34",
+          "byte_size": 2483
+        },
+        "stderr_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/native-host.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        }
+      },
+      {
+        "name": "native-host-final",
+        "junit_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/native-host-final.xml",
+          "sha256": "f91da54b700abf702f135436f131fc19e0d016943e2892d1de5ff6a4fb33ce90",
+          "byte_size": 887
+        },
+        "junit_summary": {
+          "tests": "4",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "time": "6.361"
+        },
+        "stdout_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/native-host-final.stdout",
+          "sha256": "ac1b49ca416781ceb8527c357f81665e45ee9c67bd1ff852c457910888e77ba0",
+          "byte_size": 112
+        },
+        "stderr_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/native-host-final.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        }
+      }
+    ],
+    "full_default_suite_status": "Completed; observed exec exit zero. No failed/error test cases.",
+    "compileall": "Observed exit zero for ai_statistician and benchmarks/publication.",
+    "native_host": "Four actual pinned native-host ACP cases passed using mock responses: discovery, existing activation, prospective bare and prospective package. No live inference.",
+    "native_output_observation": "Both prospective conditions emitted max_tokens=16384. Only package emitted the exact skill body. Context config acceptance does not qualify 131072-token model quality or long-session behavior.",
+    "initial_failures": "Initial 43 fixture failures are retained. Most fixtures borrowed a required unsupported axis; one checked a literal reporting phrase and one expected unsupported novelty to be scored. Separate fixtures now test unsupported-intent rejection. The initial native bare fixture omitted its parent directory; fixed and repeated as a mechanism test, not a scientific rescore.",
+    "full_default_suite": {
+      "junit_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/full-suite.xml",
+        "sha256": "a7a8e80246b6a63720283fc7ec3ab23d9ba1c363915bcd6b618f16d1fb0e5512",
+        "byte_size": 750638
+      },
+      "stdout_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/full-suite.stdout",
+        "sha256": "ccd4756da4b68bf4b4e268ef5b5d45a02c994a00d1dc90cc874429032c9cec53",
+        "byte_size": 2617
+      },
+      "stderr_ref": {
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_host_conditions_20261004/full-suite.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "byte_size": 0
+      },
+      "junit_summary": {
+        "tests": "2273",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "56",
+        "time": "1769.647"
+      },
+      "exec_exit_code_observed": 0,
+      "existing_xfail_cases": [
+        "test_native_detached_process_lifetime"
+      ]
+    }
+  },
+  "preparation_scope": {
+    "standalone_configs": 12,
+    "native_paired_workspaces": 6,
+    "candidate_families": 3,
+    "registered_source_files_per_arm": [
+      68,
+      112,
+      61
+    ],
+    "all_staged_registered_bytes_match": true,
+    "same_h_pair_question_source_native_selection_and_config_bytes": true,
+    "only_packaged_workspace_contains_skill": true,
+    "host_research_turns": 0,
+    "operator_math_or_source_answer_added": false,
+    "core_runtime_changed": false,
+    "native_snapshot_collector_changed": false,
+    "source_originals_edited": false,
+    "lean_main": "db6c7718349f3c14a7e37905f3529675f1ebaa52"
+  },
+  "remaining": [
+    "Qualified task/reference endpoint scope, numerical tolerances, alternatives and Monte Carlo precision.",
+    "Independent assessor appointments, qualifications/conflicts, calibration, blinding and adjudication.",
+    "Native host permission decisions, actual tools/PDF/data access, effective process environment, long sessions and common final numerical projection.",
+    "Actual standalone opportunities/confirmation exposure and global resource qualification; equal declarations are not fairness.",
+    "Prospective roster/split, weights/draw counts, model schedule/RNG/order, deployment/hardware and analysis freeze.",
+    "Fresh scheduled comparisons, exact-final assessment, full method simulations, complete declared case, main results/appendices and rights/release review."
+  ],
+  "authority": "Mechanism regression, declared input identity and unactivated preparation only. No scientific correctness, comparative effect, usable full research release or checklist closure."
+}

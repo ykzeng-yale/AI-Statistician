@@ -30,8 +30,8 @@ execution contract, without falsely completing it.
 | Area | Established scope | Still missing |
 | --- | --- | --- |
 | Architecture | Sole outer graph, shared retained loop, file-backed mathematics and same-source-owner feedback | Scientific efficacy and useful collaboration; execution is serial/interleaved, not independently concurrent |
-| Scientific execution | WASM and explicit native Python/R share existing executors/ABIs; common assessment honors its frozen profile; twelve explicit Paper S configurations are assembled | Actual matched arm execution, evaluator qualification, frozen inventories and clean reconstruction |
-| Verification | Full suite at c5a02555: 2195 passed, 53 skipped, one existing xfail; focused condition/outcome checks: 205 passed, 4 skipped | Fixtures are not scientific results; skipped execution and the process-lifetime xfail remain unqualified |
+| Scientific execution | Shared native executors and frozen assessment dispatch; twelve corrected S configurations and six paired H workspaces are prepared | Actual matched arm execution, evaluator qualification, final native numerical view and clean reconstruction |
+| Verification | Prospective intent/final-tree regressions and native host mock activation/output-cap checks pass; complete regression is recorded in the follow-up | Fixtures are not scientific results; skipped execution and the process-lifetime xfail remain unqualified |
 | Portable release | Fresh same-host wheel/CLI and synthetic Python/R projects; separately labelled host activation/compatibility observations | Qualified researcher workflow, clean-machine scope, rights and Paper H efficacy |
 | Case and roster | Exposed TSCI B1/Card inputs; three source-assisted StepMix/ebnm/bizicount candidates with prepared inputs and source environments | Complete case/reference obligations, independent scientific authority, final roster and precision |
 | Manuscripts | Separate H/S methods masters and shared methods appendix | Assessed case arguments, fresh comparative results, final discussion and submission review |
@@ -66,10 +66,13 @@ evidence. It does not gate non-formal study progress.
 ## Immediate Work
 
 Native execution and common assessment dispatch are regression-verified. The
-[prospective condition assembly](../benchmarks/publication_case_candidates/published_methods/arm_conditions_preparation.json)
-now binds explicit task editions, public estimator transport metadata and twelve
-Paper S configuration files. Next qualify their actual access/opportunities,
-Paper H host conditions and scientific assessment through existing interfaces.
+[current condition follow-up](../benchmarks/publication_case_candidates/published_methods/prospective_conditions_followup.json)
+binds corrected prospective task metadata, twelve S configurations and six H
+workspaces. The earlier proposal required an unsupported gap-reporting score;
+that error is now rejected before calls, not converted into invented authority.
+Scientific instructions and consumed records are unchanged. Next qualify actual
+access/opportunities and the native final numerical view through existing interfaces,
+then scientific assessment and the prospective freeze.
 Do not open another reference panel, repeat
 package/version probes or build a new execution framework.
 
@@ -105,6 +108,13 @@ another scorecard. It must bind public tasks, private evaluation authority,
 actual configurations and analysis. Advance unblocked work while external
 decisions are pending; do not invent those decisions or knowingly launch an
 unqualified official comparison.
+
+Execution thereafter is finite: finish Q06/Q05/Q07/E01; run every scheduled H/S
+draw; independently adjudicate exact final theory/source/results; complete frozen
+method simulations and the declared case; write W02--W05 and A01--A06 from those
+records; clear R01--R05. No phase is closed by preparing its inputs. Missing case
+sources and owner decisions remain explicit dependencies, not reasons to open
+another task panel, redesign the graph or add repair layers.
 
 ## Scientific and Delivery Rules
 

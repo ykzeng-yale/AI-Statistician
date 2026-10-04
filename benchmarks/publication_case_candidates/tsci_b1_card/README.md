@@ -173,8 +173,13 @@ prospective resource values:
 
 The selected question and its existing estimator contract are explicit; this
 assembler no longer has a TSCI default or a case-specific entry wrapper. It rejects
-an absent/ambiguous question or missing required transport contract before writing
-any arm files. Mathematical content and estimator formulas are not specified here.
+an absent/ambiguous question, missing required transport contract or unsupported
+active outcome dimension before writing any arm files. The preserved TSCI draft
+requires an unsupported `unresolved_gaps` score and is therefore not currently
+assessable by this publication entry. Its bytes and consumed preparation are
+unchanged; do not silently repair its intent or resume it. Gap reporting is still
+a scientific obligation, not a substitute theorem. Mathematical content and
+estimator formulas are not specified here.
 
 For native generated execution, also pass `--native-python "$NATIVE_PYTHON_CONFIG"`
 and/or `--native-r "$NATIVE_R_CONFIG"`. Every arm and protocol fingerprint bind the

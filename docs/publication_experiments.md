@@ -268,11 +268,19 @@ run and experiment configuration, not an author-declared replacement transcript.
 | --- | --- | --- |
 | Shared control | `load_research_control_submission` | Final observed submission, selected checkpoint references and report; uses the retained history observation reader |
 | Product | `load_runtime_research_submission` | Terminal Critic/graph/task and its hash-bound selection/assessment, regardless of internal ACCEPTED/BLOCKED/FAILED status; hydrate persisted graphs with `load_persisted_runtime_result` first |
-| Native host | `collect_native_research_submission` then `load_native_research_submission` | Caller-supplied completed host process, prospectively fixed final file paths and a fresh evaluator-owned snapshot outside the author workspace |
+| Native host | `collect_native_research_submission` then `load_native_research_submission` | Caller-supplied completed host process, prospectively fixed selection contract and a fresh evaluator-owned snapshot outside the author workspace |
 
-Native file paths are an identical output contract for bare and package conditions,
-fixed before calls; they are not a mandatory ordinary researcher layout. The
-native path serves paired Paper H hosts, not a relaxed Paper S submission gate.
+Native selection is an identical output contract for bare and package conditions,
+fixed before calls; it is not a mandatory ordinary researcher layout. Fixed-file
+contracts remain supported. The current prospective H proposal instead fixes
+final directory roots and selects every ordinary file beneath them, allowing
+arbitrary helper filenames. After trusted termination,
+`native_final_artifact_paths` enumerates those roots; the caller retains the exact
+returned paths with the frozen roots and supplies them to the unchanged collector
+and loader. It does not choose filenames after inspecting their scientific merit,
+search working drafts, follow links or infer an absent result. Retain the enumeration
+and snapshot, not a later workspace rescan. Empty roots cannot invent required
+material. The native path serves paired Paper H hosts, not a relaxed Paper S submission gate.
 An external scaffold in Paper S needs an equivalent prospectively frozen final
 declaration protocol; collection alone does not establish that equivalence. The
 collector copies exact bytes, including binary outputs, without editing them.
@@ -307,7 +315,12 @@ It reuses the existing external numerical executor, document referee and exact
 kernel authority, but does not require internal ACCEPTED or role-review receipts.
 It records separate required/optional outcomes and refuses full-task success when
 any required final material is missing, unevaluated or rejected. Empty requirements
-cannot pass. A structural document check alone cannot accept theory, and passing
+cannot pass. The preparation, draw and outcome entries reject unsupported active
+intent dimensions before calls rather than emit a permanently missing score.
+Gap reporting remains part of scientific assessment, not a separate invented
+outcome. The corrected unactivated metadata preserves scientific instructions;
+consumed questions and outcomes remain unchanged. A structural document check
+alone cannot accept theory, and passing
 source cannot manufacture an absent or incorrect submitted experiment.
 
 Its trusted study caller must first use the final readers above, project only

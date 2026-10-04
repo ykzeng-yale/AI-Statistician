@@ -283,11 +283,14 @@ software-journal source channel remain limitations. Independent argument authori
 input/ABI and arm qualification, rights and the roster/precision freeze are still
 pending; these definitions provide no collaborative effect estimate.
 
-The unactivated [condition assembly](../benchmarks/publication_case_candidates/published_methods/arm_conditions_preparation.json)
+The unactivated [condition follow-up](../benchmarks/publication_case_candidates/published_methods/prospective_conditions_followup.json)
 binds public estimator transport metadata and all twelve proposed configurations
 to existing local Python/R and source profiles. It supplies no method formula or
 scientific acceptance endpoint. Static references and explicit resource proposals
 do not establish observed arm matching, adequate resources or efficacy.
+Preparation now rejects active outcome dimensions the common evaluator cannot
+assess. Gap reporting remains a scientific obligation, not a fabricated score.
+The original unactivated proposal and all consumed observations remain archived.
 
 The source-only replication entry currently exercises TheoryDeveloper, not the
 Theory/code/Simulation collaboration under study. It can support a reproduction

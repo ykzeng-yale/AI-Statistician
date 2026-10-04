@@ -347,12 +347,20 @@ uses its declared execution profile and records the actual backend and exact
 request; an unavailable native environment is not silently replaced with WASM.
 Configuration or ABI fixtures establish dispatch, not scientific correctness or
 matched access in the study arms.
-The [prospective arm assembly](../benchmarks/publication_case_candidates/published_methods/arm_conditions_preparation.json)
+The [prospective condition follow-up](../benchmarks/publication_case_candidates/published_methods/prospective_conditions_followup.json)
 retains the original input edition and binds the proposed execution edition,
 native environments, source commands and four-mode configurations. Its settings
 are unactivated proposals, not an official schedule or confirmed Monte Carlo
 precision. Freeze separate evaluator access and record actual execution before
 treating these declarations as qualified scientific conditions.
+Current prospective metadata removes an unsupported gap-reporting outcome axis,
+not the obligation to report gaps or any substantive task instruction. Earlier
+proposal identities and consumed evaluations are preserved at their recorded pins.
+For H, all files in predeclared final directories are selected through the
+unchanged native snapshot collector, allowing arbitrary local helpers. Missing
+directories stay empty; no intermediate selection or content repair is performed.
+The separate same-host workspaces and mock request checks are preparation evidence,
+not native scientific execution, common numerical adjudication or a release study.
 
 Case trace analysis identifies a finding, its exact source/input version, the
 source owner's response, the revised artifact and independent final outcome.

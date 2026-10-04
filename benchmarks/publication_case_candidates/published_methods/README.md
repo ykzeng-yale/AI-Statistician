@@ -5,7 +5,7 @@ rerun, mathematical acceptance or publication effect is recorded here.
 
 The original [public questions](questions.json) use the existing `OpenResearchQuestion`
 format and remain unchanged at their input-preparation identity. The prospective
-[execution edition](execution_questions_v2.json) adds explicit public estimator
+[execution edition](execution_questions.json) supplies explicit public estimator
 transport metadata for the same three tasks. Neither edition is an activated
 study or a version reset of a consumed family. They require theory, scientific source, empirical work and source
 reconstruction together. They are not source-only tasks relabelled as a
@@ -114,7 +114,7 @@ The existing-format source snapshots are prepared at the identities in
 interpreters and adapted environments through the existing interfaces. These are
 loadable configurations, not authoritative numerical references or completed
 scientific execution. Their original v1 tasks have no estimator transport contract;
-the separately bound v2 proposal supplies that metadata, not a frozen scientific
+the separately bound execution proposal supplies that metadata, not a frozen scientific
 endpoint. Before activation, qualify method inputs/outputs without prescribing an
 answer, actual access in all arms and the complete native execution path. An
 installed author reference environment is not automatically the model workspace
@@ -130,8 +130,8 @@ Q02/Q04/Q05/Q06/Q07 remain open in the
 
 ## Prospective Arm Conditions
 
-The [assembly record](arm_conditions_preparation.json) binds twelve actual local
-configuration files: each of the three v2 tasks in the existing `free_planning`,
+The historical [assembly record](arm_conditions_preparation.json) binds twelve local
+configuration files at code `c5a02555`: each of the three v2 tasks in the existing `free_planning`,
 `same_workflow`, `no_cross_role_revision` and `full_collaboration` modes. The
 case-specific assembler was moved to the shared publication directory, not wrapped
 or duplicated. It selects an explicit question and validates the existing transport
@@ -155,6 +155,27 @@ All configuration checks are static; actual PDF/data/tool access, model behavior
 confirmation opportunities, evaluator conditions, authority, rights, roster,
 precision and schedule still need qualification/freeze. These are Paper S proposals;
 Paper H requires its separate actual bare/package host conditions. Q06/Q07 stay open.
+
+The [current follow-up](prospective_conditions_followup.json) supersedes those
+unactivated proposals, not their recorded verification or any consumed evaluation.
+The v2 intent incorrectly required `unresolved_gaps` as an additional scored
+dimension; the common evaluator has no such outcome. Current v3 metadata removes
+that redundant axis while preserving all scientific instructions and gap-reporting
+obligations. The common preparation/draw/outcome entry now rejects unsupported
+active dimensions before calls. It does not invent an assessor or turn honest
+gaps into proof. The retired v2 bytes remain available at their recorded Git pin;
+old configurations are historical proposals, not current executable conditions.
+
+Twelve new S configurations retain the same task/source/native profiles. Six
+separate H workspaces contain the same registered sources, public question,
+native profile and final-selection contract within each pair; only the package
+workspace contains the skill. Native ACP mock checks observe package-body uptake
+and the proposed output cap, not actual research. The study-side final-tree
+inventory supports arbitrary local helper filenames and passes their exact paths
+to the unchanged native snapshot collector after termination. It neither scans
+working drafts for a better answer nor decodes or assesses scientific results.
+Host permissions/access, long-session behavior, common final numerical projection,
+authority and prospective study freeze remain incomplete. No model or author study ran.
 
 Verification at `c5a02555`: 205 focused tests passed with 4 skips; the full default
 suite passed with 2,195 passes, 53 skips and one existing xfail in 1,566.94 seconds,

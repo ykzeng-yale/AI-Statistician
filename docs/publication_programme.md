@@ -220,11 +220,15 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   aligns required-tool policy and binds the complete shared request. The observed
   initial Architect transport and differing batch policies remain explicit; opaque
   fixtures are not live full-arm qualification, so Q06 stays open.
-  The [prospective arm assembly](../benchmarks/publication_case_candidates/published_methods/arm_conditions_preparation.json)
-  now binds three explicit tasks, their estimator transport metadata and twelve
-  local Paper S configurations to the prepared native Python/R/source profiles.
-  Static alignment, no model/script calls and unfrozen settings do not close Q06;
-  Paper H host conditions and actual access/opportunity qualification remain open.
+  The historical [arm assembly](../benchmarks/publication_case_candidates/published_methods/arm_conditions_preparation.json)
+  binds the original unactivated proposal at its code pin. The
+  [current follow-up](../benchmarks/publication_case_candidates/published_methods/prospective_conditions_followup.json)
+  rejects unsupported active scoring dimensions before calls, preserves scientific
+  instructions and binds twelve corrected S configurations plus six paired H
+  workspaces. Native host mock checks establish body activation/output settings,
+  not research or matched access. Final-tree collection uses the existing reader;
+  actual permissions/PDF/data access, long sessions, common numerical projection,
+  independent authority and freeze remain open. Q06 is not complete.
 - [ ] **Q07. Prospective freeze.** Bind exact code/package, local Qwen weights,
   quantization/runtime/template/decoding/hardware, task and authority versions,
   schedule/RNG/order, stopping, all outcomes and analysis. Confirm the chosen
