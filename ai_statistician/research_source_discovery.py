@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import hashlib
 import html
+import io
 import json
 import re
+import tarfile
 import threading
 import time
 import urllib.error
@@ -145,9 +148,10 @@ def research_source_discovery_client_tools(
         ClientToolDefinition(
             name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
             description=(
-                "Read bounded metadata, pinned arXiv HTML, or pinned repository directories "
-                "and text from a handle. Resolve a repository revision/root first, then "
-                "navigate paths or read exact ranges."
+                "Read bounded metadata, pinned arXiv HTML or original source, and "
+                "pinned repository text. For a preprint use an empty path for HTML, "
+                "source for its archive listing, or source/<listed path> for exact text. "
+                "Resolve a repository revision/root first, then navigate or read ranges."
             ),
             input_schema=read_schema,
         ),
@@ -318,7 +322,7 @@ class PublicResearchSourceDiscovery:
             ),
             "boundary": (
                 "Live public API observations can ground literature and repository "
-                "scouting. Exact-version arXiv HTML is preprint text, not publication "
+                "scouting. Exact-version arXiv HTML/source is preprint text, not publication "
                 "authority. These observations are not a frozen benchmark corpus, "
                 "independent review, replication evidence, or mathematical proof."
             ),
@@ -427,27 +431,21 @@ class PublicResearchSourceDiscovery:
                 raise ResearchSourceDiscoveryInputError(
                     "paper discovery reads do not accept path or revision"
                 )
-            return self._read_crossref(
-                row,
-                line_start=line_start,
-                line_end=line_end,
-            )
-        if row["source_kind"] == "preprint":
-            if str(path or "").strip() or str(revision or "").strip():
+            stored = self._read_crossref(row)
+        elif row["source_kind"] == "preprint":
+            if str(revision or "").strip():
                 raise ResearchSourceDiscoveryInputError(
-                    "preprint discovery reads do not accept path or revision"
+                    "preprint discovery reads do not accept revision; the discovered version is pinned"
                 )
-            return self._read_arxiv(
-                row,
-                line_start=line_start,
-                line_end=line_end,
-            )
-        return self._read_github(
-            row,
-            path=str(path or "").strip(),
-            revision=str(revision or "").strip(),
-            line_start=line_start,
-            line_end=line_end,
+            selected_path = str(path or "").strip()
+            if selected_path and selected_path != "source" and not selected_path.startswith("source/"):
+                raise ResearchSourceDiscoveryInputError("preprint reads do not accept path except source or source/<listed path>")
+            stored = (self._read_arxiv_source(row, _normalized_repository_path(selected_path))
+                      if selected_path else self._read_arxiv(row))
+        else:
+            stored = self._read_github(row, path=str(path or "").strip(), revision=str(revision or "").strip())
+        return _source_read_observation(
+            **stored, line_start=line_start, line_end=line_end
         )
 
     def acquire_repository(self, source_handle: str, *, revision: str) -> dict[str, Any]:
@@ -692,24 +690,20 @@ class PublicResearchSourceDiscovery:
             )
         return rows
 
-    def _read_crossref(
-        self,
-        row: Mapping[str, Any],
-        *,
-        line_start: int,
-        line_end: int,
-    ) -> dict[str, Any]:
-        stored = self._observations.read_for_path(
-            str(row["source_handle"]), "metadata.md"
-        )
+    def _remember_source(self, row: Mapping[str, Any], **metadata: Any) -> dict[str, Any]:
+        fields = ("source_handle", "source_kind", "source_identity", "title", "url", "publication_date", "citation")
+        return self._observations.remember_read({
+            "provider": self.provider_name,
+            **{key: str(row.get(key, "") or "") for key in fields}, **metadata,
+        })
+
+    def _read_crossref(self, row: Mapping[str, Any]) -> Mapping[str, Any]:
+        stored = self._observations.read_for_path(str(row["source_handle"]), "metadata.md")
         if stored is not None:
-            return _source_read_observation(
-                **stored, line_start=line_start, line_end=line_end
-            )
+            return stored
         doi = str(row["doi"])
         payload = self._json_fetcher(
-            "https://api.crossref.org/works/"
-            + urllib.parse.quote(doi, safe=""),
+            "https://api.crossref.org/works/" + urllib.parse.quote(doi, safe=""),
             self._crossref_headers(),
             self.config.timeout_seconds,
         )
@@ -723,44 +717,22 @@ class PublicResearchSourceDiscovery:
             raise ResearchSourceDiscoveryError(
                 "Crossref work falls after the configured source horizon"
             )
-        content = _crossref_markdown(item, fallback_doi=doi)
-        return _source_read_observation(
-            **self._observations.remember_read({
-                "provider": self.provider_name,
-                "source_handle": str(row["source_handle"]),
-                "source_kind": "paper",
-                "source_identity": str(row["source_identity"]),
-                "title": _first_text(item.get("title")) or str(row["title"]),
-                "url": str(item.get("URL", "") or row["url"]),
-                "publication_date": publication_date,
-                "citation": _crossref_citation(item) or str(row["citation"]),
-                "revision": "crossref-record:" + stable_hash(item)[:24],
-                "path": "metadata.md",
-                "content": content,
-            }),
-            line_start=line_start,
-            line_end=line_end,
+        return self._remember_source(
+            row, title=_first_text(item.get("title")) or str(row["title"]),
+            url=str(item.get("URL", "") or row["url"]), publication_date=publication_date,
+            citation=_crossref_citation(item) or str(row["citation"]),
+            revision="crossref-record:" + stable_hash(item)[:24], path="metadata.md",
+            content=_crossref_markdown(item, fallback_doi=doi),
         )
 
-    def _read_arxiv(
-        self,
-        row: Mapping[str, Any],
-        *,
-        line_start: int,
-        line_end: int,
-    ) -> dict[str, Any]:
+    def _read_arxiv(self, row: Mapping[str, Any]) -> Mapping[str, Any]:
         arxiv_id = str(row["arxiv_id"])
         stored = self._observations.read(
             str(row["source_handle"]), arxiv_id, "paper.html"
         )
         if stored is not None:
-            return _source_read_observation(
-                **stored, line_start=line_start, line_end=line_end
-            )
-        url = "https://arxiv.org/html/" + urllib.parse.quote(
-            arxiv_id,
-            safe="/.",
-        )
+            return stored
+        url = "https://arxiv.org/html/" + urllib.parse.quote(arxiv_id, safe="/.")
         self._arxiv_request_pacer()
         raw = self._bytes_fetcher(
             url,
@@ -776,23 +748,30 @@ class PublicResearchSourceDiscovery:
             raise ResearchSourceDiscoveryError(
                 "arXiv returned a non-HTML paper representation"
             )
-        return _source_read_observation(
-            **self._observations.remember_read({
-                "provider": self.provider_name,
-                "source_handle": str(row["source_handle"]),
-                "source_kind": "preprint",
-                "source_identity": str(row["source_identity"]),
-                "title": str(row["title"]),
-                "url": url,
-                "publication_date": str(row["publication_date"]),
-                "citation": str(row["citation"]),
-                "revision": arxiv_id,
-                "path": "paper.html",
-                "content": content,
-            }),
-            line_start=line_start,
-            line_end=line_end,
-        )
+        return self._remember_source(row, url=url, revision=arxiv_id, path="paper.html", content=content)
+
+    def _read_arxiv_source(self, row: Mapping[str, Any], path: str) -> Mapping[str, Any]:
+        handle, version = str(row["source_handle"]), str(row["arxiv_id"])
+        if self._observations.read(handle, version, "source") is None:
+            url = "https://arxiv.org/src/" + urllib.parse.quote(version, safe="/.")
+            self._arxiv_request_pacer()
+            raw = self._bytes_fetcher(url, self._arxiv_headers(), self.config.timeout_seconds, MAX_DISCOVERY_HTML_BYTES)
+            files = _arxiv_source_files(raw)
+            listing = [f"# Original source: {version}", f"Archive SHA-256: {hashlib.sha256(raw).hexdigest()}"]
+            for name, body in sorted(files.items()):
+                try:
+                    content = body.decode("utf-8")
+                except UnicodeDecodeError:
+                    content = None
+                readable = content is not None and len(body) <= MAX_DISCOVERY_TEXT_BYTES and b"\x00" not in body
+                listing.append(f"- source/{name}: {len(body)} bytes; sha256={hashlib.sha256(body).hexdigest()}; readable={readable}")
+                if readable:
+                    self._remember_source(row, url=url, revision=version, path="source/" + name, content=content)
+            self._remember_source(row, url=url, revision=version, path="source", content="\n".join(listing) + "\n")
+        stored = self._observations.read(handle, version, path)
+        if stored is None:
+            raise ResearchSourceDiscoveryInputError("selected arXiv source path is absent or not bounded UTF-8 text; read source for the exact listing")
+        return stored
 
     def _read_github(
         self,
@@ -800,9 +779,7 @@ class PublicResearchSourceDiscovery:
         *,
         path: str,
         revision: str,
-        line_start: int,
-        line_end: int,
-    ) -> dict[str, Any]:
+    ) -> Mapping[str, Any]:
         repository = str(row["repository"])
         normalized_path = _normalized_repository_path(path)
         source_handle = str(row["source_handle"])
@@ -835,9 +812,7 @@ class PublicResearchSourceDiscovery:
         if stored is not None:
             if snapshot is not None and not is_directory and acquired_content != stored["content"]:
                 raise ResearchSourceDiscoveryError("acquired repository differs from the observed source bytes")
-            return _source_read_observation(
-                **stored, line_start=line_start, line_end=line_end
-            )
+            return stored
 
         quoted_repo = "/".join(
             urllib.parse.quote(part, safe="") for part in repository.split("/")
@@ -910,22 +885,9 @@ class PublicResearchSourceDiscovery:
                 description=str(row.get("summary", "") or ""),
             )
             pinned_url = f"https://github.com/{repository}/tree/{resolved_revision}"
-        return _source_read_observation(
-            **self._observations.remember_read({
-                "provider": self.provider_name,
-                "source_handle": source_handle,
-                "source_kind": "repository",
-                "source_identity": str(row["source_identity"]),
-                "title": str(row["title"]),
-                "url": pinned_url,
-                "publication_date": str(row.get("publication_date", "") or ""),
-                "citation": f"{row['citation']} at commit {resolved_revision}",
-                "revision": resolved_revision,
-                "path": normalized_path or ".",
-                "content": content,
-            }),
-            line_start=line_start,
-            line_end=line_end,
+        return self._remember_source(
+            row, url=pinned_url, citation=f"{row['citation']} at commit {resolved_revision}",
+            revision=resolved_revision, path=normalized_path or ".", content=content,
         )
 
     def _github_revision_at_horizon(self, repository: str) -> str:
@@ -972,6 +934,44 @@ class PublicResearchSourceDiscovery:
         if self._github_token:
             headers["Authorization"] = "Bearer " + self._github_token
         return headers
+
+
+def _arxiv_source_files(raw: bytes) -> dict[str, bytes]:
+    if len(raw) > MAX_DISCOVERY_HTML_BYTES:
+        raise ResearchSourceDiscoveryError("arXiv source exceeds the download byte limit")
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(raw)) as stream:
+            payload = stream.read(MAX_DISCOVERY_HTML_BYTES + 1)
+    except (OSError, EOFError) as exc:
+        raise ResearchSourceDiscoveryError("arXiv source is not a valid gzip representation") from exc
+    if not payload or len(payload) > MAX_DISCOVERY_HTML_BYTES:
+        raise ResearchSourceDiscoveryError("arXiv source is empty or exceeds the expanded byte limit")
+    try:
+        archive = tarfile.open(fileobj=io.BytesIO(payload), mode="r:")
+    except tarfile.ReadError:
+        if payload.startswith(b"%PDF-"):
+            raise ResearchSourceDiscoveryError("arXiv source is a PDF, not original text")
+        return {"document.txt": payload}
+    files: dict[str, bytes] = {}
+    remaining = MAX_DISCOVERY_HTML_BYTES
+    try:
+        with archive:
+            for member in archive:
+                if member.isdir():
+                    continue
+                path = PurePosixPath(member.name)
+                if (not member.isfile() or path.is_absolute() or ".." in path.parts
+                        or not path.parts or len(str(path)) > 1_000 or str(path) in files
+                        or not 0 <= member.size <= remaining):
+                    raise ResearchSourceDiscoveryError("arXiv source has an unsafe, nonregular, duplicate or oversized member")
+                remaining -= member.size
+                with archive.extractfile(member) as stream:
+                    files[str(path)] = stream.read()
+    except (tarfile.TarError, OSError, EOFError) as exc:
+        raise ResearchSourceDiscoveryError("arXiv source archive is malformed") from exc
+    if not files:
+        raise ResearchSourceDiscoveryError("arXiv source archive contains no files")
+    return files
 
 
 def _fetch_json(url: str, headers: Mapping[str, str], timeout: float) -> Any:

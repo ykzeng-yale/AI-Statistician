@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import gzip
+import io
 import json
 import sqlite3
+import tarfile
 import urllib.parse
 
 import pytest
@@ -419,6 +422,176 @@ def test_public_preprint_discovery_reads_exact_horizon_bound_arxiv_html() -> Non
     ]
     with pytest.raises(ResearchSourceDiscoveryInputError, match="do not accept path"):
         provider.read(result["source_handle"], path="paper.tex")
+
+
+def source_archive(members):
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
+        for name, content in members:
+            info = tarfile.TarInfo(name)
+            if content is None:
+                info.type, info.linkname = tarfile.SYMTYPE, "../outside"
+                archive.addfile(info)
+            else:
+                info.size = len(content)
+                archive.addfile(info, io.BytesIO(content))
+    return buffer.getvalue()
+
+
+def source_provider(raw, tmp_path):
+    atom = b"""<feed xmlns='http://www.w3.org/2005/Atom'><entry>
+<id>https://arxiv.org/abs/2401.01234v2</id><title>Opaque source fixture</title>
+<updated>2025-01-03T12:00:00Z</updated><published>2024-01-02T12:00:00Z</published>
+<summary>Representation test, not scientific authority.</summary>
+<author><name>Fixture Author</name></author></entry></feed>"""
+    requests, pacing = [], []
+    html = b'<html><math><annotation encoding="application/x-tex">a^2</annotation></math></html>'
+
+    def fetch(url, _headers, _timeout, _maximum):
+        requests.append(url)
+        if "api/query" in url:
+            return atom
+        if url == "https://arxiv.org/src/2401.01234v2":
+            return raw
+        if url == "https://arxiv.org/html/2401.01234v2":
+            return html
+        pytest.fail(f"unexpected source request: {url}")
+
+    provider = PublicResearchSourceDiscovery(
+        config=PublicResearchSourceDiscoveryConfig(source_horizon="2025-12-31"),
+        state_dir=tmp_path / "source-state", bytes_fetcher=fetch,
+        json_fetcher=lambda *_: pytest.fail("no JSON request"),
+        arxiv_request_pacer=lambda: pacing.append("paced"),
+    )
+    handle = provider.search("opaque", source_kind="preprint")["results"][0]["source_handle"]
+    return provider, handle, requests, pacing, html
+
+
+def test_preprint_source_read_is_exact_versioned_durable_and_model_selected(tmp_path):
+    main = b"\\newcommand{\\opaque}{a}\n\\frac{1}{n}\\sum_{i=1}^n x_i\n\\bar{D}_i\n"
+    appendix = "A UTF-8 symbol: \u03bb\n".encode("utf-8")
+    raw = source_archive([("./main.tex", main), ("parts/argument.tex", appendix),
+                          ("image.bin", b"\xff\x00\xfe"), ("empty.txt", b"")])
+    provider, handle, requests, pacing, html = source_provider(raw, tmp_path)
+    listing, ref, error = execute_research_source_discovery_client_tool(
+        provider, tool_name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+        tool_input={"source_handle": handle, "path": "source"},
+    )
+    assert not error and ref["path"] == "source" and "content" not in ref
+    assert listing["revision"] == ref["revision"] == "2401.01234v2"
+    assert hashlib.sha256(raw).hexdigest() in listing["content"]
+    assert "source/main.tex" in listing["content"] and "image.bin" in listing["content"]
+    assert "NOT_PROOF_EVIDENCE" in ref["proof_evidence_status"]
+    read = provider.read(handle, path="source/main.tex")
+    assert read["content"].encode() == main
+    assert read["content_sha256"] == hashlib.sha256(main).hexdigest()
+    selected, selected_ref, error = execute_research_source_discovery_client_tool(
+        provider, tool_name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+        tool_input={"source_handle": handle, "path": "source/main.tex", "line_start": 2, "line_end": 2},
+    )
+    assert not error and selected["content"] == main.decode().splitlines()[1]
+    assert selected_ref["content_sha256"] == read["content_sha256"]
+    assert selected_ref["content_range_sha256"] == hashlib.sha256(selected["content"].encode()).hexdigest()
+    assert len(requests) == 2 and len(pacing) == 2
+    resumed = provider.new_session()
+    resumed._bytes_fetcher = lambda *_: pytest.fail("pinned source must reopen without network")
+    assert resumed.read(handle, path="source") == listing
+    assert resumed.read(handle, path="source/main.tex") == read
+    assert resumed.read(handle, path="source/parts/argument.tex")["content"].encode() == appendix
+    assert resumed.read(handle, path="source/empty.txt")["content"] == ""
+    for path in ("source/image.bin", "source/not-present.tex"):
+        with pytest.raises(ResearchSourceDiscoveryInputError, match="absent or not bounded UTF-8"):
+            resumed.read(handle, path=path)
+    assert provider.read(handle)["content"] == html.decode()
+    assert len(requests) == 3 and len(pacing) == 3
+
+
+def test_preprint_single_gzipped_source_can_be_read_without_a_prior_listing(tmp_path):
+    content = b"\\documentclass{article}\n\\input{not-executed}\n"
+    raw = gzip.compress(content)
+    provider, handle, requests, _, _ = source_provider(raw, tmp_path)
+    read = provider.read(handle, path="source/document.txt")
+    assert read["content"].encode() == content and read["path"] == "source/document.txt"
+    assert hashlib.sha256(raw).hexdigest() in provider.read(handle, path="source")["content"]
+    assert len(requests) == 2
+    assert not list(tmp_path.rglob("*.tex"))
+
+
+@pytest.mark.parametrize("path", ["source/../escape", "source//main.tex", "source/./main.tex", "source/", "paper.tex"])
+def test_preprint_source_rejects_unlisted_path_syntax_without_fetch(tmp_path, path):
+    provider, handle, requests, _, _ = source_provider(gzip.compress(b"text"), tmp_path)
+    with pytest.raises(ResearchSourceDiscoveryInputError):
+        provider.read(handle, path=path)
+    with pytest.raises(ResearchSourceDiscoveryInputError, match="version is pinned"):
+        provider.read(handle, path="source", revision="2401.01234v3")
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize("members", [
+    [("../outside.tex", b"text")], [("/absolute.tex", b"text")],
+    [("link.tex", None)], [("main.tex", b"one"), ("./main.tex", b"two")], [],
+])
+def test_preprint_archive_rejects_unsafe_or_ambiguous_members_without_extraction(tmp_path, members):
+    provider, handle, requests, _, _ = source_provider(source_archive(members), tmp_path)
+    with pytest.raises(ResearchSourceDiscoveryError):
+        provider.read(handle, path="source")
+    assert provider._observations.read(handle, "2401.01234v2", "source") is None
+    assert len(requests) == 2 and not list(tmp_path.rglob("*.tex"))
+
+
+@pytest.mark.parametrize("raw", [b"<html>unavailable</html>", gzip.compress(b"%PDF-1.7 ascii PDF"),
+                                  gzip.compress(b""), gzip.compress(b"text")[:-8]])
+def test_preprint_unavailable_or_nontext_source_does_not_fallback_to_html(tmp_path, raw):
+    provider, handle, requests, _, _ = source_provider(raw, tmp_path)
+    observation, ref, error = execute_research_source_discovery_client_tool(
+        provider, tool_name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+        tool_input={"source_handle": handle, "path": "source"},
+    )
+    assert error and not ref and not observation["ok"]
+    assert len(requests) == 2 and all("/html/" not in url for url in requests)
+    assert provider._observations.read(handle, "2401.01234v2", "source") is None
+
+
+def test_preprint_source_expansion_and_member_bounds_are_not_silently_truncated(tmp_path, monkeypatch):
+    from ai_statistician import research_source_discovery as module
+
+    monkeypatch.setattr(module, "MAX_DISCOVERY_HTML_BYTES", 128)
+    with pytest.raises(ResearchSourceDiscoveryError, match="expanded byte limit"):
+        module._arxiv_source_files(gzip.compress(b"x" * 129))
+    with pytest.raises(ResearchSourceDiscoveryError, match="download byte limit"):
+        module._arxiv_source_files(b"x" * 129)
+    monkeypatch.setattr(module, "MAX_DISCOVERY_HTML_BYTES", 5_000_000)
+    monkeypatch.setattr(module, "MAX_DISCOVERY_TEXT_BYTES", 3)
+    provider, handle, requests, _, _ = source_provider(source_archive([("long.tex", b"abcd")]), tmp_path)
+    listing = provider.read(handle, path="source")
+    assert "readable=False" in listing["content"]
+    with pytest.raises(ResearchSourceDiscoveryInputError, match="not bounded UTF-8"):
+        provider.read(handle, path="source/long.tex")
+    assert len(requests) == 2
+
+
+@pytest.mark.parametrize("size", [5_000_001, 2**32])
+def test_preprint_source_rejects_declared_size_before_member_allocation(size, monkeypatch):
+    from ai_statistician import research_source_discovery as module
+
+    member = tarfile.TarInfo("large.tex")
+    member.size = size
+    raw = gzip.compress(member.tobuf(format=tarfile.GNU_FORMAT) + b"\0" * 1024)
+    monkeypatch.setattr(tarfile.TarFile, "extractfile", lambda *_: pytest.fail("must reject before reading"))
+    with pytest.raises(ResearchSourceDiscoveryError, match="oversized member"):
+        module._arxiv_source_files(raw)
+
+
+def test_preprint_source_checks_cumulative_declared_member_size(monkeypatch):
+    from ai_statistician import research_source_discovery as module
+
+    first, second = tarfile.TarInfo("first.tex"), tarfile.TarInfo("second.tex")
+    first.size, second.size = 4096, 8192
+    payload = first.tobuf() + b"x" * first.size + second.tobuf() + b"\0" * 1024
+    assert len(payload) < 8192
+    monkeypatch.setattr(module, "MAX_DISCOVERY_HTML_BYTES", 8192)
+    with pytest.raises(ResearchSourceDiscoveryError, match="oversized member"):
+        module._arxiv_source_files(gzip.compress(payload))
 
 
 def test_durable_public_source_observation_reopens_without_network(tmp_path) -> None:

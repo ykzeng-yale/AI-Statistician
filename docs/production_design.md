@@ -140,7 +140,7 @@ Continuation may preserve a new hash-bound source, scratch, or workspace observa
 Supporting Theory completion compiles the validated Architect plan into the next
 workspace; required review and genuine conflicts retain their authority paths.
 
-When prior work is permitted, the same TheoryDeveloper session can inspect a frozen snapshot, Crossref record, horizon-safe exact-version arXiv HTML, or navigate pinned public repository directories and text without a LiteratureAgent.
+When prior work is permitted, the same TheoryDeveloper session can inspect a frozen snapshot, Crossref record, horizon-safe exact-version arXiv HTML/original source, or pinned public repository text. The existing discovery read tool lists the selected preprint's source archive and returns exact model-selected text/ranges; it never compiles TeX, repairs formulas or substitutes editions. Source bytes and observations remain hash-bound, not proof evidence.
 An independent referee gets a separate opaque-handle session and chooses its own queries. It first reconstructs the requested load-bearing chain, then sweeps every other active assertion for contradictory definitions, explanations, assumptions, measure/type declarations, regularity, and scope.
 It writes one findings-first authoritative Markdown report. Its compact envelope contains only the report hash, inspected references, disposition, actual blockers, and prior-finding statuses. Runtime checks identity and traceability, not mathematics; evaluator gold remains excluded from all live discovery.
 

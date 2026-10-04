@@ -75,6 +75,10 @@ complete-paper audit or mathematical adjudication. The original inputs remain
 unchanged; a faithful version-bound representation accessible to all compared
 arms has not been qualified. Details and evidence identities are in the
 [assessment protocol](../benchmarks/publication_case_candidates/published_methods/assessment_protocol.md#paper-input-fidelity-observation-2026-10-04).
+The shared source reader also exposes exact original arXiv text files without
+formula reconstruction. Byte-preserving access to two older author TeX archives
+is verified, but localized edition differences preclude treating them as identical
+journal source or independently assessed mathematics. No study capsule is replaced.
 
 ## S3. Fixed-Benchmark Target and Conditional Uncertainty
 

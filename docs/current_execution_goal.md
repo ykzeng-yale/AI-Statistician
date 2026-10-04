@@ -117,6 +117,11 @@ without changing capsules or manually reconstructing mathematics. Earlier arXiv
 source editions are not replacements for the selected journal versions. Qualify
 the actual model-accessible mathematical source before official calls; this
 bounded visual check is not full-paper fidelity or model comprehension.
+The same shared discovery read tool now exposes model-selected original arXiv
+source files with fixed versions/hashes and offline observation reuse. Two real
+source archives are byte-verified; bounded edition differences prohibit silently
+replacing the journal inputs. No new scheduler, content repair or scientific
+result is introduced. Full-paper input and comparative conditions still need qualification.
 Next resolve these declared access/authority differences and long-session scope,
 qualify numerical interpretation/endpoints, independent assessment and the freeze.
 Do not open another reference panel, repeat

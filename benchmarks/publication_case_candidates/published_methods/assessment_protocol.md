@@ -116,9 +116,81 @@ The primary arXiv metadata advertises TeX sources for
 [ebnm 2110.00152v3](https://arxiv.org/abs/2110.00152v3) (2024-03-29) and
 [StepMix 2304.03853v6](https://arxiv.org/abs/2304.03853v6) (2024-06-17).
 Both precede the selected 2025 journal editions. Source-link fetches returned a
-web cache miss; their TeX contents were not downloaded or compared here.
+web cache miss in the initial observation. The subsequent direct-source
+acquisition and bounded comparison below preserve that failed fetch history.
 Neither an earlier edition nor a repository code vignette is silently substituted
 for the selected journal's mathematical source.
+
+#### Original-Source Access Follow-Up
+
+The two version-specific archives were subsequently downloaded from the primary
+`https://arxiv.org/src/<version>` endpoints into the ignored local
+`runs/publication_source_fidelity_20261004/original_preprint_sources/` directory.
+They are untouched author archives, not reconstructed equations or replacement
+capsules. Only selected mathematical-source passages were compared; source code,
+TeX build commands and cached figure/table outputs were not executed or assessed.
+
+| Preprint archive | Compressed bytes / regular files | Archive SHA-256 | Selected original member / SHA-256 |
+| --- | --- | --- | --- |
+| `ebnm_2110.00152v3.src` | 272735 / 19 | `70afa4f8d100c8cddff1526f613c34620b112e05cc85a8b8006dec2d6a4f0801` | `ebnm.tex` (75543 bytes, 1555 lines): `cf03666cba1830d4ac61fa9566dbf64dc7ee5dd22ff0c4f20a0a0492d6860a82` |
+| `stepmix_2304.03853v6.src` | 368442 / 68 | `609a49053b5e2d12824569af0edd767dfaa6a63b0e711f8b93b0a46cffedf64c` | `main.tex` (88487 bytes, 733 lines): `793e0712f337885ef74d13ef6d98ac9c24595f61bef5dfe5e286432a7ae69d5d` |
+
+The original TeX contains explicit fractions, scripts and sum/product bounds.
+It is not identical journal source: ebnm's preprint lines 574--582 express a
+marginal-likelihood product, whereas journal page 7 Equation 7 uses its logarithmic
+form; StepMix's preprint line 263 has a different parameter argument list from
+the corresponding journal page 8 structural-likelihood factor. These are localized
+edition/representation differences, not a mathematical verdict or complete
+edition comparison. No operator correction, hidden gold or hint is added to
+the study's unchanged source capsules.
+
+The shared `read_discovered_research_source` tool now accepts `path="source"`
+for an original preprint archive listing and `source/<listed path>` for exact
+UTF-8 files/ranges. Default reads remain HTML. Model-selected source files retain
+the discovered version, exact content hash and non-proof citation boundary in
+the existing durable observation store. No TeX/code execution, new tool, scheduler,
+automatic representation fallback or content repair is added. Ordinary archive
+paths, gzip/tar byte bounds and binary/unavailable results are checked without
+examining mathematical grammar. Existing Crossref/arXiv/GitHub read packaging is
+consolidated; production module and package line counts do not increase.
+
+The actual public API/source path read both selected members with the hashes
+above, without a model call or author execution. An initial operator verification
+script incorrectly expected `arxiv_id` in the compact public search result and
+stopped after the ebnm search. That error is retained; the subsequent check used
+the already-persisted exact metadata, without repeating that search, and selected
+StepMix through its public versioned URL. It is source-access verification, not a
+scientific draw or a resumed research evaluation. The exact durable SQLite record
+is `runs/arxiv_source_tool_20261004/live_api_observations/observations.sqlite3`,
+SHA-256 `792c1e59205c8a3af3c00143464ee82e09ae21d374fcbed20ad4875d37123e81`.
+Later reads of this observation must not select a new revision or refetch its bytes.
+
+Before final review, focused source/core regression passed 38 tests in 0.98 seconds. The full suite
+passed 2303 tests, skipped 74 and retained one existing process-lifetime xfail
+in 877.58 seconds; skipped/xfail execution is not qualified by this run.
+`compileall` and diff checks passed. Full JUnit is
+`runs/arxiv_source_tool_20261004/full_suite.xml`, SHA-256
+`53754f682809aec01883b5e6c084dafec1058dc2b255ff677a215f2237018100`.
+The shared reader and its test file have respective SHA-256 identities
+`ae82ed30736c7418487031b5b396e0be30167b67b79b570b66a95c769a05afbd` and
+`7dbcbf557e20c70ef047620be497507295c84444873ba8ab74ea78bb928169b6`.
+Final review added cumulative declared-member size checks before tar reads,
+so sparse files cannot bypass the existing expanded-byte bound. An initial
+negative-size fixture was not a valid tar header; the intermediate full collection
+was stopped after 402 passes in 40.14 seconds, not reported as a full result.
+Corrected large-size and cumulative-size fixtures give 41 focused passes in
+0.91 seconds. The final full suite passed 2306 tests, skipped 74 and retained
+the same `test_native_detached_process_lifetime` xfail in 876.21 seconds.
+Final JUnit is `runs/arxiv_source_tool_20261004/full_suite_reviewed.xml`, SHA-256
+`a42f9bbb30fe4b78ab68a752b0e9119a51392ab7048aca2e34743867dc90fc2b`.
+Final reader/test SHA-256 identities are respectively
+`577298f2bdb0eb7e4e5fb8eebf5a422a20967e0a15d431b80b6e5f654b7c83e0` and
+`c8d8ec3850b90e172eee1586344fde54f5632d2e2d96cb4a09bd96f235a8eafb`.
+The final parser also reads the two untouched local archives with the original
+member counts and selected TeX hashes above; no source is refetched or executed.
+These are mechanism checks, not scientific accuracy, independently reviewed
+theory, full-paper fidelity or comparative efficacy. All 231 registered input
+files and three question editions remain unchanged; no study is activated.
 
 Before freeze, choose and qualify a version-bound source representation that the
 actual text-only model and every compared arm can access, disclose any edition
