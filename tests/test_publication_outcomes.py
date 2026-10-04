@@ -16,6 +16,7 @@ from ai_statistician.research_schema import OpenResearchQuestion, research_quest
 from ai_statistician.scientific_project import scientific_project_hash
 from ai_statistician.scientific_sandbox import ScientificEstimatorBinding, discover_scientific_sandbox_runtime
 from ai_statistician.theory_workspace import theory_workspace_document_manifest
+from ai_statistician.research_control import collect_native_research_submission, load_native_research_submission
 
 
 def outcome_fixture(tmp_path, *, language="python", offset=0, intent=None):
@@ -101,6 +102,62 @@ def require_runtime(language):
     runtime = discover_scientific_sandbox_runtime()
     if not runtime.python_available or (language == "r" and not runtime.r_available):
         pytest.skip("scientific runtime is not prepared")
+
+
+@pytest.mark.parametrize("language", ["python", "r"])
+@pytest.mark.parametrize("profile", ["scientific_wasm", "native"])
+@pytest.mark.parametrize("defect", ["none", "source", "empirical"])
+def test_collected_native_files_reach_common_final_outcome_without_author_receipts(tmp_path, monkeypatch, language, profile, defect):
+    from test_native_research_submission import native_fixture
+
+    if profile == "native":
+        config = os.environ.get("AI_STATISTICIAN_TEST_NATIVE_" + language.upper() + "_CONFIG", "")
+        python_config = os.environ.get("AI_STATISTICIAN_TEST_NATIVE_PYTHON_CONFIG", "")
+        if not config or not python_config:
+            pytest.skip("explicit native numerical and artifact environments are not configured")
+        monkeypatch.setenv("AI_STATISTICIAN_NATIVE_" + language.upper() + "_CONFIG", config)
+        monkeypatch.setenv("AI_STATISTICIAN_NATIVE_PYTHON_CONFIG", python_config)
+    else:
+        require_runtime(language)
+    kwargs = outcome_fixture(tmp_path, language=language, intent={"scientific_code": "required", "empirical": "required",
+        "theory": "not_applicable", "formal": "not_applicable"})
+    author = tmp_path / "native"
+    author.mkdir()
+    root, store, _, paths, process, _ = native_fixture(author, language=language, offset=3 if defect == "source" else 0)
+    measurement = root / "experiments" / "measurement.txt"
+    measurement.write_bytes(str(99175 if defect == "empirical" else 99178).encode())
+    paths["empirical"].append("experiments/measurement.txt")
+    question = kwargs["question"]
+    ref = collect_native_research_submission(question=question, workspace_root=root, artifact_paths=paths,
+                                             host_result=process, snapshot_dir=store)
+    native = load_native_research_submission(ref, question=question, artifact_paths=paths, snapshot_dir=store)
+    material = outcomes.publication_material_from_submission(native, source_kind="native",
+        native_estimator_projects={"opaque": {"root": "code", "language": language}})
+    source = kwargs["task"]["hidden_empirical_evaluator"]["harness_path"]
+    harness = ("import base64\n"
+               "def evaluate_artifact(candidate, seed, replicates):\n"
+               "    raw = base64.b64decode(candidate['files']['experiments/measurement.txt']['base64'], validate=True)\n"
+               "    return {'echo': int(raw)}\n")
+    Path(source).write_text(harness)
+    kwargs["task"]["hidden_empirical_evaluator"]["harness_sha256"] = hashlib.sha256(harness.encode()).hexdigest()
+    if profile == "native":
+        kwargs["task"]["hidden_algorithm_evaluator"]["execution_profile"] = "scientific_native_" + language
+        kwargs["task"]["hidden_empirical_evaluator"]["execution_profile"] = "scientific_native_python"
+    kwargs.update(material)
+    kwargs["submission_identity"] = {key: value for key, value in native.items() if key != "artifact_bytes"}
+    before = deepcopy(native)
+    calls = scripted_semantics(monkeypatch)
+    result = outcomes.evaluate_final_research_artifacts(**kwargs)
+    assert result["task_passed"] is (defect == "none") and not calls
+    assert result["dimension_status"]["scientific_code"]["status"] == ("failed" if defect == "source" else "passed")
+    assert result["dimension_status"]["empirical"]["status"] == ("failed" if defect == "empirical" else "passed")
+    assert result["dimension_status"]["theory"]["status"] == "not_requested"
+    assert native == before and result["internal_acceptance_required"] is False
+    if profile == "native":
+        for dimension, runtime_language in (("scientific_code", language), ("empirical", "python")):
+            execution = result["dimension_status"][dimension]["execution"]
+            assert execution["execution_profile"] == "scientific_native_" + runtime_language
+            assert execution["backend"] == "native_" + runtime_language
 
 
 @pytest.mark.parametrize("dimension", ["unresolved_gaps", "novelty", "opaque_unsupported"])

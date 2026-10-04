@@ -1,5 +1,7 @@
 """Native final-file snapshots, not model inference or statistical efficacy."""
 
+import base64
+from copy import deepcopy
 import hashlib
 import json
 import subprocess
@@ -15,7 +17,7 @@ from ai_statistician.research_gold_evaluation import _hidden_execution_summary, 
 from ai_statistician.research_schema import OpenResearchQuestion, research_question_payload
 from ai_statistician.scientific_project import scientific_project_hash
 from ai_statistician.scientific_sandbox import ScientificEstimatorBinding, discover_scientific_sandbox_runtime
-from benchmarks.publication.evaluate_final_artifacts import native_final_artifact_paths
+from benchmarks.publication.evaluate_final_artifacts import native_final_artifact_paths, publication_material_from_submission
 
 
 def native_fixture(tmp_path, *, language="python", offset=0, returncode=0):
@@ -104,6 +106,116 @@ def test_uncaptured_native_streams_remain_unknown_not_empty_verified_output(tmp_
     result = load_native_research_submission(ref, question=question, artifact_paths=paths, snapshot_dir=store)
     assert result["host_process"]["stdout_sha256"] is None
     assert result["host_process"]["stderr_sha256"] is None
+
+
+@pytest.mark.parametrize("language", ["python", "r"])
+@pytest.mark.parametrize("returncode", [0, 19])
+def test_native_projection_keeps_exact_multi_file_projects_binary_outputs_and_host_failures(tmp_path, language, returncode):
+    root, store, question, paths, process, files = native_fixture(tmp_path, language=language, returncode=returncode)
+    paths["source_replication"] = ["replication/observations.bin", "replication/absent.txt"]
+    path = root / paths["source_replication"][0]
+    path.parent.mkdir()
+    path.write_bytes(b"\xff\x00opaque observations\r\n")
+    ref = collect_native_research_submission(question=question, workspace_root=root, artifact_paths=paths,
+                                             host_result=process, snapshot_dir=store)
+    loaded = load_native_research_submission(ref, question=question, artifact_paths=paths, snapshot_dir=store)
+    before = deepcopy(loaded)
+    projects = {"opaque": {"root": "code", "language": language, "dependencies": []}}
+    material = publication_material_from_submission(loaded, source_kind="native", native_estimator_projects=projects)
+    binding, = material["estimator_bindings"]
+    main = "main.py" if language == "python" else "main.R"
+    helper = "helper.py" if language == "python" else "helper.R"
+    assert binding.artifact_id == "opaque" and binding.language == language
+    assert binding.code.encode() == files["code/" + main]
+    assert binding.code_hash == stable_hash(binding.code)
+    assert binding.project_hash == scientific_project_hash(language=language, code=binding.code, project_files=binding.project_files)
+    assert binding.project_files == ({"path": helper, "content": files["code/" + helper].decode()},)
+    assert material["theory_documents"] == [{"path": "theory/claim.tex", "content": files["theory/claim.tex"].decode(),
+                                            "sha256": hashlib.sha256(files["theory/claim.tex"]).hexdigest()}]
+    empirical = material["empirical_artifact"]
+    assert base64.b64decode(empirical["files"]["experiments/raw.bin"]["base64"], validate=True) == files["experiments/raw.bin"]
+    assert empirical["missing_files"] == ["experiments/final.csv"]
+    replication = material["source_replication_artifact"]
+    assert base64.b64decode(replication["files"][paths["source_replication"][0]]["base64"], validate=True) == path.read_bytes()
+    assert replication["host_process"]["returncode"] == returncode
+    assert replication["missing_files"] == ["replication/absent.txt"]
+    assert "confirmation" not in str(material) and "task_passed" not in material
+    assert loaded == before and projects == {"opaque": {"root": "code", "language": language, "dependencies": []}}
+    (root / "code" / main).write_bytes(b"changed after termination")
+    assert binding.code.encode() == files["code/" + main]
+
+
+@pytest.mark.parametrize("scope", ["theory", "scientific_code", "empirical", "source_replication"])
+def test_native_projection_does_not_fill_missing_scopes_from_report_or_drafts(tmp_path, scope):
+    root, store, question, paths, process, _ = native_fixture(tmp_path)
+    if scope == "source_replication":
+        (root / "replication").mkdir()
+        (root / "replication" / "execution.txt").write_bytes(b"Unqualified opaque observation.\n")
+        paths[scope] = ["replication/execution.txt"]
+    for relative in paths.get(scope, []):
+        if scope == "scientific_code" and relative.endswith("helper.py"):
+            continue
+        (root / relative).unlink(missing_ok=True)
+    ref = collect_native_research_submission(question=question, workspace_root=root, artifact_paths=paths,
+                                             host_result=process, snapshot_dir=store)
+    loaded = load_native_research_submission(ref, question=question, artifact_paths=paths, snapshot_dir=store)
+    material = publication_material_from_submission(loaded, source_kind="native",
+        native_estimator_projects={"opaque": {"root": "code", "language": "python"}})
+    if scope == "theory":
+        assert not material["theory_documents"]
+    elif scope == "scientific_code":
+        assert not material["estimator_bindings"]
+    elif scope == "empirical":
+        assert material["empirical_artifact"] is None
+    else:
+        assert "source_replication_artifact" not in material
+    assert "earlier.csv" not in str(material) and "report.md" not in str(material)
+
+
+@pytest.mark.parametrize("defect", ["bytes", "hash", "files", "scopes", "authority", "binary_code", "binary_theory"])
+def test_native_projection_rejects_changed_identity_or_unsupported_text_without_repair(tmp_path, defect):
+    root, store, question, paths, process, _ = native_fixture(tmp_path)
+    if defect.startswith("binary_"):
+        (root / ("code/main.py" if defect == "binary_code" else "theory/claim.tex")).write_bytes(b"\xff\x00")
+    ref = collect_native_research_submission(question=question, workspace_root=root, artifact_paths=paths,
+                                             host_result=process, snapshot_dir=store)
+    loaded = load_native_research_submission(ref, question=question, artifact_paths=paths, snapshot_dir=store)
+    if defect == "bytes":
+        loaded["artifact_bytes"]["scientific_code"]["code/main.py"] = b"changed"
+    elif defect == "hash":
+        loaded["artifact_refs"]["scientific_code"]["code/main.py"]["sha256"] = "0" * 64
+    elif defect == "files":
+        del loaded["artifact_bytes"]["scientific_code"]["code/helper.py"]
+    elif defect == "scopes":
+        del loaded["artifact_bytes"]["empirical"]
+    elif defect == "authority":
+        loaded["evidence_role"] = "author_claimed_pass"
+    before = deepcopy(loaded)
+    with pytest.raises(ValueError):
+        publication_material_from_submission(loaded, source_kind="native",
+            native_estimator_projects={"opaque": {"root": "code", "language": "python"}})
+    assert loaded == before
+
+
+@pytest.mark.parametrize("projects", [None,
+    {"opaque": {"root": "../code", "language": "python"}},
+    {"opaque": {"root": "/code", "language": "python"}},
+    {"opaque": {"root": "code/./", "language": "python"}},
+    {"opaque": {"root": "code", "language": "other"}},
+    {"opaque": {"root": "code", "language": "python", "ignored_undefined": True}},
+    {"opaque": {"root": "code", "language": "python"}, "another": {"root": "code/nested", "language": "python"}},
+    {"opaque": {"root": "elsewhere", "language": "python"}},
+])
+def test_native_project_contract_is_explicit_not_guessed_or_rerouted(tmp_path, projects):
+    root, store, question, paths, process, _ = native_fixture(tmp_path)
+    ref = collect_native_research_submission(question=question, workspace_root=root, artifact_paths=paths,
+                                             host_result=process, snapshot_dir=store)
+    loaded = load_native_research_submission(ref, question=question, artifact_paths=paths, snapshot_dir=store)
+    with pytest.raises(ValueError):
+        publication_material_from_submission(loaded, source_kind="native", native_estimator_projects=projects)
+    with pytest.raises(ValueError):
+        publication_material_from_submission(loaded, source_kind="native", native_estimator_projects=projects,
+                                             control_estimator_scopes={"algorithm": "opaque"})
 
 
 def test_frozen_final_roots_collect_arbitrary_filenames_and_binary_files_without_draft_selection(tmp_path):

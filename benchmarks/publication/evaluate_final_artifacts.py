@@ -8,9 +8,10 @@ No internal ACCEPT verdict or isolated product-review receipt is required.
 
 from copy import deepcopy
 from dataclasses import asdict
+import base64
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
 from ai_statistician.fingerprint import stable_hash
@@ -28,8 +29,10 @@ from ai_statistician.research_schema import (
     OpenResearchQuestion, research_dimension_requirements, research_question_payload,
     research_task_intent_requirement,
 )
-from ai_statistician.scientific_project import scientific_project_hash
-from ai_statistician.scientific_sandbox import ScientificEstimatorBinding, execute_scientific_sandbox
+from ai_statistician.scientific_project import scientific_main_path, scientific_project_hash
+from ai_statistician.scientific_sandbox import (
+    ScientificEstimatorBinding, execute_scientific_sandbox, normalized_scientific_dependencies,
+)
 from ai_statistician.theory_workspace import load_theory_workspace_documents
 
 
@@ -86,11 +89,12 @@ def native_final_artifact_paths(*, workspace_root: Path, artifact_roots: Mapping
 def publication_material_from_submission(
     submission: Mapping[str, Any], *, source_kind: str,
     control_estimator_scopes: Mapping[str, str] | None = None,
+    native_estimator_projects: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Project a trusted final reader's selected product/control material.
+    """Project a trusted final reader's selected product/control/native material.
 
     This is the fixed evaluator view for the current production-backed comparison
-    arms, not a native-file decoder or a substitute for either final reader.
+    arms, not a substitute for any final reader.
     The study fixes control scope/estimator identities before inference. Missing
     selections stay missing; exploration is never relabelled as confirmation.
     Source replication uses the selected checkpoint's exact report and execution
@@ -99,6 +103,12 @@ def publication_material_from_submission(
     """
 
     submission = deepcopy(dict(submission))
+    if source_kind == "native":
+        if control_estimator_scopes is not None or native_estimator_projects is None:
+            raise ValueError("native projection requires only its frozen estimator project contract")
+        return _native_publication_material(submission, native_estimator_projects)
+    if native_estimator_projects is not None:
+        raise ValueError("native estimator projects are only valid for native projection")
     empirical_metadata = {}
     source_checkpoint = {}
     if source_kind == "runtime":
@@ -161,6 +171,85 @@ def publication_material_from_submission(
             "empirical_artifact": {"generated_simulation_rows": deepcopy(empirical_rows), **empirical_metadata} if empirical_rows else None,
             **({"source_replication_artifact": _selected_source_replication_material(source_checkpoint, submission)}
                if source_checkpoint else {})}
+
+
+def _native_publication_material(submission, projects):
+    """Decode exact collected files, not author verdicts or best-source guesses.
+
+    Freeze project IDs, roots, languages and dependency metadata before calls.
+    Main filenames reuse the existing executor ABI; helpers retain their paths.
+    Human assessment also receives the complete native snapshot, including report
+    and ancillary files, bound by the supplied submission identity. This view
+    supplies no execution, confirmation, source-fidelity or review credit.
+    """
+    if submission.get("evidence_role") != "submission_not_scientific_acceptance":
+        raise ValueError("native projection requires the trusted native snapshot reader")
+    files = submission["artifact_bytes"]
+    if set(files) != set(submission["artifact_refs"]):
+        raise ValueError("native projection differs from its collected scope inventory")
+    for scope, rows in files.items():
+        refs = submission["artifact_refs"][scope]
+        if set(rows) != set(refs):
+            raise ValueError("native projection differs from its collected file inventory")
+        for path, raw in rows.items():
+            if (not isinstance(raw, bytes) or len(raw) != refs[path]["byte_size"]
+                or hashlib.sha256(raw).hexdigest() != refs[path]["sha256"]):
+                raise ValueError("native projection file identity mismatch: " + path)
+    documents = []
+    for path, raw in sorted(files.get("theory", {}).items()):
+        try:
+            content = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError("native theory source must be UTF-8 Markdown/LaTeX: " + path) from exc
+        documents.append({"path": path, "content": content, "sha256": hashlib.sha256(raw).hexdigest()})
+    bindings, roots, covered = [], [], set()
+    source_files = files.get("scientific_code", {})
+    for estimator_id, spec in projects.items():
+        if (not isinstance(estimator_id, str) or not estimator_id.strip() or not isinstance(spec, Mapping)
+            or set(spec) - {"root", "language", "dependencies"} or spec.get("language") not in {"python", "r"}
+            or not isinstance(spec.get("root"), str)):
+            raise ValueError("invalid frozen native estimator project contract")
+        root, language = PurePosixPath(spec["root"]), spec["language"]
+        if (not root.parts or root.is_absolute() or spec["root"] != root.as_posix()
+            or "\\" in spec["root"] or "\x00" in spec["root"] or ".." in root.parts
+            or any(root == other or root in other.parents or other in root.parents for other in roots)):
+            raise ValueError("native estimator project roots must be canonical, relative and disjoint")
+        roots.append(root)
+        dependencies = normalized_scientific_dependencies(spec.get("dependencies", []), language=language)
+        selected = {}
+        for path, raw in source_files.items():
+            relative = PurePosixPath(path)
+            if relative.is_relative_to(root):
+                covered.add(path)
+                try:
+                    selected[relative.relative_to(root).as_posix()] = raw.decode("utf-8")
+                except UnicodeDecodeError as exc:
+                    raise ValueError("native estimator project requires UTF-8 source/support files: " + path) from exc
+        main = scientific_main_path(language)
+        if main not in selected:
+            continue
+        code = selected.pop(main)
+        support = tuple({"path": path, "content": content} for path, content in sorted(selected.items()))
+        bindings.append(ScientificEstimatorBinding(estimator_id, language, code, stable_hash(code),
+            dependencies=dependencies, project_files=support,
+            project_hash=scientific_project_hash(language=language, code=code, project_files=support)))
+    if covered != set(source_files):
+        raise ValueError("selected native source is outside the frozen estimator project roots")
+
+    def file_view(scope):
+        rows = files.get(scope, {})
+        if not rows:
+            return None
+        return {"files": {path: {"base64": base64.b64encode(raw).decode("ascii"),
+            "sha256": hashlib.sha256(raw).hexdigest(), "byte_size": len(raw)} for path, raw in sorted(rows.items())},
+            "missing_files": list(submission["missing_artifacts"].get(scope, []))}
+
+    replication = file_view("source_replication")
+    if replication is not None:
+        replication["host_process"] = deepcopy(submission["host_process"])
+    return {"theory_documents": documents, "estimator_bindings": tuple(bindings),
+            "empirical_artifact": file_view("empirical"),
+            **({"source_replication_artifact": replication} if replication is not None else {})}
 
 
 def _selected_source_replication_material(checkpoint, submission):

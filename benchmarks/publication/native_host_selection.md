@@ -19,9 +19,14 @@ intermediate draft:
 | `final/replication/` | Original-source execution evidence and reconstruction account |
 | `final/report/` | Scientific report, limitations and unresolved gaps |
 
-Choose filenames and project structure within these directories. Identify the
-estimator entrypoint implementing the supplied `run_estimator` interface in the
-report; this contract adds no formula or empirical acceptance threshold. Keep
+Use `final/code/main.py` for Python or `final/code/main.R` for R as the estimator
+entrypoint implementing the supplied `run_estimator` interface. This is the
+existing scientific executor's file ABI; choose all helper filenames and structure
+within `final/code/`. Keep estimator source/support and mathematical source in
+UTF-8. Put binary figures, PDFs and results in the empirical/report directories;
+all collected bytes remain available to independent assessment. Identify source,
+targets and output conventions in the report. This contract adds no formula or
+empirical acceptance threshold. Keep
 unselected exploratory drafts outside the final directories. Missing final
 material remains missing. Distinguish exploratory evidence from frozen
 confirmation, and published results from independently established claims.
