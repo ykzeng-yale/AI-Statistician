@@ -81,6 +81,14 @@ Python/R failure/edit/rerun through both H arms in six disposable copies. It use
 scripted responses, not model inference; original sources and studies are unchanged.
 PDF `Read` fails, and paired text does not establish extraction fidelity or model
 understanding. Native manual approvals/unrestricted shell differ from S's sandbox.
+The [selected-source result follow-up](../benchmarks/publication_case_candidates/published_methods/source_final_projection.json)
+now gives the common evaluator complete selected runtime/control result and
+execution-stream bytes, instead of only manifests/summaries. Missing results and
+failed selections remain explicit; earlier runs cannot replace their bytes.
+Opaque WASM/native Python checks and the full regression verify this mechanism,
+not scientific assessment. The numerical protocol draft distinguishes computation, source
+reconstruction, stochastic uncertainty and discrepancy interpretation; exact
+task-specific parsers, endpoints/tolerances and authority remain unfrozen.
 Next resolve these declared access/authority differences and long-session scope,
 qualify numerical interpretation/endpoints, independent assessment and the freeze.
 Do not open another reference panel, repeat

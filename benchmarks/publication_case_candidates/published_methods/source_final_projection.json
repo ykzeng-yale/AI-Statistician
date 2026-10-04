@@ -1,0 +1,191 @@
+{
+  "scope": "prospective_source_final_result_projection_and_numerical_protocol_draft",
+  "code_commit": "7405a3413b9ecdb031a9c9eebe0e459251adfcb5",
+  "previous_delivery": "3b74d0da86cbf29782f18052202275d70118f646",
+  "study_activated": false,
+  "publication_result": false,
+  "scientific_evaluation_performed": false,
+  "actual_model_calls": 0,
+  "author_study_executions": 0,
+  "consumed_evaluations_modified": false,
+  "shared_code_refs": {
+    "publication_projection": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication/evaluate_final_artifacts.py",
+      "sha256": "19bb541e2729022817e03c5ff5d8d9a741b20d2271c3182cdfe830f328146c14",
+      "byte_size": 32412
+    },
+    "unchanged_source_reader": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/ai_statistician/research_source_library.py",
+      "sha256": "d7201ca5416be9f65790ce6a972fd8778cf10af3d672b47e4a268fee923acbb8",
+      "byte_size": 130142
+    },
+    "tests": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/tests/test_publication_outcomes.py",
+      "sha256": "bf7a622a145d9968bbb502678f8cf94ffe4dc3428faa086b77bec071ee791d0e",
+      "byte_size": 45561
+    }
+  },
+  "assessment_draft_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/assessment_protocol.md",
+    "sha256": "f9cd23659be1a44e90b71f442dfc2cf1750e62869154e1ecd753bfa26e1cc51a",
+    "byte_size": 17614
+  },
+  "change": {
+    "gap": "The prior standalone runtime/control projection passed source manifests and summaries, without supplying selected result/stream bytes to the common artifact evaluator.",
+    "mechanism": "Twelve added lines reuse the existing source-result byte reader. Complete selected declared results and execution streams enter the existing evaluator JSON view as exact base64/hash/length files; the missing-result inventory uses captured results, not stream names. No new runtime, scheduler, content repair, parser, statistical formula or source patch.",
+    "identity": "Changed, absent, size-mismatched, escaping or ambiguous selected files reject. Earlier attempt manifests retain lineage but cannot supply replacement file bytes. Selected EXECUTED and FAILED records preserve their disposition; no confirmation or scientific acceptance is inferred.",
+    "scientific_boundary": "Full bytes are assessment inputs, not a numerical interpretation. The task-specific parsers/endpoints, coordinate conventions, numerical tolerances, stochastic precision and independent mathematical authority remain unqualified; no previously consumed outcome is projected, reassessed or rescored.",
+    "protocol_draft": "Separates fixed-input computation, literal source reconstruction, new stochastic experiments and discrepancy assessment. It records reference limitations without supplying corrected answers, fixed tolerances or mathematical verdicts. Q04/E01/E05/Q06 remain open."
+  },
+  "verification": {
+    "reports": [
+      {
+        "name": "native-focused",
+        "junit_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_source_result_projection_20261004/native-focused.xml",
+          "sha256": "fe553b634281d7c29b8ca386b214bf16c2a7bd4ede283d8477a4508336dd51b5",
+          "byte_size": 3930
+        },
+        "stdout_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_source_result_projection_20261004/native-focused.stdout",
+          "sha256": "33c03e0173a6d4da93d2bf64673fed70c82b0edabd8ee48674702733d95232c0",
+          "byte_size": 114
+        },
+        "stderr_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_source_result_projection_20261004/native-focused.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        },
+        "observed_exit_code": 0,
+        "summary": {
+          "tests": 21,
+          "errors": 0,
+          "failures": 0,
+          "skipped_including_xfail": 0,
+          "xfail": [],
+          "suites": [
+            {
+              "name": "pytest",
+              "errors": "0",
+              "failures": "0",
+              "skipped": "0",
+              "tests": "21",
+              "time": "6.550",
+              "timestamp": "2026-10-04T04:41:47.385002-04:00",
+              "hostname": "Yukangs-MacBook-Pro.local"
+            }
+          ]
+        }
+      },
+      {
+        "name": "default-focused",
+        "junit_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_source_result_projection_20261004/default-focused.xml",
+          "sha256": "ae77e9f09b388dc3aa2774c863040ea3c351e5a0a3e129d3ae649860eeb21098",
+          "byte_size": 33252
+        },
+        "stdout_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_source_result_projection_20261004/default-focused.stdout",
+          "sha256": "c4299071233e435f645d008d5278e1e1814ad18e2069a35d643b11ae82cbe417",
+          "byte_size": 283
+        },
+        "stderr_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_source_result_projection_20261004/default-focused.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        },
+        "observed_exit_code": 0,
+        "summary": {
+          "tests": 187,
+          "errors": 0,
+          "failures": 0,
+          "skipped_including_xfail": 14,
+          "xfail": [],
+          "suites": [
+            {
+              "name": "pytest",
+              "errors": "0",
+              "failures": "0",
+              "skipped": "14",
+              "tests": "187",
+              "time": "95.033",
+              "timestamp": "2026-10-04T04:42:48.768923-04:00",
+              "hostname": "Yukangs-MacBook-Pro.local"
+            }
+          ]
+        }
+      },
+      {
+        "name": "full-default",
+        "junit_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_source_result_projection_20261004/full-default.xml",
+          "sha256": "359ce7af1a35383028363d359bdbeef43420f4a9be461bf0f9c01724cb68ef23",
+          "byte_size": 762859
+        },
+        "stdout_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_source_result_projection_20261004/full-default.stdout",
+          "sha256": "6f4ff7dbc449f34ccaccf8f66ae5eba88c4a371a2d911f3e9b91da2a99ff4f0d",
+          "byte_size": 2697
+        },
+        "stderr_ref": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_source_result_projection_20261004/full-default.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        },
+        "observed_exit_code": 0,
+        "summary": {
+          "tests": 2329,
+          "errors": 0,
+          "failures": 0,
+          "skipped_including_xfail": 66,
+          "xfail": [
+            {
+              "name": "test_native_detached_process_lifetime",
+              "class": "tests.test_native_project_execution"
+            }
+          ],
+          "suites": [
+            {
+              "name": "pytest",
+              "errors": "0",
+              "failures": "0",
+              "skipped": "66",
+              "tests": "2329",
+              "time": "1130.406",
+              "timestamp": "2026-10-04T04:42:49.825403-04:00",
+              "hostname": "Yukangs-MacBook-Pro.local"
+            }
+          ]
+        }
+      }
+    ],
+    "native_python_config_ref": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/runs/native_python_execution_mechanism_20261003/native_python_runtime.json",
+      "sha256": "6a39f2bdc7dcc2ada356d5a7c4d98b3dd05fe738ff150d730a7a153a1afc0e8d",
+      "byte_size": 889
+    },
+    "compileall_passed": true,
+    "git_diff_check_passed": true,
+    "core_source_and_test_behavior_unchanged_during_suite": true,
+    "scope": "Opaque CSV/binary and long-stream fixtures only. Python WASM and configured native Python execute the real common artifact harness with matching and deliberately nonmatching opaque expectations; no statistical theory, author method, RDS decoding or formal proof is validated. Full-suite existing detached-process lifetime xfail and all skips remain explicit."
+  },
+  "unchanged": {
+    "question_ref": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/execution_questions.json",
+      "sha256": "b0b1826f9ec32cbfd5fd78c2945b7f8c70cdcde636df44b999ca1c5fb276bc2a",
+      "byte_size": 34386
+    },
+    "original_question_ref": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/questions.json",
+      "sha256": "a940b69ab0e2ef0744f7483663f7839b1332b1a8184ca96b149767b7712f7cba",
+      "byte_size": 10973
+    },
+    "native_access_record_ref": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/native_access_observation.json",
+      "sha256": "2100b956227bcdf4a74bb183c8bcf2f32592e2cf90d83a702b6d0f2266de6de7",
+      "byte_size": 19045
+    },
+    "lean_commit": "db6c7718349f3c14a7e37905f3529675f1ebaa52"
+  },
+  "publication_checklist": "No additional item is checked; only Q01/T01/C01/W01 are limited completed scope/draft deliverables. Full independent theory, official H/S draws, confirmation, complete case, final results and releases are unfinished."
+}

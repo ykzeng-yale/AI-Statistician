@@ -102,6 +102,68 @@ consumed executions. The assessor may disagree with a published argument or a
 software convention. Such disagreements require a localized reason, not an
 operator-authored corrected gold answer or silent numerical tolerance change.
 
+## Numerical Assessment Before Freeze
+
+The common view must contain the actual selected results, not only file hashes,
+CSV summaries or truncated console previews. For standalone runtime/shared
+controls, read the selected source checkpoint's complete declared result and
+execution-stream bytes through the existing hash-bound reader. Retain the
+selection's manifest, all attempt manifests and missing-result inventory; earlier
+attempts are lineage, not replacement result files. Native-host final files have
+their distinct frozen selection roots. These views expose exact bytes to a
+qualified evaluator, not proof, confirmation credit or equivalent access.
+
+Fix each endpoint's source, parser/version, key/coordinate mapping, units,
+comparison rule, missingness and scientific scope before any official draw.
+There is no default scientific threshold merely because a file can be decoded.
+
+| Endpoint type | Comparison to freeze | What it does not establish |
+| --- | --- | --- |
+| Fixed-input method computation | Exact supplied data/settings and the pinned reference implementation; predeclared parameter/label alignment and absolute/relative tolerances justified for that computation | Identification, inferential validity or a universal theorem; output equality under changed targets is not fidelity |
+| Literal published reconstruction | Every requested stage/setting/method, original source or explicitly attributed adaptation, actual aggregation and available reference quantities | Paper displays and source outputs need not agree; hardware timing and original stochastic realizations are not universal numerical targets |
+| New stochastic experiment | Frozen data-generating process, estimand, methods, random streams, repetition/stopping rule, per-repetition records, failures and Monte Carlo uncertainty | A new stochastic aggregate need not equal one cached realization; numerical agreement does not prove the theory |
+| Discrepancy report | Exact cited paper/source/output locations, numerical conventions, uncertainty and bounded explanation; unresolved causes remain unresolved | A copied package convention does not become scientific truth, and an unexplained discrepancy is not permission to correct the source |
+
+For deterministic scalar comparisons, a candidate rule may take the form
+$|x-x_{\mathrm{ref}}|\leq a+r|x_{\mathrm{ref}}|$, but $a$, $r$, applicable
+coordinates and rationale still need qualification. Neither the publication
+dispatcher nor this draft sets them. Specify treatment of zeros, units,
+nonidentifiability and unavailable quantities. Do not select tolerances from the
+agent's observed errors. Round-trip byte identity and display-rounding agreement
+are different endpoints from numerical accuracy.
+
+Stochastic comparisons require a justified equivalence/precision rule and the
+declared random-stream relationship. If the reference lacks per-repetition
+material or retained denominators, its aggregate cannot supply an invented
+Monte Carlo standard error. The agent's own independently authored experiment
+must preserve its actual repetitions/failures; use the S4 definitions in the
+[shared supplement](../../../manuscripts/supplementary_methods.md#s4-inner-statistical-method-simulation).
+Do not require nominal coverage, low error or superiority merely because those
+would be desirable; assess the task's frozen claims and correctly reported
+negative results. A favorable measure is not a complete empirical deliverable.
+
+The existing reference scopes impose these endpoint-specific limits:
+
+- **StepMix:** keep source-emitted tables distinct from journal displays.
+  Suppressed convergence messages and removed extreme fits leave old retained
+  denominators/per-repetition uncertainty unavailable; do not reconstruct them
+  from rounded bias/RMSE. Bootstrap summaries and original-sample estimates are
+  distinct quantities. The six declared Python stages remain required.
+- **ebnm:** retain the keyed simulation records and unavailable likelihoods;
+  posterior summaries are not sampling-error guarantees. Default timing coverage
+  is required, but equality to another machine's elapsed seconds is not an
+  accuracy endpoint. The excluded million-observation/solver appendix stays out.
+- **bizicount:** keep requested slots, returned results, optimizer diagnostics,
+  completed-fit summaries and the source's numerical conventions distinct.
+  Numerical reconstruction and assessment of the convention are separate;
+  neither failed fits nor unexplained journal differences disappear from review.
+
+An absent endpoint, unqualified parser/tolerance or unresolved scientific
+convention remains unconfigured/unresolved under the frozen assessment process,
+not an automatic pass. This section does not reinterpret an earlier reference
+execution or supply a corrected answer. Q04/E01/E05 remain incomplete until
+the exact task-specific endpoints, authority and experiment are actually bound.
+
 ## Assessor Appointment and Blinding
 
 Before freezing, name the mathematical assessor(s), relevant statistical

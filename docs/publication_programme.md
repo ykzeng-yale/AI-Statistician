@@ -246,6 +246,14 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   producer/aggregation and application scopes, record discrepancies and failure
   behavior, and fix numerical tolerances before draws. Existing package examples
   and environment probes do not qualify B1/E.1 or a full-paper endpoint.
+  The [selected-source result follow-up](../benchmarks/publication_case_candidates/published_methods/source_final_projection.json)
+  closes a prospective assessment-input gap: the common evaluator now receives
+  complete selected result/stream bytes for runtime/shared controls, not only
+  manifests and summaries. Exact files and missing results are preserved without
+  selecting a better attempt. Opaque fixture grading is not numerical or
+  mathematical qualification. The assessment draft now separates deterministic,
+  literal-reconstruction, stochastic and discrepancy endpoints; no task-specific
+  parser, tolerance, precision or authority is frozen, so Q04 remains open.
 - [ ] **Q05. Independent mathematical authority.** Freeze claim rubrics, valid
   alternative arguments, negative/underspecified controls, assessor qualifications,
   conflicts, blinding and adjudication. Obtain assessor appointments; none is

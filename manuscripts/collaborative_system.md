@@ -263,6 +263,14 @@ labelled automatic diagnostic, not a substitute for this independent endpoint.
 The available tests establish record identity and non-substitution only; no
 qualified panel or mathematical acceptance has yet been demonstrated.
 
+Numerical assessment likewise uses exact selected material. The common
+runtime/shared-control view now includes complete declared source-result and
+execution-stream bytes, not only file hashes or truncated previews. Missing
+results and failed executions remain visible; earlier attempts are retained as
+lineage, not substituted outcomes. This enables format-specific evaluation but
+does not qualify a parser, numerical tolerance, simulation uncertainty rule or
+reference convention. Those belong to the prospective task authority.
+
 The task-selection and possible generalization unit is a paper/problem family.
 Variants and repeated draws within one family do not add new sampled problems.
 The proposed roster is purposive, not a probability sample. Task selection will
