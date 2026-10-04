@@ -1,0 +1,500 @@
+[
+  {
+    "id": "stepmix_external_variables_source_assisted_candidate_v2",
+    "title": "Latent classes with external variables: method reconstruction and published Python study",
+    "description": "Investigate the published one-, two- and three-step estimation methods in Morin et al., StepMix: A Python Package for Pseudo-Likelihood Estimation of Generalized Mixture Models with External Variables, Journal of Statistical Software 113(8), DOI 10.18637/jss.v113.i08, https://www.jstatsoft.org/article/view/v113i08. Use the journal paper, StepMix 2.2.3 package and Python replication archive supplied at their recorded identities. This is source-assisted reconstruction of a published method, not blind EM rediscovery or a new theorem.\n\nDevelop the mathematical argument in persistent Markdown/LaTeX. Define the measurement and structural models, their estimands and information access. Explain how classification uncertainty enters external-variable estimation and derive the relevant objectives and updates for the one-step, two-step, naive three-step, BCH-corrected and ML-corrected approaches. Attach conditions to each claimed correction or inferential result. Distinguish results invoked from the cited literature, steps established in your argument and unresolved claims. Generic EM reasoning alone does not explain the external-variable corrections. Independently challenge the argument and its implementation through source inspection and diagnostic computation.\n\nReconstruct the complete published Python computation represented by run_all.sh 500 100: paper examples; all outcome, covariate and complete-model simulation grids; the five-method GSS application; and the StepMix fits in the package-comparison script. Preserve original scripts and distinguish unchanged execution, adapters and independently authored code. Compare the requested methods on the same declared datasets without substituting another estimator or dropping difficult settings. Other software in the cross-package comparison and the R wrapper are outside this task; do not claim their reproduction. Local timing is not a historical-hardware comparison.\n\nAuthor reusable Python estimator and simulation source for the declared external-variable targets. Record method settings, class-alignment conventions, actual per-repetition estimates, convergence information, exclusions and failures. Keep literal author aggregation separate from an independently authored diagnostic or confirmatory experiment. Freeze each new experiment's source, DGP, methods, seeds, measures and precision rule before its outcomes; justify its Monte Carlo scale. Missing author convergence or repetition records remain missing, not inferred from a rounded table. Compare computations with the journal while preserving unexplained discrepancies. Numerical agreement is not proof of estimator validity.\n\nInterpret the GSS income analysis using its declared indicators, outcome units and missing-data assumptions. Distinguish original-sample estimates from bootstrap summaries and class labels from verified social categories. Deliver the selected mathematical argument, exact source/input/environment identities, reproducible numerical material, an evidence-linked scientific report and unresolved gaps. Lean is not required. No hidden reference values, operator diagnosis or cached output is an input to this task.\n\nImplement the public run_estimator transport contract below. Define every method-specific target, parameter label, alignment, objective and uncertainty convention in the selected Markdown/LaTeX and source before confirmation. The contract supplies no estimator formula, theorem, reference number or acceptance tolerance; substantive mathematics and implementation remain yours.",
+    "tags": [
+      "published_result",
+      "latent_classes",
+      "external_variables",
+      "python",
+      "integrated_methods",
+      "source_assisted",
+      "candidate_not_activated"
+    ],
+    "task_intent": {
+      "source_replication": "required",
+      "theory": "required",
+      "scientific_code": "required",
+      "empirical": "required",
+      "formal": "not_applicable",
+      "novelty": "not_applicable",
+      "unresolved_gaps": "required"
+    },
+    "estimator_execution_contract": {
+      "schema_version": 1,
+      "estimator_id": "stepmix_external_variables",
+      "entrypoint": "run_estimator",
+      "request_fields": [
+        {
+          "clause_id": "request.measurement",
+          "name": "measurement",
+          "meaning": "Observed measurement variables used by the declared latent-class model",
+          "json_type": "array",
+          "shape": "n-by-p matrix; documented column types and null missing entries",
+          "units": "Supplied measurement coordinates",
+          "indexing": "Rows are observations; columns follow declared labels",
+          "edge_cases": "Preserve declared missingness and data types rather than silently select a different sample/model",
+          "binding": "per_replicate_data"
+        },
+        {
+          "clause_id": "request.external_variables",
+          "name": "external_variables",
+          "meaning": "Observed external outcomes and/or covariates for the declared structural model",
+          "json_type": "object",
+          "shape": "Named variables with n aligned entries each",
+          "units": "Original declared variable units",
+          "indexing": "Same observation order as measurement",
+          "edge_cases": "An outcome-only, covariate-only or combined model is declared in configuration; no hidden latent class labels",
+          "binding": "per_replicate_data"
+        },
+        {
+          "clause_id": "request.method",
+          "name": "method",
+          "meaning": "Requested one-step, two-step, naive three-step, BCH-corrected or ML-corrected procedure",
+          "json_type": "string",
+          "shape": "One documented method name",
+          "units": "Method identity",
+          "indexing": "One requested fit",
+          "edge_cases": "Use a documented mapping to the published/source method; never replace a failed procedure",
+          "binding": "fixed_before_all_replicates"
+        },
+        {
+          "clause_id": "request.configuration",
+          "name": "configuration",
+          "meaning": "Explicit method/model settings and parameter/target labels documented by the selected source before confirmation",
+          "json_type": "object",
+          "shape": "Method-specific JSON object",
+          "units": "Units and coordinates documented in the selected theory/source",
+          "indexing": "Whole requested fit",
+          "edge_cases": "No hidden truth, reference outputs or outcome-selected settings; identify defaults and adaptations",
+          "binding": "fixed_before_all_replicates"
+        },
+        {
+          "clause_id": "request.seed",
+          "name": "seed",
+          "meaning": "Initialization of fit randomization",
+          "json_type": "integer",
+          "shape": "One runtime-supported integer",
+          "units": "Random stream identifier",
+          "indexing": "One requested fit",
+          "edge_cases": "Disclose RNG and worker streams; this is not a parameter's true value",
+          "binding": "runtime_control"
+        }
+      ],
+      "response_fields": [
+        {
+          "clause_id": "response.method",
+          "name": "method",
+          "meaning": "The requested method actually attempted",
+          "json_type": "string",
+          "shape": "One method name",
+          "units": "Method identity",
+          "indexing": "Same fit",
+          "edge_cases": "Retain the name on failure",
+          "normalization": "Unchanged request name"
+        },
+        {
+          "clause_id": "response.status",
+          "name": "status",
+          "meaning": "Actual completed, failed or unavailable disposition",
+          "json_type": "string",
+          "shape": "One disposition",
+          "units": "Execution status",
+          "indexing": "Whole requested fit",
+          "edge_cases": "A numerical return alone does not establish convergence or statistical validity",
+          "normalization": "No success inferred from file presence or exit alone"
+        },
+        {
+          "clause_id": "response.fit",
+          "name": "fit",
+          "meaning": "Named fitted parameters and available uncertainty/objective quantities, with explicit target, coordinate and class/margin labels",
+          "json_type": "object or null",
+          "shape": "JSON object with documented named scalar/vector/matrix fields, or null when no fit is available",
+          "units": "Units of each target declared in the selected theory/source",
+          "indexing": "One requested fit; define parameter order, class/margin alignment and nullable quantities explicitly",
+          "edge_cases": "A resolved estimate can coexist with missing uncertainty; document this rather than invent values or reorder labels to match reference outcomes",
+          "normalization": "Use the declared original target coordinates; every transformation and variance/standard-error convention must be documented before confirmation"
+        },
+        {
+          "clause_id": "response.diagnostics",
+          "name": "diagnostics",
+          "meaning": "Actual warnings, errors, convergence information, missing quantities and method/source/settings provenance",
+          "json_type": "object",
+          "shape": "JSON object",
+          "units": "Each quantity's documented units",
+          "indexing": "Same requested fit",
+          "edge_cases": "Preserve failed and incomplete fits; never substitute another method or a cached result",
+          "normalization": "No diagnostic becomes proof or causal-validity credit"
+        }
+      ],
+      "invariants": [
+        {
+          "clause_id": "invariant.input_identity",
+          "meaning": "The requested method uses exactly the supplied observations and declared settings. No hidden target truth or evaluator result is input."
+        },
+        {
+          "clause_id": "invariant.source",
+          "meaning": "Preserve original author files; separately attribute adapters or independently authored implementations and their scientific differences."
+        },
+        {
+          "clause_id": "invariant.failure",
+          "meaning": "Retain the requested method identity and actual failure/unavailability. Unavailable uncertainty or objective values remain null with diagnostics, never a fabricated completed result."
+        }
+      ],
+      "empirical_claims": [
+        {
+          "clause_id": "empirical.replication",
+          "meaning": "Account for the full declared published Python examples, three simulation grids, GSS and StepMix comparison fits, separately from excluded packages/R scope."
+        },
+        {
+          "clause_id": "empirical.confirmation",
+          "meaning": "New experiments bind selected targets, method/class alignment, DGP, source, random streams, measures, failures and Monte Carlo precision before outcomes; retain actual per-repetition results."
+        }
+      ]
+    }
+  },
+  {
+    "id": "ebnm_prior_families_source_assisted_candidate_v2",
+    "title": "Empirical Bayes normal means: prior-family comparison and baseball analysis",
+    "description": "Investigate Willwerscheid, Carbonetto and Stephens, ebnm: An R Package for Solving the Empirical Bayes Normal Means Problem Using a Variety of Prior Families, Journal of Statistical Software 114(3), DOI 10.18637/jss.v114.i03, https://www.jstatsoft.org/article/view/v114i03. Use the recorded journal paper, ebnm 1.1-38 package and licensed replication archive. This is source-assisted reconstruction and comparison of the published main-text study, not blind rediscovery of James-Stein, SURE or Tweedie results.\n\nIn persistent Markdown/LaTeX, define the sampling model, latent targets, prior families and empirical-Bayes fitting objective. Develop a reviewable equation-level account of prior fitting, posterior estimation and the uncertainty summaries actually used in this study. State required conditions and distinguish a posterior statement under a specified model from a repeated-sampling performance claim. Separate known results invoked from the paper or literature, your derivations and unresolved steps. Source-based and computational checks should challenge, not certify, the argument.\n\nReconstruct the complete default main-text code/code.R computation, not its test mode: the introduction, default timing grid, three-DGP ten-prior simulation and wOBA application. Preserve the source and its settings, accounting for every requested method and simulation row, unavailable likelihoods, warnings and failures. The full million-observation timing mode, code_appendix.R and its licensed-solver comparisons are explicitly outside this task. Report that boundary rather than claim the entire paper or all appendices were reproduced. Hardware timings remain descriptive.\n\nAuthor reusable R estimator and simulation source for the declared normal-means inputs and method settings. Compare prior-family behavior and reproduce the stated numerical and plotting summaries through actual computation. Distinguish exact source execution from adapters or independent implementation. Keep original random streams and literal aggregation separate from any new diagnostic or confirmatory experiment. For new experiments, freeze source, DGP, method information, seeds, measures, failure handling and precision before observing outcomes. Preserve per-repetition material and justify Monte Carlo uncertainty; neither a small example nor numerical agreement establishes general shrinkage or coverage guarantees.\n\nExplain the wOBA target, supplied standard errors, approximation assumptions and interpretation of fitted prior and posterior summaries. Do not treat repeated reuse of the observations to fit a prior as externally known prior information. Deliver selected definitions and argument, exact code/data/environment identities, reproducible numerical material, an evidence-linked report and unresolved discrepancies or dependencies. Lean is not required. Cached author results, evaluator calculations and earlier development answers are not task inputs.\n\nImplement the public run_estimator transport contract below. Define every method-specific target, parameter label, alignment, objective and uncertainty convention in the selected Markdown/LaTeX and source before confirmation. The contract supplies no estimator formula, theorem, reference number or acceptance tolerance; substantive mathematics and implementation remain yours.",
+    "tags": [
+      "published_result",
+      "empirical_bayes",
+      "prior_families",
+      "r",
+      "integrated_methods",
+      "source_assisted",
+      "candidate_not_activated"
+    ],
+    "task_intent": {
+      "source_replication": "required",
+      "theory": "required",
+      "scientific_code": "required",
+      "empirical": "required",
+      "formal": "not_applicable",
+      "novelty": "not_applicable",
+      "unresolved_gaps": "required"
+    },
+    "estimator_execution_contract": {
+      "schema_version": 1,
+      "estimator_id": "ebnm_prior_families",
+      "entrypoint": "run_estimator",
+      "request_fields": [
+        {
+          "clause_id": "request.observations",
+          "name": "observations",
+          "meaning": "Observed normal-means measurements for the declared target",
+          "json_type": "array",
+          "shape": "Length-n numeric vector",
+          "units": "Original measurement/latent-target coordinates",
+          "indexing": "Entry j corresponds to standard_errors[j] and posterior output j",
+          "edge_cases": "Missing or invalid inputs are reported, not silently replaced with reference values",
+          "binding": "per_replicate_data"
+        },
+        {
+          "clause_id": "request.standard_errors",
+          "name": "standard_errors",
+          "meaning": "Supplied measurement standard-error scales",
+          "json_type": "array",
+          "shape": "Length-n numeric vector",
+          "units": "Same coordinates as observations",
+          "indexing": "Same entry order as observations",
+          "edge_cases": "The selected argument documents known-versus-approximated scales and admissible conditions; this field supplies no latent target truth",
+          "binding": "per_replicate_data"
+        },
+        {
+          "clause_id": "request.prior_family",
+          "name": "prior_family",
+          "meaning": "Requested prior family in the declared published comparison",
+          "json_type": "string",
+          "shape": "One documented family name",
+          "units": "Prior-family identity",
+          "indexing": "One fit on all supplied observations",
+          "edge_cases": "Document package/source name mapping; never substitute another family on failure",
+          "binding": "fixed_before_all_replicates"
+        },
+        {
+          "clause_id": "request.configuration",
+          "name": "configuration",
+          "meaning": "Explicit method/model settings and parameter/target labels documented by the selected source before confirmation",
+          "json_type": "object",
+          "shape": "Method-specific JSON object",
+          "units": "Units and coordinates documented in the selected theory/source",
+          "indexing": "Whole requested fit",
+          "edge_cases": "No hidden truth, reference outputs or outcome-selected settings; identify defaults and adaptations",
+          "binding": "fixed_before_all_replicates"
+        },
+        {
+          "clause_id": "request.seed",
+          "name": "seed",
+          "meaning": "Initialization of fit randomization",
+          "json_type": "integer",
+          "shape": "One runtime-supported integer",
+          "units": "Random stream identifier",
+          "indexing": "One requested fit",
+          "edge_cases": "Disclose RNG and worker streams; this is not a parameter's true value",
+          "binding": "runtime_control"
+        }
+      ],
+      "response_fields": [
+        {
+          "clause_id": "response.prior_family",
+          "name": "prior_family",
+          "meaning": "Requested prior family actually attempted",
+          "json_type": "string",
+          "shape": "One family name",
+          "units": "Prior-family identity",
+          "indexing": "Same fit",
+          "edge_cases": "Retain on failure",
+          "normalization": "Unchanged request name"
+        },
+        {
+          "clause_id": "response.status",
+          "name": "status",
+          "meaning": "Actual completed, failed or unavailable disposition",
+          "json_type": "string",
+          "shape": "One disposition",
+          "units": "Execution status",
+          "indexing": "Whole requested fit",
+          "edge_cases": "A numerical return alone does not establish convergence or statistical validity",
+          "normalization": "No success inferred from file presence or exit alone"
+        },
+        {
+          "clause_id": "response.posterior_mean",
+          "name": "posterior_mean",
+          "meaning": "Computed posterior mean for each supplied target, or null when unresolved",
+          "json_type": "array or null",
+          "shape": "Length-n vector with finite entries or explicit null missing entries, or null",
+          "units": "Latent-target coordinates",
+          "indexing": "Same order as observations",
+          "edge_cases": "Do not replace unresolved quantities with hidden target truth or another family's output",
+          "normalization": "Original supplied target coordinates; posterior quantity, not a frequentist guarantee"
+        },
+        {
+          "clause_id": "response.posterior_sd",
+          "name": "posterior_sd",
+          "meaning": "Computed posterior standard deviation where available",
+          "json_type": "array or null",
+          "shape": "Length-n vector of finite nonnegative or explicit null entries, or null",
+          "units": "Latent-target coordinates",
+          "indexing": "Same order as observations/posterior_mean",
+          "edge_cases": "Point estimates may exist without this quantity; preserve availability",
+          "normalization": "Posterior standard deviation, not asserted sampling standard error"
+        },
+        {
+          "clause_id": "response.log_likelihood",
+          "name": "log_likelihood",
+          "meaning": "Available fitted marginal log likelihood, or null",
+          "json_type": "number or null",
+          "shape": "Finite scalar or null",
+          "units": "Log probability/density in declared data coordinates",
+          "indexing": "Whole requested fit",
+          "edge_cases": "Unavailable likelihoods stay null; declare objective/constant conventions",
+          "normalization": "Declared marginal objective, with any transformations or omitted terms documented"
+        },
+        {
+          "clause_id": "response.fitted_prior",
+          "name": "fitted_prior",
+          "meaning": "Available serializable description of the fitted prior",
+          "json_type": "object or null",
+          "shape": "Documented named parameter/support/weight fields, or null",
+          "units": "Coordinates of the selected prior/target",
+          "indexing": "Same fit",
+          "edge_cases": "Do not manufacture prior parameters when the implementation does not return them",
+          "normalization": "Prior representation and any transformations documented in selected source"
+        },
+        {
+          "clause_id": "response.diagnostics",
+          "name": "diagnostics",
+          "meaning": "Actual warnings, errors, convergence information, missing quantities and method/source/settings provenance",
+          "json_type": "object",
+          "shape": "JSON object",
+          "units": "Each quantity's documented units",
+          "indexing": "Same requested fit",
+          "edge_cases": "Preserve failed and incomplete fits; never substitute another method or a cached result",
+          "normalization": "No diagnostic becomes proof or causal-validity credit"
+        }
+      ],
+      "invariants": [
+        {
+          "clause_id": "invariant.input_identity",
+          "meaning": "The requested method uses exactly the supplied observations and declared settings. No hidden target truth or evaluator result is input."
+        },
+        {
+          "clause_id": "invariant.source",
+          "meaning": "Preserve original author files; separately attribute adapters or independently authored implementations and their scientific differences."
+        },
+        {
+          "clause_id": "invariant.failure",
+          "meaning": "Retain the requested method identity and actual failure/unavailability. Unavailable uncertainty or objective values remain null with diagnostics, never a fabricated completed result."
+        }
+      ],
+      "empirical_claims": [
+        {
+          "clause_id": "empirical.replication",
+          "meaning": "Account for complete default main-text timing, three-DGP ten-prior simulation and wOBA, with unavailable likelihoods, failures and the declared excluded solver/full-timing appendix scope."
+        },
+        {
+          "clause_id": "empirical.confirmation",
+          "meaning": "New comparisons freeze source, sampling/prior scenarios, targets, family information, RNG, measures, failures and Monte Carlo precision; posterior and repeated-sampling evidence remain distinct."
+        }
+      ]
+    }
+  },
+  {
+    "id": "bizicount_joint_count_source_assisted_candidate_v2",
+    "title": "Bivariate zero-inflated counts: source reconstruction and inferential assessment",
+    "description": "Investigate Niehaus et al., bizicount: Bivariate Zero-Inflated Count Copula Regression Using R, Journal of Statistical Software 109(1), DOI 10.18637/jss.v109.i01, https://www.jstatsoft.org/article/view/v109i01. Use the recorded journal paper, bizicount 1.3.3 package and replication archive. The package and adapted environment need not equal the authors' historical session; report actual identities. This is a source-assisted published-method reconstruction and scientific assessment, not a claim that all published software outputs are correct.\n\nIn persistent Markdown/LaTeX, specify the joint count model, marginal zero-inflation structure, dependence parameter, regression targets and likelihood. Derive the relevant probability and estimation relationships from explicit definitions. State identifiability, parameter-boundary and inference conditions for the conclusions actually claimed. Distinguish invoked published results from steps established by your own argument and unresolved dependencies. Explain what the competing bivariate and separate marginal models estimate; a likelihood value or optimizer return does not establish a mathematical claim.\n\nReconstruct the complete supplied v109i01-replication.R scientific scope: the empirical analysis and displays, full montes_small.R eight-setting simulation with its 500 requested repetitions per setting, and associated aggregation and figures. Preserve original author files and distinguish environment preparation, unchanged execution, adapters and reimplementation. Retain raw warning/error information and account for all requested fits and discarded or unavailable results. A successful master exit does not certify each fit. Compare the declared source computations with the journal and report discrepancies without selecting a favorable tolerance or filling missing values.\n\nAuthor reusable R estimator and simulation source for the declared samples, model configurations and comparison targets. Examine performance and inference using actual per-repetition estimates and diagnostics. Keep summaries conditional on completed fits distinct from unconditional failure and delivery rates. Literal author aggregation and any independent diagnostic or confirmatory experiment are separate outputs. Freeze new source, DGP, methods, seeds, metrics, failures and precision before outcomes; justify the Monte Carlo scale. Do not silently modify a method, repair the original package or replace a requested estimator when it fails. Any independently justified adaptation is separately attributed and assessed, not called unchanged replication.\n\nInterpret the Nigeria application at the stated observational and modeling scope, including zero inflation, dependence and uncertainty. Do not infer causal effects from a regression fit or theoretical correctness from copied coefficients. Deliver the selected argument, exact source/data/environment identities, reproducible computations, a scientific discrepancy account with evidence and unresolved gaps. Lean is not required. No cached fit output, operator failure analysis or evaluator-only value is supplied as an answer.\n\nImplement the public run_estimator transport contract below. Define every method-specific target, parameter label, alignment, objective and uncertainty convention in the selected Markdown/LaTeX and source before confirmation. The contract supplies no estimator formula, theorem, reference number or acceptance tolerance; substantive mathematics and implementation remain yours.",
+    "tags": [
+      "published_result",
+      "joint_count_regression",
+      "zero_inflation",
+      "r",
+      "integrated_methods",
+      "source_assisted",
+      "candidate_not_activated"
+    ],
+    "task_intent": {
+      "source_replication": "required",
+      "theory": "required",
+      "scientific_code": "required",
+      "empirical": "required",
+      "formal": "not_applicable",
+      "novelty": "not_applicable",
+      "unresolved_gaps": "required"
+    },
+    "estimator_execution_contract": {
+      "schema_version": 1,
+      "estimator_id": "bizicount_joint_count",
+      "entrypoint": "run_estimator",
+      "request_fields": [
+        {
+          "clause_id": "request.counts",
+          "name": "counts",
+          "meaning": "The paired observed count responses",
+          "json_type": "array",
+          "shape": "n-by-2 matrix with declared missing entries if applicable",
+          "units": "Count units of each labelled margin",
+          "indexing": "Rows are observations; two columns preserve their declared margin order",
+          "edge_cases": "Keep zero values and margin identity; do not silently discard a difficult sample or replace a requested model",
+          "binding": "per_replicate_data"
+        },
+        {
+          "clause_id": "request.covariates",
+          "name": "covariates",
+          "meaning": "Observed covariates for the declared mean/zero-inflation models",
+          "json_type": "object",
+          "shape": "Named columns with n aligned entries; model/design conventions in configuration",
+          "units": "Original declared covariate units",
+          "indexing": "Same observation order as counts",
+          "edge_cases": "Declare coding, intercepts, formulas and any missing-data handling before confirmation",
+          "binding": "per_replicate_data"
+        },
+        {
+          "clause_id": "request.method",
+          "name": "method",
+          "meaning": "Requested joint bivariate or separate marginal procedure in the published comparison",
+          "json_type": "string",
+          "shape": "One documented procedure name",
+          "units": "Method identity",
+          "indexing": "One requested fit",
+          "edge_cases": "Disclose marginal families, dependence and zero-inflation settings in configuration; do not substitute after failure",
+          "binding": "fixed_before_all_replicates"
+        },
+        {
+          "clause_id": "request.configuration",
+          "name": "configuration",
+          "meaning": "Explicit method/model settings and parameter/target labels documented by the selected source before confirmation",
+          "json_type": "object",
+          "shape": "Method-specific JSON object",
+          "units": "Units and coordinates documented in the selected theory/source",
+          "indexing": "Whole requested fit",
+          "edge_cases": "No hidden truth, reference outputs or outcome-selected settings; identify defaults and adaptations",
+          "binding": "fixed_before_all_replicates"
+        },
+        {
+          "clause_id": "request.seed",
+          "name": "seed",
+          "meaning": "Initialization of fit randomization",
+          "json_type": "integer",
+          "shape": "One runtime-supported integer",
+          "units": "Random stream identifier",
+          "indexing": "One requested fit",
+          "edge_cases": "Disclose RNG and worker streams; this is not a parameter's true value",
+          "binding": "runtime_control"
+        }
+      ],
+      "response_fields": [
+        {
+          "clause_id": "response.method",
+          "name": "method",
+          "meaning": "The requested procedure actually attempted",
+          "json_type": "string",
+          "shape": "One method name",
+          "units": "Method identity",
+          "indexing": "Same fit",
+          "edge_cases": "Retain on failure",
+          "normalization": "Unchanged request name"
+        },
+        {
+          "clause_id": "response.status",
+          "name": "status",
+          "meaning": "Actual completed, failed or unavailable disposition",
+          "json_type": "string",
+          "shape": "One disposition",
+          "units": "Execution status",
+          "indexing": "Whole requested fit",
+          "edge_cases": "A numerical return alone does not establish convergence or statistical validity",
+          "normalization": "No success inferred from file presence or exit alone"
+        },
+        {
+          "clause_id": "response.fit",
+          "name": "fit",
+          "meaning": "Named fitted parameters and available uncertainty/objective quantities, with explicit target, coordinate and class/margin labels",
+          "json_type": "object or null",
+          "shape": "JSON object with documented named scalar/vector/matrix fields, or null when no fit is available",
+          "units": "Units of each target declared in the selected theory/source",
+          "indexing": "One requested fit; define parameter order, class/margin alignment and nullable quantities explicitly",
+          "edge_cases": "A resolved estimate can coexist with missing uncertainty; document this rather than invent values or reorder labels to match reference outcomes",
+          "normalization": "Use the declared original target coordinates; every transformation and variance/standard-error convention must be documented before confirmation"
+        },
+        {
+          "clause_id": "response.diagnostics",
+          "name": "diagnostics",
+          "meaning": "Actual warnings, errors, convergence information, missing quantities and method/source/settings provenance",
+          "json_type": "object",
+          "shape": "JSON object",
+          "units": "Each quantity's documented units",
+          "indexing": "Same requested fit",
+          "edge_cases": "Preserve failed and incomplete fits; never substitute another method or a cached result",
+          "normalization": "No diagnostic becomes proof or causal-validity credit"
+        }
+      ],
+      "invariants": [
+        {
+          "clause_id": "invariant.input_identity",
+          "meaning": "The requested method uses exactly the supplied observations and declared settings. No hidden target truth or evaluator result is input."
+        },
+        {
+          "clause_id": "invariant.source",
+          "meaning": "Preserve original author files; separately attribute adapters or independently authored implementations and their scientific differences."
+        },
+        {
+          "clause_id": "invariant.failure",
+          "meaning": "Retain the requested method identity and actual failure/unavailability. Unavailable uncertainty or objective values remain null with diagnostics, never a fabricated completed result."
+        }
+      ],
+      "empirical_claims": [
+        {
+          "clause_id": "empirical.replication",
+          "meaning": "Account for the complete declared application, displays and eight-setting 500-repetition source simulation, including every attempted/discarded/unavailable fit and literal aggregation."
+        },
+        {
+          "clause_id": "empirical.confirmation",
+          "meaning": "New source/design/methods/streams/metrics/failures/precision are frozen before outcomes; completed-fit summaries and unconditional fit/interval delivery are distinct."
+        }
+      ]
+    }
+  }
+]

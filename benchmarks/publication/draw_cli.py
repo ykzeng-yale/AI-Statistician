@@ -4,6 +4,7 @@ import argparse
 from dataclasses import asdict
 import hashlib
 import json
+import os
 from pathlib import Path
 
 from ai_statistician.algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
@@ -20,6 +21,7 @@ from ai_statistician.research_schema import load_open_research_questions
 from ai_statistician.research_source_discovery import PublicResearchSourceDiscovery, PublicResearchSourceDiscoveryConfig
 from ai_statistician.research_source_library import load_research_source_execution_spec, load_research_source_snapshot
 from ai_statistician.simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
+from ai_statistician.scientific_sandbox import load_native_scientific_runtime
 from benchmarks.publication.evaluate_final_artifacts import publication_material_from_submission
 from benchmarks.publication.run_control_draw import run_single_context_research_draw
 from benchmarks.publication.run_collaborative_draw import run_collaborative_research_draw
@@ -36,7 +38,7 @@ def main(argv=None):
     if not isinstance(config, dict) or config.get("mode") not in {"free_planning", "same_workflow", "full_collaboration", "no_cross_role_revision"}:
         raise ValueError("unsupported study draw mode")
     collaborative = config["mode"] in {"full_collaboration", "no_cross_role_revision"}
-    allowed = {"question_ref", "question_id", "mode", "backend", "roles", "deployment_ref", "source_snapshot_ref", "source_execution_ref", "source_discovery"}
+    allowed = {"question_ref", "question_id", "mode", "backend", "roles", "deployment_ref", "source_snapshot_ref", "source_execution_ref", "source_discovery", "native_execution_refs"}
     allowed |= {"runtime", "architect_context"} if collaborative else {"request", "workflow_instructions", "estimator_ids", "execution", "limits"}
     if not isinstance(config, dict) or set(config) - allowed:
         raise ValueError("unsupported study draw configuration fields")
@@ -58,6 +60,27 @@ def main(argv=None):
     matches = [row for row in questions if row.id == config["question_id"]]
     if len(matches) != 1:
         raise ValueError("study draw requires exactly one declared question")
+    if os.environ.get("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", "").strip():
+        raise ValueError("study draw does not declare native-project tools; unset AI_STATISTICIAN_NATIVE_PROJECT_CONFIG")
+    native_refs = config.get("native_execution_refs")
+    if not isinstance(native_refs, dict) or set(native_refs) - {"python", "r"}:
+        raise ValueError("study draw requires explicit native_execution_refs, possibly empty")
+    resolved_native_refs = {}
+    for language in ("python", "r"):
+        configured = os.environ.get("AI_STATISTICIAN_NATIVE_" + language.upper() + "_CONFIG", "").strip()
+        if language not in native_refs:
+            if configured:
+                raise ValueError("undeclared native execution environment: " + language)
+            continue
+        ref = dict(native_refs[language])
+        ref["path"] = str((config_path.parent / ref["path"]).resolve())
+        _, errors = read_hash_bound_utf8_file(ref)
+        if errors:
+            raise ValueError("native execution reference identity mismatch: " + language)
+        runtime = load_native_scientific_runtime(Path(ref["path"]), language=language)
+        if runtime.config_sha256 != ref["sha256"] or not configured or Path(configured).resolve() != Path(ref["path"]):
+            raise ValueError("native execution environment differs from the declared configuration: " + language)
+        resolved_native_refs[language] = ref
     deployment_ref, deployment_text = reference("deployment_ref")
     deployment = json.loads(deployment_text)
     request = None if collaborative else ClientToolTurnRequest(messages=(), tools=(), **config["request"])
@@ -130,6 +153,7 @@ def main(argv=None):
     provenance = {"config_ref": {"path": str(config_path), "sha256": hashlib.sha256(raw).hexdigest(), "byte_size": len(raw)},
                   "question_ref": question_ref, "deployment_ref": deployment_ref, "declared_deployment": deployment,
                   "deployment_authority": "caller_declaration_not_live_attestation_or_scientific_qualification",
+                  "native_execution_refs": resolved_native_refs,
                   "source_snapshot": sources.descriptor() if sources else None,
                   **({"source_execution_ref": execution_ref, "source_execution": execution.descriptor(sources)} if execution else {}),
                   "source_discovery": {**discovery.descriptor(), "state_dir": str(state_dir)} if discovery else None}

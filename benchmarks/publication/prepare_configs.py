@@ -15,16 +15,17 @@ from ai_statistician.cross_family_eval_protocol import (
     resolve_confirmatory_evaluation_cohort,
 )
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.estimator_interface_contract import frozen_estimator_execution_contract_errors
 from ai_statistician.generated_code_semantic_reviewer_llm import GeneratedCodeSemanticReviewerConfig
 from ai_statistician.local_model_backend import LocalChatGeneratorBackend
 from ai_statistician.research_agent_runtime import ResearchAgentRuntimeConfig
 from ai_statistician.research_architect import ResearchArchitectConfig
-from ai_statistician.research_schema import load_open_research_questions
+from ai_statistician.research_schema import load_open_research_questions, research_task_intent_requirement
 from ai_statistician.research_source_library import load_research_source_execution_spec, load_research_source_snapshot
+from ai_statistician.scientific_sandbox import load_native_scientific_runtime
 from ai_statistician.simulation_engineer_llm import SimulationEngineerConfig
 
 
-HERE = Path(__file__).resolve().parent
 MODES = ("free_planning", "same_workflow", "no_cross_role_revision", "full_collaboration")
 WORKFLOW = (
     "Develop a reviewable theory checkpoint; inspect the current theory before promoting code; "
@@ -41,9 +42,9 @@ def file_ref(path):
     return {"path": str(path), "sha256": hashlib.sha256(raw).hexdigest(), "byte_size": len(raw)}
 
 
-def prepare(*, out, deployment, sources, source_execution, call_limit, output_tokens, temperature,
+def prepare(*, out, questions, question_id, deployment, sources, source_execution, call_limit, output_tokens, temperature,
             seed, confirmation_base, replicates, execution_timeout, model_timeout,
-            no_progress_turns):
+            no_progress_turns, native_python=None, native_r=None):
     """Assembly only; the caller still owns source, authority and arm qualification."""
     out = Path(out).resolve()
     if out.exists():
@@ -73,11 +74,24 @@ def prepare(*, out, deployment, sources, source_execution, call_limit, output_to
     execution = load_research_source_execution_spec(Path(execution_ref["path"]), research_sources=snapshot)
     if execution.manifest_sha256 != execution_ref["sha256"]:
         raise ValueError("source execution identity mismatch")
-    question_ref = file_ref(HERE / "questions.json")
-    questions = load_open_research_questions(Path(question_ref["path"]))
-    if len(questions) != 1:
-        raise ValueError("the case requires one declared question")
-    question = questions[0]
+    question_ref = file_ref(questions)
+    matches = [row for row in load_open_research_questions(Path(question_ref["path"])) if row.id == question_id]
+    if len(matches) != 1:
+        raise ValueError("configuration preparation requires exactly one selected question")
+    question = matches[0]
+    errors = frozen_estimator_execution_contract_errors(question.estimator_execution_contract,
+        label="selected question estimator contract",
+        required=research_task_intent_requirement(question.task_intent, "scientific_code") == "required")
+    if errors:
+        raise ValueError("; ".join(errors))
+    native_refs = {}
+    for language, path in (("python", native_python), ("r", native_r)):
+        if path is not None:
+            ref = file_ref(path)
+            runtime = load_native_scientific_runtime(Path(ref["path"]), language=language)
+            if runtime.config_sha256 != ref["sha256"]:
+                raise ValueError("native execution configuration changed during loading")
+            native_refs[language] = ref
     backend = {"base_url": "http://127.0.0.1:8081/v1", "timeout_s": model_timeout}
     LocalChatGeneratorBackend(**backend)  # Validate the existing transport; no HTTP call.
     common = dict(provider_name="local", model=model, model_tier="local",
@@ -105,7 +119,8 @@ def prepare(*, out, deployment, sources, source_execution, call_limit, output_to
     control_request = {"system_prompt": "Research the supplied question with the actual workspace tools. "
         "Own source revisions, preserve selected evidence and report unresolved gaps honestly.",
         "model": model, "max_tokens": output_tokens, "temperature": temperature, "tool_choice": "any"}
-    fingerprint = stable_hash({"question_ref": question_ref, "deployment_ref": deployment_ref,
+    fingerprint = stable_hash({"question_ref": question_ref, "question_id": question.id,
+        "native_execution_refs": native_refs, "deployment_ref": deployment_ref,
         "source_snapshot_ref": source_ref, "source_execution_ref": execution_ref,
         "backend": backend, "roles": roles, "control_request": control_request, "workflow": WORKFLOW, "modes": MODES,
         "call_limit": call_limit, "seed": seed, "replicates": replicates,
@@ -123,6 +138,7 @@ def prepare(*, out, deployment, sources, source_execution, call_limit, output_to
     for mode in MODES:
         collaborative = mode in {"no_cross_role_revision", "full_collaboration"}
         config = {"question_ref": question_ref, "question_id": question.id,
+            "native_execution_refs": native_refs,
             "deployment_ref": deployment_ref, "source_snapshot_ref": source_ref,
             "source_execution_ref": execution_ref,
             "mode": mode, "backend": backend,
@@ -139,7 +155,7 @@ def prepare(*, out, deployment, sources, source_execution, call_limit, output_to
         else:
             config.update(request=control_request,
                 workflow_instructions=WORKFLOW if mode == "same_workflow" else "",
-                estimator_ids=[question.estimator_execution_contract["estimator_id"]],
+                estimator_ids=[question.estimator_execution_contract["estimator_id"]] if question.estimator_execution_contract else [],
                 execution={"n_runs": replicates, "seed": seed, "timeout_s": execution_timeout,
                            "confirmatory_seeds": confirmations},
                 limits={"max_turns": call_limit, "max_tool_calls": 2 * call_limit,
@@ -155,10 +171,11 @@ def prepare(*, out, deployment, sources, source_execution, call_limit, output_to
     with (out / "preparation.json").open("x", encoding="utf-8") as stream:
         json.dump({"scope": "configuration_preparation_only", "study_activated": False,
             "model_calls": 0, "scientific_evaluation_performed": False, "configs": refs,
-            "question_ref": question_ref, "deployment_ref": deployment_ref, "source_snapshot_ref": source_ref,
+            "question_ref": question_ref, "question_id": question.id, "native_execution_refs": native_refs,
+            "deployment_ref": deployment_ref, "source_snapshot_ref": source_ref,
             "source_execution_ref": execution_ref,
             "authority": "Declared settings and file identity, not live deployment or complete arm qualification",
-            "remaining": ["complete source/data/environment capsule and missing helper",
+            "remaining": ["complete public source/data and environment scope",
                           "scientific execution availability and reference/gold qualification",
                           "observed requests, confirmation exposure and opportunity matching",
                           "roster/split, independent assessment, draw schedule and analysis"]}, stream, indent=2)
@@ -167,8 +184,11 @@ def prepare(*, out, deployment, sources, source_execution, call_limit, output_to
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("out", "deployment", "sources", "source-execution"):
+    for name in ("out", "questions", "deployment", "sources", "source-execution"):
         parser.add_argument("--" + name, type=Path, required=True)
+    parser.add_argument("--question-id", required=True)
+    for name in ("native-python", "native-r"):
+        parser.add_argument("--" + name, type=Path)
     for name in ("call-limit", "output-tokens", "seed", "confirmation-base", "replicates",
                  "execution-timeout", "no-progress-turns"):
         parser.add_argument("--" + name, type=int, required=True)

@@ -26,6 +26,8 @@ def write_reference(path, value):
 
 def configuration(tmp_path, monkeypatch, *, workflow="", reviewers=False):
     monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
+    for language in ("PYTHON", "R"):
+        monkeypatch.delenv("AI_STATISTICIAN_NATIVE_" + language + "_CONFIG", raising=False)
     question = {"id": "opaque-cli", "title": "Opaque entry", "description": "Unresolved mechanism fixture.",
                 "task_intent": {"theory": "required", "scientific_code": "not_applicable",
                                 "empirical": "not_applicable", "formal": "not_applicable"}}
@@ -39,6 +41,7 @@ def configuration(tmp_path, monkeypatch, *, workflow="", reviewers=False):
                   "model": MODEL, "weights_sha256": "fixture_declaration_not_a_live_deployment",
                   "runtime": "mocked_native_HTTP", "chat_template_sha256": "fixture"}),
               "mode": "same_workflow" if workflow else "free_planning", "workflow_instructions": workflow,
+              "native_execution_refs": {},
               "backend": {"base_url": "http://127.0.0.1:8081/v1", "timeout_s": 30},
               "request": {"system_prompt": "Research the supplied question.", "model": MODEL, "max_tokens": 1024,
                           "temperature": 0, "tool_choice": "auto"},
@@ -133,6 +136,15 @@ def test_cli_freezes_declared_inputs_and_keeps_partial_submission_partial(tmp_pa
     with pytest.raises(FileExistsError):
         invoke(tmp_path, config)
     assert len(requests) == 1 and all(path.read_bytes() == value for path, value in saved.items())
+
+
+def test_cli_rejects_undeclared_native_project_tools_before_inference(tmp_path, monkeypatch):
+    config = configuration(tmp_path, monkeypatch)
+    monkeypatch.setenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", str(tmp_path / "ambient-project.json"))
+    requests, _ = wire(monkeypatch, tmp_path, [])
+    with pytest.raises(ValueError, match="does not declare native-project tools"):
+        invoke(tmp_path, config)
+    assert not requests and not (tmp_path / "draw").exists()
 
 
 def test_cli_projects_only_observed_selected_markdown_not_the_latest_working_file(tmp_path, monkeypatch, capsys):
@@ -306,6 +318,75 @@ def collaborative_configuration(tmp_path, monkeypatch):
         "local_model_call_limit": 1, "n_runs": 3, "seed": 7, "theory_scratch_enabled": False}
     config["architect_context"] = {"opaque_declared_context": "not a scientific answer"}
     return config
+
+
+def native_reference(tmp_path):
+    """Opaque schema fixture, not a qualified Python environment or execution."""
+    root = tmp_path / "native-environment"
+    root.mkdir()
+    (root / "python").symlink_to(sys.executable)
+    return write_reference(tmp_path / "native.json", {
+        "schema_version": 1, "runtime_language": "python", "runtime_version": "opaque-not-attested",
+        "environment_root": str(root), "interpreter_executable_relative_path": "python",
+        "interpreter_executable_sha256": hashlib.sha256(Path(sys.executable).resolve().read_bytes()).hexdigest(),
+        "runtime_read_roots": [], "runtime_executables": {}, "runtime_environment": {}, "package_versions": {},
+    })
+
+
+@pytest.mark.parametrize("mode", ["free_planning", "same_workflow", "full_collaboration", "no_cross_role_revision"])
+def test_declared_native_environment_reaches_every_frozen_draw_before_requests(tmp_path, monkeypatch, capsys, mode):
+    config = (collaborative_configuration(tmp_path, monkeypatch) if "collaboration" in mode or "revision" in mode
+              else configuration(tmp_path, monkeypatch, workflow="Opaque workflow" if mode == "same_workflow" else ""))
+    config["mode"] = mode
+    ref = native_reference(tmp_path)
+    config["native_execution_refs"] = {"python": ref}
+    monkeypatch.setenv("AI_STATISTICIAN_NATIVE_PYTHON_CONFIG", str(tmp_path / ref["path"]))
+    requests = []
+
+    class Opener:
+        def open(self, request, *, timeout):
+            requests.append(json.loads(request.data))
+            frozen = json.loads((tmp_path / "draw" / "frozen_draw.json").read_bytes())
+            actual = frozen["study_provenance"]["native_execution_refs"]["python"]
+            assert actual == {**ref, "path": str((tmp_path / ref["path"]).resolve())}
+            raise HTTPError(request.full_url, 400, "Fixture failure", {}, BytesIO(b"opaque transport failure"))
+
+    monkeypatch.setattr("urllib.request.build_opener", lambda *args: Opener())
+    assert invoke(tmp_path, config) == 1
+    assert len(requests) == 1
+    assert json.loads(capsys.readouterr().out)["final_material_ref"] is None
+
+
+@pytest.mark.parametrize("defect", ["missing_declaration", "invalid_language", "undeclared_environment",
+                                   "unconfigured", "different_path", "changed_reference", "wrong_runtime_language"])
+def test_unbound_native_environment_stops_before_inference(tmp_path, monkeypatch, defect):
+    config = configuration(tmp_path, monkeypatch)
+    ref = native_reference(tmp_path)
+    config["native_execution_refs"] = {"python": ref}
+    monkeypatch.setenv("AI_STATISTICIAN_NATIVE_PYTHON_CONFIG", str(tmp_path / ref["path"]))
+    if defect == "missing_declaration":
+        del config["native_execution_refs"]
+    elif defect == "invalid_language":
+        config["native_execution_refs"] = {"julia": ref}
+    elif defect == "undeclared_environment":
+        config["native_execution_refs"] = {}
+    elif defect == "unconfigured":
+        monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PYTHON_CONFIG")
+    elif defect == "different_path":
+        other = tmp_path / "other-native.json"
+        other.write_bytes((tmp_path / ref["path"]).read_bytes())
+        monkeypatch.setenv("AI_STATISTICIAN_NATIVE_PYTHON_CONFIG", str(other))
+    elif defect == "changed_reference":
+        (tmp_path / ref["path"]).write_text("{}")
+    else:
+        data = json.loads((tmp_path / ref["path"]).read_bytes())
+        data["runtime_language"] = "r"
+        config["native_execution_refs"]["python"] = write_reference(tmp_path / "native.json", data)
+    calls = []
+    monkeypatch.setattr("urllib.request.build_opener", lambda *args: calls.append(args))
+    with pytest.raises(ValueError):
+        invoke(tmp_path, config)
+    assert not calls and not (tmp_path / "draw").exists()
 
 
 @pytest.mark.parametrize("mode", ["free_planning", "same_workflow", "full_collaboration", "no_cross_role_revision"])

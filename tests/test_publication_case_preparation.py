@@ -15,7 +15,8 @@ from ai_statistician.cross_family_eval_protocol import (
 )
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.research_source_library import load_research_source_snapshot
-from benchmarks.publication_case_candidates.tsci_b1_card.prepare_configs import MODES, prepare
+from ai_statistician.research_schema import load_open_research_questions, research_question_payload
+from benchmarks.publication.prepare_configs import MODES, prepare
 from benchmarks.publication.draw_cli import main as draw_main
 
 
@@ -55,7 +56,10 @@ def inputs(tmp_path, monkeypatch):
         "interpreter_executable_sha256": hashlib.sha256(Path(sys.executable).resolve().read_bytes()).hexdigest(),
         "runtime_read_roots": [], "working_directory_relative": ".", "arguments": [],
         "package_distributions": {"Opaque": "opaque"}, "timeout_seconds": 30, "max_output_bytes": 8192}))
-    return dict(out=tmp_path / "prepared", deployment=deployment, sources=sources, source_execution=execution,
+    return dict(out=tmp_path / "prepared",
+        questions=Path("benchmarks/publication_case_candidates/tsci_b1_card/questions.json").resolve(),
+        question_id="tsci_b1_card_integrated_candidate_v2",
+        deployment=deployment, sources=sources, source_execution=execution,
         call_limit=19, output_tokens=1703, temperature=0.23, seed=17, confirmation_base=90211,
         replicates=23, execution_timeout=117, model_timeout=211.0, no_progress_turns=5)
 
@@ -73,6 +77,7 @@ def test_candidate_uses_existing_configs_with_explicit_data_and_output_settings(
         assert config["question_id"] == "tsci_b1_card_integrated_candidate_v2"
         assert config["backend"] == {"base_url": "http://127.0.0.1:8081/v1", "timeout_s": 211.0}
         assert config["source_execution_ref"]["path"] == str(args["source_execution"].resolve())
+        assert config["native_execution_refs"] == {}
         assert all(row["provider_name"] == row["model_tier"] == "local"
                    and row["max_tokens"] == 1703 and row["temperature"] == 0.23
                    for row in config["roles"].values())
@@ -122,7 +127,8 @@ def test_control_request_is_bound_in_candidate_protocol_identity(tmp_path, monke
     refs = prepare(**args)
     configs = {mode: json.loads(Path(ref["path"]).read_bytes()) for mode, ref in refs.items()}
     shared, production = configs["free_planning"], configs["full_collaboration"]
-    material = {"question_ref": shared["question_ref"], "deployment_ref": shared["deployment_ref"],
+    material = {"question_ref": shared["question_ref"], "question_id": shared["question_id"],
+        "native_execution_refs": {}, "deployment_ref": shared["deployment_ref"],
         "source_snapshot_ref": shared["source_snapshot_ref"], "source_execution_ref": shared["source_execution_ref"],
         "backend": shared["backend"], "roles": production["roles"], "control_request": shared["request"],
         "workflow": configs["same_workflow"]["workflow_instructions"], "modes": MODES,
@@ -133,6 +139,34 @@ def test_control_request_is_bound_in_candidate_protocol_identity(tmp_path, monke
     assert stable_hash(material) == declared
     material["control_request"] = {**shared["request"], "tool_choice": "auto"}
     assert stable_hash(material) != declared
+
+
+@pytest.mark.parametrize("language", ["python", "r"])
+def test_native_execution_refs_are_explicit_and_change_protocol_identity(tmp_path, monkeypatch, language):
+    args = inputs(tmp_path, monkeypatch)
+    native_path = tmp_path / "native.json"
+    native = {"schema_version": 1, "runtime_language": language,
+        "runtime_version": "opaque-schema-fixture-not-executed",
+        "environment_root": str(tmp_path / "environment"),
+        "interpreter_executable_relative_path": "python",
+        "interpreter_executable_sha256": hashlib.sha256(Path(sys.executable).resolve().read_bytes()).hexdigest(),
+        "runtime_read_roots": [], "runtime_executables": {}, "runtime_environment": {},
+        "package_versions": {"jsonlite": "opaque-version"} if language == "r" else {}}
+    native_path.write_text(json.dumps(native))
+    args["native_" + language] = native_path
+    refs = prepare(**args)
+    configs = {mode: json.loads(Path(ref["path"]).read_bytes()) for mode, ref in refs.items()}
+    declared = {language: {"path": str(native_path.resolve()),
+        "sha256": hashlib.sha256(native_path.read_bytes()).hexdigest(), "byte_size": native_path.stat().st_size}}
+    assert all(config["native_execution_refs"] == declared for config in configs.values())
+    before = configs["full_collaboration"]["architect_context"]["cross_family_evaluation_protocol"]["protocol_fingerprint"]
+    native["runtime_version"] += "-changed"
+    native_path.write_text(json.dumps(native))
+    args["out"] = tmp_path / "prepared-after-declaration-change"
+    changed = prepare(**args)
+    after = json.loads(Path(changed["full_collaboration"]["path"]).read_bytes())
+    assert after["native_execution_refs"][language]["sha256"] != declared[language]["sha256"]
+    assert after["architect_context"]["cross_family_evaluation_protocol"]["protocol_fingerprint"] != before
 
 
 def test_changed_source_is_not_declared_a_valid_input(tmp_path, monkeypatch):
@@ -151,9 +185,69 @@ def test_missing_source_execution_is_rejected_before_all_arm_files(tmp_path, mon
     assert not args["out"].exists()
 
 
+def test_question_selection_and_contract_are_explicit_not_a_case_default(tmp_path, monkeypatch):
+    args = inputs(tmp_path, monkeypatch)
+    original = json.loads(args["questions"].read_bytes())[0]
+    selected = {**original, "id": "opaque-selected-question",
+                "estimator_execution_contract": {**original["estimator_execution_contract"], "estimator_id": "opaque-selected"}}
+    path = tmp_path / "questions.json"
+    path.write_text(json.dumps([original, selected]))
+    args.update(questions=path, question_id=selected["id"])
+    refs = prepare(**args)
+    for ref in refs.values():
+        config = json.loads(Path(ref["path"]).read_bytes())
+        assert config["question_id"] == selected["id"]
+        assert config["question_ref"]["path"] == str(path.resolve())
+        if "estimator_ids" in config:
+            assert config["estimator_ids"] == ["opaque-selected"]
+
+
+@pytest.mark.parametrize("defect", ["absent", "duplicate", "missing_contract"])
+def test_invalid_selected_question_does_not_write_arm_files(tmp_path, monkeypatch, defect):
+    args = inputs(tmp_path, monkeypatch)
+    rows = json.loads(args["questions"].read_bytes())
+    if defect == "absent":
+        args["question_id"] = "absent"
+    elif defect == "duplicate":
+        rows *= 2
+    else:
+        rows[0].pop("estimator_execution_contract")
+    path = tmp_path / "questions.json"
+    path.write_text(json.dumps(rows))
+    args["questions"] = path
+    with pytest.raises(ValueError):
+        prepare(**args)
+    assert not args["out"].exists()
+
+
+@pytest.mark.parametrize("question_id,estimator_id", [
+    ("stepmix_external_variables_source_assisted_candidate_v2", "stepmix_external_variables"),
+    ("ebnm_prior_families_source_assisted_candidate_v2", "ebnm_prior_families"),
+    ("bizicount_joint_count_source_assisted_candidate_v2", "bizicount_joint_count"),
+])
+def test_unactivated_execution_tasks_keep_integrated_intent_and_explicit_transport(
+    tmp_path, monkeypatch, question_id, estimator_id,
+):
+    args = inputs(tmp_path, monkeypatch)
+    args.update(questions=Path("benchmarks/publication_case_candidates/published_methods/execution_questions_v2.json").resolve(),
+                question_id=question_id)
+    questions = load_open_research_questions(args["questions"])
+    selected = next(row for row in questions if row.id == question_id)
+    assert all(selected.task_intent[dimension] == "required" for dimension in (
+        "theory", "scientific_code", "empirical", "source_replication", "unresolved_gaps"))
+    assert selected.task_intent["formal"] == selected.task_intent["novelty"] == "not_applicable"
+    assert research_question_payload(selected)["estimator_execution_contract"]["estimator_id"] == estimator_id
+    refs = prepare(**args)
+    assert len(refs) == 4
+    for mode in ("free_planning", "same_workflow"):
+        assert json.loads(Path(refs[mode]["path"]).read_bytes())["estimator_ids"] == [estimator_id]
+
+
 @pytest.mark.parametrize("mode", MODES)
 def test_generated_config_reaches_existing_draw_transport_without_inference(tmp_path, monkeypatch, capsys, mode):
     monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
+    for language in ("PYTHON", "R"):
+        monkeypatch.delenv("AI_STATISTICIAN_NATIVE_" + language + "_CONFIG", raising=False)
     args = inputs(tmp_path, monkeypatch)
     refs = prepare(**args)
     requests = []
