@@ -1,0 +1,30 @@
+{
+  "record_type": "assessment_only_printed_channel_decoding",
+  "observed_on": "2026-10-04",
+  "code_before_change": "96b298ea8fe18f0a14934c18a14a7659d8a138ae",
+  "reader": {"path": "benchmarks/publication_case_candidates/published_methods/read_stepmix_tables.py", "sha256": "9c6f399ae3e58e28904b93343a33cb90df26249d4ed87e592d4aad55c40b3958"},
+  "tests": {"path": "tests/test_stepmix_submitted_tables.py", "sha256": "2a485d35a101d00364171cc4be922c15b56a2bc907b14d42619dbd3e4963c991"},
+  "source_plan": {"path": "benchmarks/publication_reference_qualification_20261003/stepmix_plan.json", "sha256": "7779f644a250c9e8acf4e7ef32278dec2ff1fbb1ce3f100e875ea24f35134e45"},
+  "source_identity": "The four inspected simulation/GSS/package-comparison script hashes match the unchanged source plan. All 14 bound original inputs and all 5638 bound installed files still match the pre-execution readiness inventory. No consumed output is read by this decoder or its tests.",
+  "format_interpreter": {"path": "runs/publication_reference_qualification_20261003/stepmix/environment/bin/python", "sha256": "68100c5188b837802c7ae52398389d121b1c063ed244dec11649775b539c3a30", "python": "3.11.15", "pandas": "1.5.3"},
+  "test_runner_python": "3.12.13",
+  "verification": {
+    "command": "env AI_STATISTICIAN_STEPMIX_FORMAT_PYTHON=/Users/yukangzengcmac/AI-Statistician/runs/publication_reference_qualification_20261003/stepmix/environment/bin/python .venv/bin/pytest -q tests/test_stepmix_submitted_tables.py tests/test_core.py --junitxml=runs/stepmix_table_reader_20261004/reader_tests.xml",
+    "passed": 28,
+    "skipped": 0,
+    "seconds": 1.33,
+    "exit_code": 0,
+    "junit": {"path": "runs/stepmix_table_reader_20261004/reader_tests.xml", "sha256": "e130be4d4ee3047b3d0c0e9fb6c768bc305a94fe4e016ceb47f99a4a673e1b57"},
+    "scope": "18 reader/CLI/format tests plus 10 core tests. Actual pandas rendering is synthetic DataFrame construction only, not execution of published statistical methods. Child format process uses fresh HOME, explicit interpreter and no inherited credentials. Compileall and diff checks pass."
+  },
+  "preserved": "Raw lines/locations and printed numeric tokens, signed zero, finite/NaN/Inf/-Inf states, scenario/sample-size coordinates, original method/class labels and explicit missing named sections. Sparse index expansion is limited to the declared display; duplicate/truncated/ambiguous rows and header changes reject.",
+  "not_supplied": "No source-grid completeness, stage-exit verdict, retained-fit denominators, inferred warnings, computed MCSE, numerical comparison/tolerance, computation authenticity, mathematical acceptance or alternative-format guessing. Paper-example verbose output and stage stderr/status remain separate raw inputs.",
+  "production_changed": false,
+  "author_capsules_or_question_changed": false,
+  "model_calls": 0,
+  "scientific_source_executions": 0,
+  "consumed_references_read_or_reassessed": false,
+  "official_study_activated": false,
+  "checklist_item_closed": false,
+  "remaining": "Bind exact task stage/grid and representation mappings, numerical endpoint scope/tolerances, independent mathematical assessment, actual arm conditions and prospective study freeze. Decode success is not a paper result or complete scientific task."
+}

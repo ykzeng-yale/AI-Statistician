@@ -212,9 +212,18 @@ The listed counts are planned source scope, not observed successes. Every new
 confirmatory dataset/fit still needs its own frozen design and failure/uncertainty
 rule. Fixed-input estimator accuracy, application outputs, all source stages,
 paper/source discrepancies and mathematical review are not completed by these
-three parsers. StepMix's text-table parser and any alternative representation map
-are still unqualified; do not add automatic format guessing or score an unread
-result as agreement. Tolerances and equivalence rules remain prospective
+three R channels. The assessment-only [StepMix reader](read_stepmix_tables.py)
+now decodes declared simulation/GSS/package-comparison text tables. It preserves
+printed tokens and raw line locations, expands only the source's sparse index
+display, rejects duplicate/truncated/ambiguous material and explicitly lists
+missing named GSS/Table 11 sections. Response, covariate and complete simulation
+are separate declared channels, not inferred scientific targets. No absent row,
+retained-fit count or standard error is created. Paper-example verbose output,
+each stage's terminal status and stderr remain separately assessed raw material.
+Fresh fixtures, including actual pandas 1.5.3 formatting, qualify decoding only;
+no author result is read or regraded. Full stage/grid completeness, alternative
+representation mapping and computation authenticity remain unfinished. Do not
+score an unread result as agreement. Tolerances and equivalence rules remain prospective
 decisions, not values selected to make a candidate pass.
 
 The current common artifact entry can now dispatch a frozen Python or R

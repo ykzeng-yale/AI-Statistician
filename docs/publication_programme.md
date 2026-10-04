@@ -253,7 +253,8 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   selecting a better attempt. Opaque fixture grading is not numerical or
   mathematical qualification. The assessment draft now separates deterministic,
   literal-reconstruction, stochastic and discrepancy endpoints; no task-specific
-  parser, tolerance, precision or authority is frozen, so Q04 remains open.
+  complete endpoint/coordinate map, tolerance, precision or authority is frozen,
+  so Q04 remains open.
   The [native R assessment follow-up](../benchmarks/publication_case_candidates/published_methods/r_artifact_assessment.json)
   removes the Python-only artifact restriction using the same executor and ABI.
   The assessment-only R reader now preserves the three declared R result
@@ -261,6 +262,12 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   Source-defined endpoint quantities are explicit in the assessment draft.
   This is not author-result comparison, scope completeness, tolerance qualification
   or a scientific verdict; no further item is checked.
+  The [StepMix printed-channel reader](../benchmarks/publication_case_candidates/published_methods/read_stepmix_tables.py)
+  now preserves simulation/GSS/package-comparison coordinates, original lines,
+  printed precision and explicit missing sections. Fresh fixtures exercise actual
+  pandas 1.5.3 rendering and malformed inputs without reading old author outcomes.
+  It supplies no complete-stage/grid verdict, numerical accuracy/tolerance or
+  theoretical assessment; Q04 remains open.
   Opaque RDS/native-dispatch and negative checks pass; typed missing/nonfinite
   values remain in the captured object. These are mechanism checks, not author
   RDS/RData assessment or scientific endpoint qualification. The protocol now

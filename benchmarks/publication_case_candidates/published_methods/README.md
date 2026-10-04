@@ -158,9 +158,42 @@ The reader deliberately has no source-grid completeness gate or numerical
 tolerance: reading 4,000 slots is not observing 4,000 successful fits. A future
 hash-bound evaluator must bind exact selected file paths, coordinate mapping,
 scope and justified comparison rules before calls, including valid alternative
-representations. StepMix parsing, fixed-input accuracy, application material,
+representations. Complete endpoint qualification, fixed-input accuracy, application material,
 scientific authority and full confirmation remain unfinished. This utility does
 not close Q04/E01/E05 or make any main-paper outcome available.
+
+### StepMix Printed Channels
+
+[read_stepmix_tables.py](read_stepmix_tables.py) decodes the declared stdout
+formats from StepMix 2.2.3's simulation, GSS and package-comparison scripts. It
+uses only the Python standard library and is outside the product and author
+capsules. Declare response/covariate/complete explicitly; their scientific
+targets cannot be inferred from a shared table shape.
+
+```sh
+python benchmarks/publication_case_candidates/published_methods/read_stepmix_tables.py response_simulation SELECTED_STDOUT.txt
+python benchmarks/publication_case_candidates/published_methods/read_stepmix_tables.py covariate_simulation SELECTED_STDOUT.txt
+python benchmarks/publication_case_candidates/published_methods/read_stepmix_tables.py complete_simulation SELECTED_STDOUT.txt
+python benchmarks/publication_case_candidates/published_methods/read_stepmix_tables.py gss SELECTED_STDOUT.txt
+python benchmarks/publication_case_candidates/published_methods/read_stepmix_tables.py package_comparison SELECTED_STDOUT.txt
+```
+
+The view retains original lines/locations, printed precision, index coordinates,
+method/metric labels and nonfinite states. Only the declared pandas sparse-index
+display is expanded; absent rows are not generated. Truncation, ambiguous sparse
+indices, duplicate coordinates/sections and changed headers reject. Missing GSS
+or Table 11 sections remain explicit. A printed zero p-value is not an exact zero
+probability. GSS measurement/class weights, bootstrap means/errors, class
+prevalences and contrast statistics remain separate channels. Stage exit status,
+stderr/warnings and the paper-example verbose stream remain separate raw inputs.
+
+The [verification record](stepmix_reader_verification.json) binds fresh fixture
+tests, including actual pandas 1.5.3 rendering with the existing interpreter.
+No author script, submitted scientific output or consumed reference is executed
+or read by these tests. Decoding does not authenticate computation, establish
+task-grid completeness, recover deleted fits/denominators, provide a tolerance
+or accept a scientific claim. A different valid submission format needs its own
+explicit assessment mapping, not automatic format guessing. Q04 remains open.
 
 ## Prospective Arm Conditions
 

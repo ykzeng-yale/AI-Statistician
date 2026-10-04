@@ -97,13 +97,14 @@ or scientifically judged. The current webR profile lacks `jsonlite` and reports
 that limitation without backend fallback. The assessment draft now binds each
 candidate reference channel to its scientific coordinates and missingness limits;
 actual method-specific numerical authority remains unfinished.
-The assessment-only R reader now preserves the ebnm simulation/timing coordinates
-and all stored bizicount slots. Fresh native serialization/CLI fixtures pass,
-without parsing old author outcomes or assigning credit. The assessment draft
-now distinguishes relative likelihood, posterior-interval inclusion, bootstrap
-contrasts and different source plotting selections. These concrete definitions
-do not complete StepMix parsing, numerical tolerances, independent assessment or
-new confirmation; the production graph/loop and scientific source are unchanged.
+The assessment-only [R reader](../benchmarks/publication_case_candidates/published_methods/read_submitted_simulation.R)
+and [StepMix printed-channel reader](../benchmarks/publication_case_candidates/published_methods/stepmix_reader_verification.json)
+preserve declared keys/slots, raw locations/precision, nonfinite values and missing
+sections. Fresh serialization, CLI and actual pandas-format fixtures pass without
+reading old author outcomes or entering model tools/context. Source-defined
+quantities are explicit in the assessment draft; numerical agreement, complete
+stage/grid scope, tolerances, independent authority and new confirmation remain
+unfinished. Production graph/loop and scientific sources are unchanged.
 Next resolve these declared access/authority differences and long-session scope,
 qualify numerical interpretation/endpoints, independent assessment and the freeze.
 Do not open another reference panel, repeat
