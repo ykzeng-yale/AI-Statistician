@@ -55,3 +55,34 @@ Sources: the [pinned converted file](https://huggingface.co/unsloth/Qwen3-4B-Ins
 advertises the same SHA-256; [Qwen's original model card](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507#best-practices)
 provides the proposed decoding values. Upstream metadata is not observed runtime
 evidence or a statistical-capability certificate.
+
+## Separate Prospective Retained-Session Observation
+
+The [retained-session plan](retained_session_plan.json) addresses a different
+unobserved condition: accumulation of substantial actual input through the existing
+model/tool loop. It is not another run of the consumed short setup observation.
+One newly started session reads 24 artificial pages, writes a CSV ledger and
+Markdown report, and receives ordinary file-validation feedback. All revisions
+remain model-authored. The tool choice is `auto`; there is no named-tool forcing,
+manual output patch, new scheduler or retry after the first terminal outcome.
+
+The existing weights/server/libraries, context, template and decoding are retained.
+The observer verifies their identities before requests and records exact attempted
+payloads, parsed native responses, measured input/output usage and the canonical
+loop/session evidence. It starts and stops only its own server. It supplies no
+statistical question, paper, author result, RAG premise or hidden scientific gold.
+
+The source uses `client_tool_loop.py` directly. Its benchmark-specific file tools
+and validator are engineering fixtures, not another product workspace, repair
+agent or a template for mathematical validation. Repetitive padding is disclosed;
+a completed ledger with the declared observed input length cannot establish useful
+reasoning at the full 131072-token allocation, scientific capacity, study fairness,
+native-host behavior or Theory/Python/R/Lean efficacy. Q06/Q07 remain open.
+
+```sh
+.venv/bin/python -m benchmarks.publication_deployment_qualification_20261003.observe_retained_session --plan benchmarks/publication_deployment_qualification_20261003/retained_session_plan.json
+```
+
+Do not execute this command again after its first outcome. Any future different
+deployment condition needs separate prospective justification, not a retry of a
+failed result. Its first observation is recorded separately after execution.
