@@ -119,8 +119,6 @@ async function runPython(
     source,
     projectFiles,
   );
-  const scriptSource = request.script_path && request.script_path !== request.main_path
-    ? projectFiles[request.script_path] : source;
   if (request.script_path) simulationProject.main_path = request.script_path;
   const estimatorProjects = Object.fromEntries(
     Object.entries(estimatorSources).map(([artifactId, estimatorSource], index) => [
@@ -134,6 +132,16 @@ async function runPython(
       ),
     ]),
   );
+  const wrapped = pythonExecutionSource(request, source, estimatorSources, inputArtifacts,
+    projectFiles, simulationProject, estimatorProjects);
+  const serialized = await pyodide.runPythonAsync(wrapped);
+  return JSON.parse(String(serialized));
+}
+
+function pythonExecutionSource(request, source, estimatorSources, inputArtifacts,
+  projectFiles, simulationProject, estimatorProjects) {
+  const scriptSource = request.script_path && request.script_path !== request.main_path
+    ? projectFiles[request.script_path] : source;
   const bound = request.invocation_mode === "estimator_bound";
   const nativeEstimatorTransport = request.estimator_transport === "native";
   const hasInputArtifacts = Object.keys(inputArtifacts).length > 0;
@@ -193,7 +201,7 @@ async function runPython(
     ? projectPrelude +
       `_ai_stat_inputs = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(inputArtifacts))})\n` +
       `_ai_stat_load_project(${JSON.stringify(scriptSource)}, _ai_stat_simulation_project, {"seed": ${Number(request.seed)}, "replicates": ${Number(request.replicates)}, "artifacts": _ai_stat_inputs})\n` +
-      `_ai_stat_json.dumps({"metrics": {}})`
+      `_ai_stat_execution = _ai_stat_json.dumps({"metrics": {}})`
     : bound
     ? projectPrelude +
       `_ai_stat_simulation_source = ${JSON.stringify(source)}\n` +
@@ -319,7 +327,7 @@ async function runPython(
       `    if _ai_stat_runtime_failure["exception"] is _ai_stat_error:\n` +
       `        raise RuntimeError(_ai_stat_runtime_failure["error_message"]) from _ai_stat_error\n` +
       `    raise\n` +
-      `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": _ai_stat_invocation_counts, "estimator_invocation_samples": _ai_stat_invocation_samples}, allow_nan=False, sort_keys=True)`
+      `_ai_stat_execution = _ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": _ai_stat_invocation_counts, "estimator_invocation_samples": _ai_stat_invocation_samples}, allow_nan=False, sort_keys=True)`
     : projectPrelude +
       `_ai_stat_source = ${JSON.stringify(source)}\n` +
       `_ai_stat_input_artifacts = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(inputArtifacts))})\n` +
@@ -351,9 +359,8 @@ async function runPython(
       (hasInputArtifacts
         ? `_ai_stat_result = _ai_stat_json_native(_ai_stat_call_project(_ai_stat_run_sandbox, _ai_stat_simulation_project, _ai_stat_project_modules, seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, artifacts=_ai_stat_input_artifacts))\n`
         : `_ai_stat_result = _ai_stat_json_native(_ai_stat_call_project(_ai_stat_run_sandbox, _ai_stat_simulation_project, _ai_stat_project_modules, seed=${Number(request.seed)}, replicates=${Number(request.replicates)}))\n`) +
-      `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": {}}, allow_nan=False, sort_keys=True)`;
-  const serialized = await pyodide.runPythonAsync(wrapped);
-  return JSON.parse(String(serialized));
+      `_ai_stat_execution = _ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": {}}, allow_nan=False, sort_keys=True)`;
+  return wrapped + "\n_ai_stat_execution\n";
 }
 
 function rExecutionSource(request, source, estimatorSources, inputArtifacts,
@@ -688,19 +695,47 @@ const inputArtifacts = Object.fromEntries(
   }),
 );
 const startedAt = new Date().toISOString();
-if (args["--r-program"]) {
-  if (request.backend !== "native_r" || request.language !== "r") {
-    throw new Error("native R preparation requires an explicit native_r request");
+if (args["--native-program"]) {
+  if (!["python", "r"].includes(request.language) || request.backend !== `native_${request.language}`) {
+    throw new Error("native preparation requires an explicit language-bound native request");
+  }
+  const native = request.runtime[request.backend];
+  if (request.language === "python") {
+    const project = (row, files) => ({ root: row.project_root,
+      main_path: row.script_path || row.main_path,
+      local_import_roots: projectImportRoots({ [row.main_path]: "", ...files }) });
+    const wrapped = pythonExecutionSource(request, source, estimatorSources, inputArtifacts,
+      projectFiles, project(request, projectFiles),
+      Object.fromEntries(request.estimators.map(row => [row.artifact_id, project(row, estimatorProjectFiles[row.artifact_id])])));
+    const program =
+      `import json as _native_json, platform as _native_platform, sys as _native_sys, traceback as _native_traceback\n` +
+      `from importlib.metadata import version as _native_version\n` +
+      `try:\n` +
+      `    if _native_platform.python_version() != ${JSON.stringify(native.runtime_version)}:\n` +
+      `        raise RuntimeError("native Python runtime version mismatch")\n` +
+      `    for _package, _version in _native_json.loads(${JSON.stringify(JSON.stringify(native.package_versions))}).items():\n` +
+      `        if _native_version(_package) != _version:\n` +
+      `            raise RuntimeError("native Python package version mismatch: " + _package)\n` +
+      wrapped.split("\n").map(line => `    ${line}\n`).join("") +
+      `    _native_result = {"ok": True, "execution": _native_json.loads(_ai_stat_execution)}\n` +
+      `except BaseException as _native_error:\n` +
+      `    _native_traceback.print_exc()\n` +
+      `    _native_result = {"ok": False, "error_type": type(_native_error).__name__, "error_message": str(_native_error), "error_stack": _native_traceback.format_exc()}\n` +
+      `with open(${JSON.stringify(outputPath)}, "w", encoding="utf-8") as _native_output:\n` +
+      `    _native_json.dump(_native_result, _native_output, allow_nan=False)\n` +
+      `if not _native_result["ok"]: _native_sys.exit(1)\n`;
+    fs.writeFileSync(args["--native-program"], program, "utf8");
+    process.exit(0);
   }
   const wrapped = rExecutionSource(request, source, estimatorSources, inputArtifacts,
     projectFiles, { root: request.project_root },
     Object.fromEntries(request.estimators.map(row => [row.artifact_id, { root: row.project_root }])));
-  const versions = request.runtime.native_r.package_versions;
+  const versions = native.package_versions;
   const packageVector = `c(${Object.keys(versions).map(JSON.stringify).join(",")})`;
   const versionVector = `c(${Object.values(versions).map(JSON.stringify).join(",")})`;
   const program =
     `.ai_stat_output <- tryCatch({\n` +
-    `  if (as.character(getRversion()) != ${JSON.stringify(request.runtime.native_r.runtime_version)}) stop("native R runtime version mismatch")\n` +
+    `  if (as.character(getRversion()) != ${JSON.stringify(native.runtime_version)}) stop("native R runtime version mismatch")\n` +
     `  .packages <- ${packageVector}\n  .versions <- ${versionVector}\n` +
     `  for (i in seq_along(.packages)) if (packageVersion(.packages[[i]]) != package_version(.versions[[i]])) stop(paste("native R package version mismatch:", .packages[[i]]))\n` +
     `  loadNamespace("jsonlite"); loadNamespace("tools")\n` +
@@ -713,7 +748,7 @@ if (args["--r-program"]) {
     `}, error=function(e) { message(conditionMessage(e)); list(ok=FALSE, error_type=class(e)[[1]], error_message=conditionMessage(e), error_stack=paste(vapply(sys.calls(), function(x) paste(deparse(x), collapse=""), character(1)), collapse="\\n")) })\n` +
     `writeLines(jsonlite::toJSON(.ai_stat_output, auto_unbox=TRUE, null="null", digits=NA, force=TRUE), ${JSON.stringify(outputPath)}, useBytes=TRUE)\n` +
     `if (!.ai_stat_output$ok) quit(status=1)\n`;
-  fs.writeFileSync(args["--r-program"], program, "utf8");
+  fs.writeFileSync(args["--native-program"], program, "utf8");
   process.exit(0);
 }
 let envelope;

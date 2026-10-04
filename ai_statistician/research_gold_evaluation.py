@@ -28,7 +28,7 @@ from .research_source_library import source_replication_execution_integrity_ok
 from .scientific_sandbox import (
     SCIENTIFIC_SANDBOX_LANGUAGES,
     SCIENTIFIC_SANDBOX_PROFILES,
-    SCIENTIFIC_NATIVE_R_PROFILE,
+    SCIENTIFIC_NATIVE_PROFILES,
     ScientificEstimatorBinding,
     ScientificInputArtifactBinding,
     execute_scientific_sandbox,
@@ -2941,7 +2941,7 @@ def _hidden_evaluator_validation_errors(
     errors: list[str] = []
     profile = evaluator.get("execution_profile", "scientific_wasm")
     if profile not in SCIENTIFIC_SANDBOX_PROFILES or (
-        profile == SCIENTIFIC_NATIVE_R_PROFILE and evaluator.get("language") != "r"
+        profile in SCIENTIFIC_NATIVE_PROFILES and evaluator.get("language") != SCIENTIFIC_NATIVE_PROFILES[profile]
     ):
         errors.append(f"active task {task_index} hidden {label} execution profile is invalid")
     if (
