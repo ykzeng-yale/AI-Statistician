@@ -75,6 +75,9 @@ The exact final selected argument and source, not internal product verdicts or
 intermediate files, receive the common assessment in every arm. Freeze numerical
 tolerances and valid alternative scientific dispositions before product calls.
 Independent mathematical review is still necessary; no assessors are appointed.
+The [assessment protocol draft](assessment_protocol.md) restates public scientific
+obligations and the existing exact-final review process. It is not frozen authority;
+assessor appointment, calibration, numerical endpoints and adjudication remain open.
 When a software/reference discrepancy is unresolved, do not invent corrected gold
 or grade mathematical truth by equality with that output. A declared faithful
 reconstruction can coexist with an unresolved scientific issue; full acceptance
@@ -131,6 +134,13 @@ class construction and exact ABI/feedback fixtures do not qualify the paper's
 statistical methods, actual model arms or independent scientific assessment.
 Earlier preparation records keep their original unqualified generated-Python
 scope; they are not retroactively edited or rerun.
+
+The [common-assessment follow-up](common_assessment_execution.json) binds
+a5b46dc0 and corrects existing frozen-profile propagation, with actual backend
+and request identity retained. Configured related checks: 141 passed; full default
+regression: 2,174 passed, 53 skipped, one existing xfail. Four native dispatch
+fixtures and missing-configuration rejection are mechanism evidence only, not
+method execution, matched-arm qualification or independent argument assessment.
 
 The existing loader accepts all three questions and preserves their required
 theory, code, empirical and source-reconstruction intent through the runtime

@@ -1,0 +1,149 @@
+{
+  "scope": "deterministic_common_publication_executor_dispatch_not_scientific_evaluation",
+  "code_commit": "a5b46dc049f517d50b295437b6c0124595ac06a8",
+  "model_calls": 0,
+  "author_studies_executed": 0,
+  "official_study_activated": false,
+  "consumed_evaluations_modified": false,
+  "defect": "The prospective common evaluator validated execution_profile but did not forward it to either the estimator or artifact executor. Explicit native configurations could therefore execute through the default WASM backend. Evidence is code inspection; no pre-fix scientific result was rerun or reassessed.",
+  "correction": "Forward the existing frozen profile through both execution paths and retain actual execution_profile, backend, request_path and request_hash in prospective outcomes. Existing omitted-profile defaults and legacy summary behavior are preserved. No source/math patch, statistical condition, repair taxonomy or scheduler.",
+  "configured_focused_regression": {
+    "command": "AI_STATISTICIAN_TEST_NATIVE_PYTHON_CONFIG=runs/native_python_execution_mechanism_20261003/native_python_runtime.json AI_STATISTICIAN_TEST_NATIVE_R_CONFIG=runs/native_r_execution_mechanism_20261003/native_r_runtime.json .venv/bin/pytest -q tests/test_publication_outcomes.py tests/test_research_gold_evaluation.py tests/test_core.py::test_canonical_control_plane_has_a_regression_budget --junitxml=runs/publication_outcome_profile_20261004/focused.xml",
+    "passed": 141,
+    "elapsed_seconds": 100.99,
+    "exit_code": 0,
+    "junit_ref": {
+      "path": "runs/publication_outcome_profile_20261004/focused.xml",
+      "sha256": "8e8578a3e1d2c02d6879210621fb6722135b2e14e8b9023026dc15855068de6f",
+      "byte_size": 22234
+    }
+  },
+  "native_dispatch_fixtures": [
+    {
+      "fixture": "test_frozen_native_artifact_pr0",
+      "dimension": "empirical",
+      "execution_attempted": true,
+      "execution_passed": true,
+      "execution_profile": "scientific_native_python",
+      "backend": "native_python",
+      "outcome_ref": {
+        "path": "runs/publication_outcome_profile_20261004/focused-fixtures/test_frozen_native_artifact_pr0/outcome/outcome.json",
+        "sha256": "1d0273a7c4eb7e4429b424a75df7ffe9f59446dabfcae5280be5aa1a95cbb827",
+        "byte_size": 3089
+      },
+      "request_ref": {
+        "path": "runs/publication_outcome_profile_20261004/focused-fixtures/test_frozen_native_artifact_pr0/outcome/empirical/publication-empirical_0de6347a4c3ebd19_j6_5cc4n/publication-empirical_0de6347a4c3ebd19_scientific_request.json",
+        "sha256": "43f7a94a165f8d2a95b9b23b3a70aba808341a80b92484547e0109b2299475a2",
+        "byte_size": 3817
+      },
+      "request_hash": "abfcd60cddb6dad6b558899573bfc8581bc24614219bcf10e3b07869e4ffa6e8"
+    },
+    {
+      "fixture": "test_frozen_native_artifact_pr1",
+      "dimension": "source_replication",
+      "execution_attempted": true,
+      "execution_passed": true,
+      "execution_profile": "scientific_native_python",
+      "backend": "native_python",
+      "outcome_ref": {
+        "path": "runs/publication_outcome_profile_20261004/focused-fixtures/test_frozen_native_artifact_pr1/outcome/outcome.json",
+        "sha256": "2595279ffc04b020900596f3b006384226732e10a5521db5851854c760370cdd",
+        "byte_size": 4170
+      },
+      "request_ref": {
+        "path": "runs/publication_outcome_profile_20261004/focused-fixtures/test_frozen_native_artifact_pr1/outcome/source_replication/publication-source_replication_c73201079484022e_1ni9ie3a/publication-source_replication_c73201079484022e_scientific_request.json",
+        "sha256": "5d17fc7df9da2c5afb74ba50e2a09b87fe637b47c263d34e10ea62cd4ec7a3fc",
+        "byte_size": 3898
+      },
+      "request_hash": "5136d75689158349d293208bc91ef83d2e11d851117d8475903568037e3508d0"
+    },
+    {
+      "fixture": "test_frozen_native_estimator_p0",
+      "dimension": "scientific_code",
+      "execution_attempted": true,
+      "execution_passed": true,
+      "execution_profile": "scientific_native_python",
+      "backend": "native_python",
+      "outcome_ref": {
+        "path": "runs/publication_outcome_profile_20261004/focused-fixtures/test_frozen_native_estimator_p0/outcome/outcome.json",
+        "sha256": "81f5ebd7fe783efffe678fc3e111ba46060d98ca383c6efacd350caac2162116",
+        "byte_size": 3089
+      },
+      "request_ref": {
+        "path": "runs/publication_outcome_profile_20261004/focused-fixtures/test_frozen_native_estimator_p0/outcome/scientific_code/publication-scientific_code_0e588213bf1c6402_tcr72qtt/publication-scientific_code_0e588213bf1c6402_scientific_request.json",
+        "sha256": "487a45f51b683c4d49fddb50f83b5f940fbae01dd33b11c96099abd0503a39d4",
+        "byte_size": 4353
+      },
+      "request_hash": "e7f005eb10939b6f4c842fcce40f199acb1949c61fb78d2d9967f468344bc897"
+    },
+    {
+      "fixture": "test_frozen_native_estimator_p1",
+      "dimension": "scientific_code",
+      "execution_attempted": true,
+      "execution_passed": true,
+      "execution_profile": "scientific_native_r",
+      "backend": "native_r",
+      "outcome_ref": {
+        "path": "runs/publication_outcome_profile_20261004/focused-fixtures/test_frozen_native_estimator_p1/outcome/outcome.json",
+        "sha256": "1ebc0a6c0b3fce0f0ba5ad35f56e375e7e3c6aae475b01a202e3b4de98642d18",
+        "byte_size": 3079
+      },
+      "request_ref": {
+        "path": "runs/publication_outcome_profile_20261004/focused-fixtures/test_frozen_native_estimator_p1/outcome/scientific_code/publication-scientific_code_542bbafc834cbd9c_5z8_wi5i/publication-scientific_code_542bbafc834cbd9c_scientific_request.json",
+        "sha256": "ff0d3686b97728c53d0839234643d7130a719de6a77acc313cee40aa778d13e9",
+        "byte_size": 7469
+      },
+      "request_hash": "ebaddc45269953371eba497f9dc698bdbae759a751dc0620f789c2202244caef"
+    },
+    {
+      "fixture": "test_missing_frozen_native_env0",
+      "dimension": "scientific_code",
+      "execution_attempted": false,
+      "execution_passed": false,
+      "execution_profile": "scientific_native_python",
+      "backend": "native_python",
+      "outcome_ref": {
+        "path": "runs/publication_outcome_profile_20261004/focused-fixtures/test_missing_frozen_native_env0/outcome/outcome.json",
+        "sha256": "bc6398e2db6ba7133aa949f57e2b66317db92d55c5dd9d3126207d7a22b4e7e5",
+        "byte_size": 2932
+      }
+    }
+  ],
+  "raw_capture_scope": "The five existing focused-fixture directories were mechanically copied before pytest temporary cleanup. Original paths and bytes in observations/requests remain unchanged. Request identities and copied outputs were verified, not rerun or rescored. These opaque ABI fixtures contain no statistical gold or expert mathematical acceptance.",
+  "full_regression": {
+    "command": ".venv/bin/pytest -q --junitxml=runs/publication_outcome_profile_20261004/full-regression.xml",
+    "passed": 2174,
+    "skipped": 53,
+    "existing_xfailed": 1,
+    "elapsed_seconds": 1560.01,
+    "junit_ref": {
+      "path": "runs/publication_outcome_profile_20261004/full-regression.xml",
+      "sha256": "05afef6ffdd3003c23c4bc3d0bd9a57efbf7116642a010aa680f787799da6b74",
+      "byte_size": 742847
+    },
+    "stdout_ref": {
+      "path": "runs/publication_outcome_profile_20261004/full-regression.stdout.log",
+      "sha256": "5195462d243e20c3f26b66948db95c7d39c98279b0436a41c53e7a5da1839dd5",
+      "byte_size": 2537
+    },
+    "stderr_ref": {
+      "path": "runs/publication_outcome_profile_20261004/full-regression.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "byte_size": 0
+    },
+    "existing_xfail": [
+      {
+        "module": "tests.test_native_project_execution",
+        "name": "test_native_detached_process_lifetime"
+      }
+    ],
+    "exit_code": null,
+    "completion_evidence": "Owned pytest PID terminated; complete terminal summary and JUnit agree, with no failures/errors and empty stderr. The originating exec session handle was unavailable after context compaction, so its exit code is not invented."
+  },
+  "compileall": {
+    "command": ".venv/bin/python -m compileall -q ai_statistician benchmarks/publication",
+    "exit_code": 0
+  },
+  "assessment_protocol_scope": "assessment_protocol.md is an unqualified prospective Markdown draft of public task obligations, exact-final assessment and required assessor decisions. It supplies no mathematical answers, reference numbers, assessor appointments or official verdicts.",
+  "remaining": "Actual matched H/S arms, final estimator contracts and numerical endpoints/tolerances, assessor appointment/calibration/adjudication, source/PDF access, rights, roster/precision and prospective freeze remain open. No scientific checklist item closes."
+}

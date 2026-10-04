@@ -342,6 +342,12 @@ scientific compute and hardware condition describe resources. Equal call caps
 alone do not equate them. Time-limit stopping needs a stated censored-duration
 analysis or clearly labelled observed runtime, not only cost among successes.
 
+Freeze author and evaluator execution conditions separately. Numerical assessment
+uses its declared execution profile and records the actual backend and exact
+request; an unavailable native environment is not silently replaced with WASM.
+Configuration or ABI fixtures establish dispatch, not scientific correctness or
+matched access in the study arms.
+
 Case trace analysis identifies a finding, its exact source/input version, the
 source owner's response, the revised artifact and independent final outcome.
 Label whether a change addresses a real scientific issue or merely produces

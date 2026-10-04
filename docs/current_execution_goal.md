@@ -30,8 +30,8 @@ execution contract, without falsely completing it.
 | Area | Established scope | Still missing |
 | --- | --- | --- |
 | Architecture | Sole outer graph, shared retained loop, file-backed mathematics and same-source-owner feedback | Scientific efficacy and useful collaboration; execution is serial/interleaved, not independently concurrent |
-| Scientific execution | WASM Python/R and explicit native R; native Python shares the existing pinned executor and ABI at b2569e26 | Actual matched candidate-arm execution, frozen inventories and clean reconstruction |
-| Verification | Full suite at b2569e26: 2173 passed, 49 skipped, one existing xfail; configured Python/R checks: 47 passed | Fixtures are not scientific results; skipped execution and the process-lifetime xfail remain unqualified |
+| Scientific execution | WASM and explicit native Python/R share existing executors/ABIs; common assessment honors its frozen profile at a5b46dc0 | Actual matched candidate-arm execution, frozen inventories and clean reconstruction |
+| Verification | Full suite at a5b46dc0: 2174 passed, 53 skipped, one existing xfail; configured common-evaluation checks: 141 passed | Fixtures are not scientific results; skipped execution and the process-lifetime xfail remain unqualified |
 | Portable release | Fresh same-host wheel/CLI and synthetic Python/R projects; separately labelled host activation/compatibility observations | Qualified researcher workflow, clean-machine scope, rights and Paper H efficacy |
 | Case and roster | Exposed TSCI B1/Card inputs; three source-assisted StepMix/ebnm/bizicount candidates with prepared inputs and source environments | Complete case/reference obligations, independent scientific authority, final roster and precision |
 | Manuscripts | Separate H/S methods masters and shared methods appendix | Assessed case arguments, fresh comparative results, final discussion and submission review |
@@ -43,6 +43,9 @@ chronicle. Historical Haiku scores are development records, not new baselines.
 Consumed Qwen evaluations are not reopened.
 The [native scientific verification](../benchmarks/publication_case_candidates/published_methods/native_scientific_execution.json)
 binds the code, configuration, raw fixture observations and unchanged Python environment.
+The [common assessment dispatch record](../benchmarks/publication_case_candidates/published_methods/common_assessment_execution.json)
+adds prospective profile propagation and exact observed backend/request identity,
+not a mathematical assessment or scientific result.
 
 ## Dependency Order
 
@@ -62,9 +65,9 @@ evidence. It does not gate non-formal study progress.
 
 ## Immediate Work
 
-The shared native-Python regression is complete. Next assemble actual candidate/arm
-execution conditions and the common assessment
-contract through existing interfaces. Do not open another reference panel, repeat
+Native execution and common assessment dispatch are regression-verified. Next
+assemble actual candidate/arm execution conditions and finalize scientific
+assessment through existing interfaces. Do not open another reference panel, repeat
 package/version probes or build a new execution framework.
 
 - **TSCI:** retain the exposed substantive case. Missing
@@ -83,6 +86,8 @@ package/version probes or build a new execution framework.
   arguments, including valid alternatives and unresolved claims. Assessor
   appointment and release rights require owner decisions; missing authority is
   not replaced by Qwen voting.
+  The [Markdown assessment draft](../benchmarks/publication_case_candidates/published_methods/assessment_protocol.md)
+  states public obligations and outstanding decisions; it is not frozen authority.
 - **Arms:** verify actual tool/source/PDF/data access, effective requests,
   environment, revision and confirmation exposure. Freeze all differences and
   global resources before official calls; equal call caps alone are not fairness.

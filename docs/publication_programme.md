@@ -209,6 +209,9 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   alternative arguments, negative/underspecified controls, assessor qualifications,
   conflicts, blinding and adjudication. Obtain assessor appointments; none is
   currently established. Missing authority cannot be replaced by Qwen voting.
+  The [public-obligation assessment draft](../benchmarks/publication_case_candidates/published_methods/assessment_protocol.md)
+  now specifies exact-final review scope and unresolved decisions without giving
+  agents mathematical answers or numerical gold. It does not close Q05/A01.
 - [ ] **Q06. Comparable actual conditions.** Verify tool/source/data access,
   execution profiles, effective model requests, revision opportunities, confirmation
   exposure and resources across H's two arms and S's four. Record irreducible
