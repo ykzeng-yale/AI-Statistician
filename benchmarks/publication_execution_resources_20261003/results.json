@@ -1,0 +1,108 @@
+{
+  "scope": "synthetic_execution_resource_verification_not_scientific_evaluation",
+  "model_calls": 0,
+  "author_studies_executed": 0,
+  "official_study_activated": false,
+  "code_commit": "8c82b3769cf6d89c64c68d42a7271ed5afb780c7",
+  "resource_policy": {
+    "default_ports": [],
+    "authority": "operator-selected, model cannot override",
+    "allowed_inbound": "listen on selected local ports, potentially all interfaces",
+    "allowed_outbound": "loopback at selected ports only",
+    "complete_network_or_loopback_only_inbound_isolation": false,
+    "automatic_permission_escalation": false
+  },
+  "change": "One optional existing-runtime resource field; existing source/scientific executors share an unchanged POSIX limiter. No statistical answer, source patch, grammar repair, proxy, VM or scheduler.",
+  "qualified_scope": {
+    "source_and_size_checks": {
+      "passed": 46,
+      "elapsed_seconds": 2.26,
+      "junit_ref": {
+        "path": "runs/publication_loopback_execution_20261003/consolidated-source.xml",
+        "sha256": "a9b7ff6722dc8ea63454f6576602f13033576d9ba7bf0901733b0853113fc512",
+        "byte_size": 6620
+      }
+    },
+    "explicit_native_r_checks": {
+      "passed": 23,
+      "elapsed_seconds": 7.41,
+      "junit_ref": {
+        "path": "runs/publication_loopback_execution_20261003/native-consolidated.xml",
+        "sha256": "d8f0193f17274b1052444bce016c119e7a2ba026adb0d62ada03e01a2628802b",
+        "byte_size": 3275
+      }
+    },
+    "compileall": "passed",
+    "worker_modes": [
+      "FORK",
+      "PSOCK"
+    ],
+    "actual_denial_checks": [
+      "default local connections",
+      "unlisted local port",
+      "external-address egress"
+    ]
+  },
+  "raw_verification_ref": {
+    "path": "runs/publication_loopback_execution_20261003/resource-verification-consolidated.json",
+    "sha256": "f5b76e419008ccf8d332f2068618c2cff67cacebc8fe6df3f36d52e66e842a46",
+    "byte_size": 11827
+  },
+  "earlier_mechanism_attempts_ref": {
+    "path": "runs/publication_loopback_execution_20261003/resource-verification.json",
+    "sha256": "927e275a9695bab132dd5a10d0e02c1b1a5880e1ac3dedff832b89aad916fb91",
+    "byte_size": 13855
+  },
+  "interrupted_full_regression": {
+    "code_commit": "e2fcb9b6d474e6dd6cbccdb0fb10f71c13378d85",
+    "returncode": 2,
+    "passed": 666,
+    "failed": 1,
+    "cause": "package-size regression limit; interrupted before completion",
+    "junit_ref": {
+      "path": "runs/publication_loopback_execution_20261003/full-regression.xml",
+      "sha256": "b7d6588626a79f59a0c3a470017a4af352cbe43be27c812117bbf1e34d78f45b",
+      "byte_size": 485874
+    },
+    "stdout_ref": {
+      "path": "runs/publication_loopback_execution_20261003/full-regression.stdout.log",
+      "sha256": "09f666d1a5594be9540aad7d2e58672f274437b9bce527d1637924c42d3ba5e6",
+      "byte_size": 2583
+    },
+    "stderr_ref": {
+      "path": "runs/publication_loopback_execution_20261003/full-regression.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "byte_size": 0
+    },
+    "remedy": "Deleted the duplicated identical resource limiter; no limit or test was weakened."
+  },
+  "full_regression": {
+    "status": "completed",
+    "code_commit": "8c82b3769cf6d89c64c68d42a7271ed5afb780c7",
+    "command": ".venv/bin/pytest -q --junitxml=runs/publication_loopback_execution_20261003/full-regression_2.xml",
+    "returncode": 0,
+    "passed": 2167,
+    "skipped": 32,
+    "xfailed": 1,
+    "elapsed_seconds": 1759.09,
+    "junit_ref": {
+      "path": "runs/publication_loopback_execution_20261003/full-regression_2.xml",
+      "sha256": "0f7a59efb2a60e701d7c90635f6023c773790e27c205afb15a71d9b1f31f0d73"
+    },
+    "stdout_ref": {
+      "path": "runs/publication_loopback_execution_20261003/full-regression_2.stdout.log",
+      "sha256": "7bbfeefa9f006f1971bc5cbc45580a8e9fa4218e0ac2ae969404f0f7011e45bf"
+    },
+    "stderr_ref": {
+      "path": "runs/publication_loopback_execution_20261003/full-regression_2.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "limitation": "Default skips are not passed native executions. The separate configured 23-test native record has its own scope. Unit/fixture evidence is not scientific correctness, autonomous research or an official comparison."
+  },
+  "remaining": [
+    "actual frozen candidate/arm resource configuration and scientific execution",
+    "native generated Python environment",
+    "final estimator interfaces and common independent assessment",
+    "source/PDF access, rights, roster/precision and prospective freeze"
+  ]
+}

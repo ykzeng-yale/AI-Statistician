@@ -110,6 +110,12 @@ backend fallback. Native R currently requires macOS isolation, and package
 versions do not establish frozen package bytes. The offline native project tool
 is separate. Local execution fixtures establish these mechanism scopes, not
 autonomous use, arbitrary dependency reconstruction or clean-machine replication.
+Network is denied by default. Explicit operator-selected worker ports permit
+listening and loopback-only outbound connections on those ports; listeners can
+bind all interfaces, so this is not loopback-only inbound isolation. This optional
+permission is a frozen execution condition, not model-owned escalation. Two-worker
+FORK/PSOCK conformance does not establish parallel research-agent execution or a
+scientific speed advantage.
 
 ### 2.3. Review and Progressive Commitment
 

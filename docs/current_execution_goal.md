@@ -37,9 +37,9 @@ contract without falsely completing or replacing that goal.
 | Case inputs | Integrated B1/Card E.1 v2 distinguishes seven methods; explicit four-arm assembly; 76-file available-input capsule and native source-environment probe | Activated study, complete author replication, release reconstruction or mathematical gold; B1 helper and original data rights remain unresolved |
 | Qwen development | Four standalone known-result draws had no final selection; native FDA/R draws failed; exposed TSCI preparation made 21 requests and wrote one unselected document before handoff failure | A publication baseline, independently correct theory, a measured harness benefit or complete case |
 | Lean foundation | Active Lean 4.30.0 Mathlib/Statlib/StatInference pin; selected kernel checks and source-mapped retrieval | Complete textbook coverage, clean reconstruction or source-faithful public API |
-| Verification | Latest default full suite: 2156 passed, 30 skipped and one existing xfail; installed Python/R WASM fixtures executed separately; earlier failed/interrupted attempts retained | Mathematical correctness, skipped opt-in checks, matched experimental arms or publication readiness |
+| Verification | Latest default full suite: 2167 passed, 32 skipped and one existing xfail; 23 configured native R checks passed separately, including FORK/PSOCK workers; earlier failed/interrupted attempts retained | Mathematical correctness, skipped opt-in checks, autonomous research, matched experimental arms or publication readiness |
 
-AI code checkpoint and tested code: 09e69091.
+AI code checkpoint and tested code: 8c82b376.
 Lean pin: db6c7718349f3c14a7e37905f3529675f1ebaa52.
 The [status record](main_worker_status.json) links detailed immutable evidence.
 Historical mixed-scope Haiku credits are archived, not forward baselines.
@@ -124,6 +124,19 @@ full default suite: 2156 passed, 30 skipped, one existing xfail in 1625.22 secon
 exit zero; compileall and 34 focused source tests passed. The execution record
 binds the JUnit and logs. This is a generic budget-contract correction, not a
 statistical-source repair or qualification of the failed native fixture.
+The [native-resource follow-up](../benchmarks/publication_execution_resources_20261003/results.json)
+then added one optional operator-selected local-port field in the existing shared
+executor. Two-worker FORK/PSOCK fixtures now execute; unlisted local and external
+egress checks are denied. Inbound listeners can bind all interfaces, so this is
+not loopback-only inbound isolation or complete network denial. Default ports are
+empty and models cannot expand them. An identical duplicated POSIX limiter was
+removed; no size limit or test was weakened. Exact code 8c82b376 passed the full
+suite: 2167 passed, 32 skipped, one existing xfail in 1759.09 seconds, exit zero,
+plus compileall, 46 source/core and 23 configured native checks. Earlier failures
+remain retained. Candidate arm environments still need explicit qualification;
+native generated Python and common scientific assessment are the next priorities,
+not more port fixtures, reference panels or a network-infrastructure campaign.
+No model call, author study, scientific assessment or paper result was added.
 
 The separate shared-tool correction declares each writable artifact's existing
 top-level type in the model schema. Runtime checks and atomic replacement are

@@ -274,6 +274,11 @@ two-worker fixture failed to open its local server socket, and StepMix's generat
 Python environment is not the native author environment. Resolve these shared
 execution/access gaps before Q06/Q07; do not add another candidate or substitute
 serial toy computation for the declared study. No author script or model ran.
+The [native-resource follow-up](../benchmarks/publication_execution_resources_20261003/README.md)
+adds an explicit shared local-port capability; synthetic FORK/PSOCK workers now
+execute. Its inbound-listener limitation is disclosed. This does not change the
+earlier failure, configure the candidate studies, establish multi-agent concurrency
+or close Q06/Q07. Native Python and actual matched scientific access remain open.
 
 ### 2. Theory and Scientific Agreement
 
