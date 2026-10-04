@@ -89,6 +89,14 @@ Opaque WASM/native Python checks and the full regression verify this mechanism,
 not scientific assessment. The numerical protocol draft distinguishes computation, source
 reconstruction, stochastic uncertainty and discrepancy interpretation; exact
 task-specific parsers, endpoints/tolerances and authority remain unfrozen.
+The [native R artifact follow-up](../benchmarks/publication_case_candidates/published_methods/r_artifact_assessment.json)
+now dispatches a frozen R evaluator through the existing native executor. Fresh
+opaque RDS checks preserve object types and missing/nonfinite values; corrupt or
+missing selections and nonmatching expectations fail. No author output is parsed
+or scientifically judged. The current webR profile lacks `jsonlite` and reports
+that limitation without backend fallback. The assessment draft now binds each
+candidate reference channel to its scientific coordinates and missingness limits;
+actual method-specific numerical authority remains unfinished.
 Next resolve these declared access/authority differences and long-session scope,
 qualify numerical interpretation/endpoints, independent assessment and the freeze.
 Do not open another reference panel, repeat

@@ -1,6 +1,6 @@
 # AI-Statistician: Scoped Collaboration for Statistical Research Through a Single Model API
 
-Working methods draft, 2026-10-03. Not submission-ready. Authors and affiliations
+Working methods draft, 2026-10-04. Not submission-ready. Authors and affiliations
 are not yet supplied. Official comparative experiments have not been activated;
 this draft makes no claim that collaboration improves scientific correctness.
 
@@ -74,9 +74,10 @@ runtime-generated source repair. A model action is executed under the workspace'
 actual permissions, and its observation returns to the same source owner.
 
 The current outer execution is serial/interleaved. A dual-track dependency policy
-does not establish independently concurrent computation. Parallel work and
-exact-input joins are an unfinished implementation requirement, not a reported
-speed advantage. The Architect resolves initial evidence needs and genuine
+does not establish independently concurrent computation. Independently concurrent
+work would require dependency-aware scheduling and exact-input joins; it is not
+a measured intervention in the current proposal or a reported speed advantage.
+The Architect resolves initial evidence needs and genuine
 cross-workspace conflicts; ordinary source/compiler errors stay in the owner's
 retained workspace rather than require another planning round.
 
@@ -269,14 +270,20 @@ execution-stream bytes, not only file hashes or truncated previews. Missing
 results and failed executions remain visible; earlier attempts are retained as
 lineage, not substituted outcomes. This enables format-specific evaluation but
 does not qualify a parser, numerical tolerance, simulation uncertainty rule or
-reference convention. Those belong to the prospective task authority.
+reference convention. Those belong to the prospective task authority. Python/R
+artifact checks use the existing executor and a fixed `evaluate_artifact` entry.
+R's explicitly configured native environment can read captured RDS/RData without
+Python conversion. An unavailable dependency/profile reports failure rather than
+selecting another backend. This mechanism does not appoint a numerical assessor
+or validate a statistical method.
 
 The task-selection and possible generalization unit is a paper/problem family.
 Variants and repeated draws within one family do not add new sampled problems.
 The proposed roster is purposive, not a probability sample. Task selection will
-cover distinct inferential domains and Python/R work, progressing from known
-results and replication to hidden derivation and
-extensions. Scientific tolerances, draw schedules, failure handling, sample size
+cover distinct inferential domains and Python/R work. The broader capability
+strategy progresses from replication to hidden derivation and extensions, but
+those later conditions are not observations in the present source-assisted
+proposal. Scientific tolerances, draw schedules, failure handling, sample size
 and analysis must be frozen prospectively. Family-level paired effects and
 uncertainty, rather than rubric-item counts treated as independent samples, will
 support the comparison.

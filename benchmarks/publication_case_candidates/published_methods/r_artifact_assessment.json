@@ -1,0 +1,161 @@
+{
+  "scope": "prospective_native_r_final_artifact_assessment_mechanism",
+  "code_commit": "aa0bb02153036a19f9bd666e696040f3e7b5c231",
+  "previous_delivery": "4314dd5d7d50dc4e7b43604b15221fb8a08ca36d",
+  "study_activated": false,
+  "publication_result": false,
+  "scientific_evaluation_performed": false,
+  "actual_model_calls": 0,
+  "author_study_executions": 0,
+  "consumed_evaluations_modified": false,
+  "change": "The existing artifact runner accepts an explicit Python/R language; the common publication entry dispatches that frozen language through its existing executor. R reads transported JSON with jsonlite and can inspect captured RDS/RData bytes natively. No new runtime, scheduler, converter, statistical rule, source repair or automatic backend fallback. Net production growth is three lines; no module is added.",
+  "verification_scope": "A fresh opaque compressed RDS contains labels, matrix dimnames, a factor, typed NA, NaN, Inf and raw bytes. Native empirical/source-replication checks preserve these, CRLF report, missing inventory and seed/count. Corrupt/missing files fail; a deliberately nonmatching expectation fails its check without altering the input. Large candidates remain data, not embedded source. Invalid language/profile rejects; unavailable webR jsonlite reports its original dependency failure, never native fallback. No actual published file, method, theorem or mathematical verdict is tested.",
+  "limits": "Exact method-specific parser/coordinate maps, numerical tolerances, reference interpretation, confirmatory precision, independent assessment, actual matched study conditions and prospective freeze are unfinished. Native RData parsing is available for a separately qualified evaluator; this fixture checks RDS, not author RData objects or saved closures. Legacy callers retain their Python default and no consumed result is rerun or rescored.",
+  "revisions": "The first uncommitted full run was stopped after the package line-budget assertion failed at 150007 lines. The same source generator was consolidated from repeated string concatenation into readable templates; the existing 150000 bound was unchanged. Final package total is 149999. Early fixture correction explicitly disables unused optional dimensions and tests the actually available native-jsonlite profile; unavailable webR remains a negative case, not a weakened positive check.",
+  "shared_code_refs": {
+    "ai_statistician/research_gold_evaluation.py": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/ai_statistician/research_gold_evaluation.py",
+      "sha256": "98929418c0dfc1a90f69157f2082f9c18cff70c20f2f07235ea33bd6daadd735",
+      "byte_size": 135977
+    },
+    "benchmarks/publication/evaluate_final_artifacts.py": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication/evaluate_final_artifacts.py",
+      "sha256": "bad325ae8ac97a2f1869ed6302d099c09a360f25d06c80980319fa56d16f7f55",
+      "byte_size": 32288
+    },
+    "tests/test_research_gold_evaluation.py": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/tests/test_research_gold_evaluation.py",
+      "sha256": "25a713b69d670730dcfe895616dbed99e55219bd3afd5d9b4a40c2e8f998d5d3",
+      "byte_size": 103112
+    },
+    "tests/test_publication_outcomes.py": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/tests/test_publication_outcomes.py",
+      "sha256": "e2f27bd87ecf5acc92548884a1f0c558111887a693b8944bed20f367999059cb",
+      "byte_size": 51729
+    }
+  },
+  "native_r_config_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/runs/native_r_execution_mechanism_20261003/native_r_runtime.json",
+    "sha256": "0611435c9744158cc681a193fd8e5b83242313821c4f1724171a82591a2fc292",
+    "byte_size": 3319
+  },
+  "assessment_draft_ref": {
+    "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/assessment_protocol.md",
+    "sha256": "2d0014613fa21d80523b41149a3820e35613a870503a8681adffa4a7d1ca933b",
+    "byte_size": 22257
+  },
+  "verification": [
+    {
+      "name": "native-final",
+      "observed_exit_code": 0,
+      "scope": "Final code; configured native R plus dispatch/budget negatives",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped_including_xfail": 0,
+      "xfail": [],
+      "reports": {
+        "xml": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_r_artifact_assessment_20261004/native-final.xml",
+          "sha256": "7b3c70030d6e029e01eb56999d221805687df498f1ecfec19caa77eb9d9aba47",
+          "byte_size": 2530
+        },
+        "stdout": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_r_artifact_assessment_20261004/native-final.stdout",
+          "sha256": "d50b112c96c082c785d2bb4b0edd7ea06cf6a468dde4e65c64a0aa8c2e19f530",
+          "byte_size": 115
+        },
+        "stderr": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_r_artifact_assessment_20261004/native-final.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        }
+      }
+    },
+    {
+      "name": "full-default-final",
+      "observed_exit_code": 0,
+      "scope": "Final code; complete default suite, all skips and existing lifetime xfail retained",
+      "tests": 2341,
+      "failures": 0,
+      "errors": 0,
+      "skipped_including_xfail": 74,
+      "xfail": [
+        {
+          "class": "tests.test_native_project_execution",
+          "name": "test_native_detached_process_lifetime"
+        }
+      ],
+      "reports": {
+        "xml": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_r_artifact_assessment_20261004/full-default-final.xml",
+          "sha256": "467d5732393b84f240cdaff44c67004380e413f484295fbbda52283fa5ed5dba",
+          "byte_size": 766857
+        },
+        "stdout": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_r_artifact_assessment_20261004/full-default-final.stdout",
+          "sha256": "e4fcededf2a7d36c278573281650e11375c395703239aa93d4cd262509ddbf4f",
+          "byte_size": 2697
+        },
+        "stderr": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_r_artifact_assessment_20261004/full-default-final.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        }
+      }
+    },
+    {
+      "name": "full-default-initial",
+      "observed_exit_code": 2,
+      "scope": "Interrupted initial uncommitted implementation; not final-code validation",
+      "tests": 690,
+      "failures": 1,
+      "errors": 0,
+      "skipped_including_xfail": 0,
+      "xfail": [],
+      "reports": {
+        "xml": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_r_artifact_assessment_20261004/full-default-initial.xml",
+          "sha256": "2df06f770d21f534d95f0bc976d2a6dd86a05907800a66303f0ccb7290e6a83e",
+          "byte_size": 489054
+        },
+        "stdout": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_r_artifact_assessment_20261004/full-default-initial.stdout",
+          "sha256": "768b03bd6b4dea80c519acb82bcce3db6cecbc404b210c27282e09b502794eff",
+          "byte_size": 2636
+        },
+        "stderr": {
+          "path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_r_artifact_assessment_20261004/full-default-initial.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "byte_size": 0
+        }
+      }
+    }
+  ],
+  "compileall_passed": true,
+  "git_diff_check_passed": true,
+  "unchanged": {
+    "benchmarks/publication_case_candidates/published_methods/execution_questions.json": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/execution_questions.json",
+      "sha256": "b0b1826f9ec32cbfd5fd78c2945b7f8c70cdcde636df44b999ca1c5fb276bc2a",
+      "byte_size": 34386
+    },
+    "benchmarks/publication_case_candidates/published_methods/questions.json": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/questions.json",
+      "sha256": "a940b69ab0e2ef0744f7483663f7839b1332b1a8184ca96b149767b7712f7cba",
+      "byte_size": 10973
+    },
+    "benchmarks/publication_case_candidates/published_methods/source_final_projection.json": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/benchmarks/publication_case_candidates/published_methods/source_final_projection.json",
+      "sha256": "e2a2eb0f771f8ba9adc14a215b4a3f93041e892e77228c6e30fac4c4addac517",
+      "byte_size": 9468
+    },
+    "ai_statistician/research_source_library.py": {
+      "path": "/Users/yukangzengcmac/AI-Statistician/ai_statistician/research_source_library.py",
+      "sha256": "d7201ca5416be9f65790ce6a972fd8778cf10af3d672b47e4a268fee923acbb8",
+      "byte_size": 130142
+    }
+  },
+  "lean_commit": "db6c7718349f3c14a7e37905f3529675f1ebaa52",
+  "checklist": "No additional item is closed. Q01/T01/C01/W01 remain limited scope/draft completions. No official draws, independent scientific conclusions, confirmation, full case or final releases exist."
+}

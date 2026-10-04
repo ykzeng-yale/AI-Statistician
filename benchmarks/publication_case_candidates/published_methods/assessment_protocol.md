@@ -164,6 +164,49 @@ not an automatic pass. This section does not reinterpret an earlier reference
 execution or supply a corrected answer. Q04/E01/E05 remain incomplete until
 the exact task-specific endpoints, authority and experiment are actually bound.
 
+### Reference Formats and Coordinates
+
+The existing source inspection establishes these prospective parsing requirements,
+not new scores or a reinspection of consumed numerical outputs. A result's raw
+representation and its scientific coordinates are different. Pin both the parser
+and the source-to-coordinate map; file-extension inference alone is insufficient.
+Valid agent-authored alternative representations need their own frozen map and
+the same obligations, rather than textual similarity to an author console table.
+
+| Candidate reference channel | Coordinates to preserve | Missingness and comparison boundary |
+| --- | --- | --- |
+| StepMix six separate script streams | Script/arguments and stage, scenario, requested method, parameter and class-alignment convention; GSS measurement/class-weight, structural bootstrap-summary and between-class contrast tables remain distinct | Printed rounded aggregates do not supply absent per-fit outcomes, retained denominators or MCSE. Parse both complete stage status and reported quantities; a successful last master command does not establish every earlier stage. |
+| ebnm `output/simstudy.rds` | Join the declared default simulation by `SimFn`, `Function`, `SimNumber`; distinguish `LogLikelihood`, `RMSE` and `ConfIntCov`, their definitions and units | Reject ambiguous/duplicate keys and disclose absent keys. Keep unavailable likelihoods separate from finite zero. A posterior interval summary is not automatically a repeated-sampling coverage claim. |
+| ebnm `output/timecomps.rds` and main application material | Prior/method identity, requested sample-size and timing repetition; wOBA observation/player identity and declared posterior summaries | Timing reports execution conditions, not equality to another machine's seconds. Do not pool timings with numerical accuracy or include the excluded appendix/full timing grid. Application and simulation targets remain separate. |
+| bizicount `output_montes_small.RData` | Load the source's `res` and `session` into a separate environment. Preserve every requested result-list slot, scenario/sample size, parameter and method label; keep estimate, standard error, optimizer code and log-likelihood fields distinct | A `NULL`, condition, absent slot or numerical row with an adverse optimizer code is not silently a valid fit. Bind the source grid/order explicitly before attributing a missing slot to a scenario; source aggregation and a justified independent analysis are separate. |
+| bizicount empirical-analysis output | Each requested joint/marginal fit, response/covariate coordinate, parameter, information criterion and uncertainty convention | Model fit, the source's information-criterion convention, journal correspondence and observational interpretation need separate findings. Neither rounded table agreement nor a returned optimizer object proves the scientific claim. |
+
+These are actual source-format channels, not mandatory new product packet types.
+The current common artifact entry can now dispatch a frozen Python or R
+`evaluate_artifact(candidate, seed, replicates)` through the existing executor.
+R uses its explicitly configured native runtime and `jsonlite` to read the
+JSON transport view; `readRDS`/`load` then operate on the captured file bytes.
+The current webR dependency surface lacks `jsonlite`: it reports unavailable,
+without selecting native R or converting a result through Python. Native R
+versions, dependencies and interpreter/configuration identities must therefore
+be fixed as evaluator conditions, not assumed from an author's environment.
+
+R serialization retains object classes, factor levels, matrix labels and typed
+missing/nonfinite values. A future parser must retain these distinctions until
+its prespecified scientific missingness rule is applied; base64 transport or
+conversion into an ordinary numeric vector cannot establish that rule. Assessment
+must not execute author scripts or saved closures merely to manufacture absent
+results. Decode selected objects in the declared bounded evaluator, inspect the
+required fields and retain parse/execution failures. The parser's final check
+results use the existing finite-JSON ABI; this does not require replacing a
+missing/nonfinite submitted observation with a fabricated finite value.
+
+Fresh opaque RDS checks verify matrix/factor/NA/NaN/Inf/raw-byte transport, actual
+native R dispatch and negative input/expectation cases. They contain no published
+result and qualify no method endpoint, inference or scientific tolerance. Exact
+task-specific numerical assessors, expert review, confirmation design and study
+freeze remain required.
+
 ## Assessor Appointment and Blinding
 
 Before freezing, name the mathematical assessor(s), relevant statistical

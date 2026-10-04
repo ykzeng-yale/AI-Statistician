@@ -254,6 +254,13 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   mathematical qualification. The assessment draft now separates deterministic,
   literal-reconstruction, stochastic and discrepancy endpoints; no task-specific
   parser, tolerance, precision or authority is frozen, so Q04 remains open.
+  The [native R assessment follow-up](../benchmarks/publication_case_candidates/published_methods/r_artifact_assessment.json)
+  removes the Python-only artifact restriction using the same executor and ABI.
+  Opaque RDS/native-dispatch and negative checks pass; typed missing/nonfinite
+  values remain in the captured object. These are mechanism checks, not author
+  RDS/RData assessment or scientific endpoint qualification. The protocol now
+  distinguishes each source-format channel, coordinate map and missingness;
+  Q04 is not closed.
 - [ ] **Q05. Independent mathematical authority.** Freeze claim rubrics, valid
   alternative arguments, negative/underspecified controls, assessor qualifications,
   conflicts, blinding and adjudication. Obtain assessor appointments; none is

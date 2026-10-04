@@ -143,9 +143,11 @@ availability and its declared activation differ. Separate clean workspaces avoid
 cross-arm state. All scheduled draws, including missing outputs and timeouts,
 remain in the denominator; an earlier draft cannot replace a missing final result.
 
-Published-result tasks will include replication with permitted author code,
+The evaluation strategy distinguishes replication with permitted author code,
 paper-to-code work with implementation hidden, and narrowly scoped known-result
-derivation. Families stay together across splits. Mathematical evaluation needs
+derivation. These are distinct access conditions, not an assertion that each is
+included in the present candidate roster. Families stay together across splits.
+Mathematical evaluation needs
 a qualified rubric and independent authority; reference execution can judge
 numerical agreement but cannot accept a derivation. Lean components have separate
 exact-target outcomes. No single score will disguise incorrect theory behind
@@ -168,12 +170,14 @@ EM/normal-means development exposure limit interpretation. Numerical reference
 execution does not qualify their arguments, rights or final assessment. No official
 roster, sample size or result is established by these candidate definitions.
 
-Replication tasks permit author code. Paper-to-code tasks hide it and the target
+For a separately qualified broader study, replication tasks permit author code.
+Paper-to-code tasks hide it and the target
 numerical outputs. Known-result derivation tasks hide the target argument while
 providing sufficient definitions and background. These access conditions are
 reported separately, with clean runs and family-grouped splits. Recognizing a
 published theorem from pretraining remains possible; hidden-source rederivation
-is not evidence of discovery of a genuinely unknown theorem.
+is not evidence of discovery of a genuinely unknown theorem. These later ladder
+conditions do not contribute observations to the current source-assisted proposal.
 
 ### 3.2. Scientific Assessment
 
