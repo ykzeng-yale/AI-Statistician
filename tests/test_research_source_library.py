@@ -347,6 +347,52 @@ def _source_execution_fixture(tmp_path):
     return snapshot, execution, entrypoint_path, execution_manifest_path
 
 
+@pytest.mark.parametrize("timeout", [1, 1800, 7200, 21600])
+def test_source_execution_preserves_operator_timeout(tmp_path, timeout):
+    snapshot, _, _, manifest_path = _source_execution_fixture(tmp_path)
+    payload = json.loads(manifest_path.read_bytes())
+    payload["timeout_seconds"] = timeout
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    execution = load_research_source_execution_spec(manifest_path, research_sources=snapshot)
+    calls = []
+
+    def executor(**kwargs):
+        calls.append(kwargs)
+        return {"execution_attempted": True, "returncode": 0,
+                "stdout": json.dumps({"python_version": "3.test", "package_versions": {"Demo": "1.2.3"}}),
+                "stderr": "", "errors": []}
+
+    result = execute_research_source(execution=execution, research_sources=snapshot,
+        output_dir=tmp_path / "execution", question_id="timeout-test", process_executor=executor)
+    assert result["execution_status"] == "EXECUTED"
+    assert len(calls) == 2
+    assert execution.timeout_seconds == timeout
+    assert all(call["timeout_seconds"] == timeout for call in calls)
+
+
+@pytest.mark.parametrize("timeout", [0, -1, True, 1.5, "7200", None])
+def test_source_execution_rejects_invalid_timeout(tmp_path, timeout):
+    snapshot, _, _, manifest_path = _source_execution_fixture(tmp_path)
+    payload = json.loads(manifest_path.read_bytes())
+    payload["timeout_seconds"] = timeout
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="timeout_seconds"):
+        load_research_source_execution_spec(manifest_path, research_sources=snapshot)
+
+
+def test_model_source_command_cannot_change_operator_timeout(tmp_path):
+    snapshot, execution, _, _ = _source_execution_fixture(tmp_path)
+    execution = replace(execution, schema_version=4, timeout_seconds=7200,
+                        command_selection_mode=SOURCE_COMMAND_MODEL_SELECTED)
+    command = {"reason": "Inspect the supplied source", "entrypoint_document_id": "published-example",
+               "working_directory_relative": ".", "arguments": [], "result_artifact_paths": []}
+    selected = select_research_source_execution_command(execution, research_sources=snapshot, command=command)
+    assert selected.timeout_seconds == 7200
+    with pytest.raises(ValueError, match="requires exactly"):
+        select_research_source_execution_command(execution, research_sources=snapshot,
+                                                command={**command, "timeout_seconds": 21600})
+
+
 def _staged_source_execution_fixture(tmp_path, *, max_output_bytes=8192):
     source_root = tmp_path / "public_sources"
     source_root.mkdir(parents=True)

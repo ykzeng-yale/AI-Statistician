@@ -1169,7 +1169,7 @@ def load_research_source_execution_spec(
     package_distributions.sort()
 
     timeout_seconds = _bounded_int(
-        payload.get("timeout_seconds", 120), label="timeout_seconds", minimum=1, maximum=1800
+        payload.get("timeout_seconds", 120), label="timeout_seconds", minimum=1, maximum=None
     )
     max_output_bytes = _bounded_int(
         payload.get("max_output_bytes", 128 * 1024), label="max_output_bytes",
@@ -2908,10 +2908,12 @@ def _bounded_int(
     *,
     label: str,
     minimum: int,
-    maximum: int,
+    maximum: int | None,
 ) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{label} must be an integer")
-    if value < minimum or value > maximum:
+    if maximum is None and value < minimum:
+        raise ValueError(f"{label} must be at least {minimum}")
+    if maximum is not None and (value < minimum or value > maximum):
         raise ValueError(f"{label} must be between {minimum} and {maximum}")
     return value
