@@ -1,0 +1,136 @@
+# Published-Method Task Candidates
+
+2026-10-03 selection decision. No model call, experiment activation, reference
+rerun, mathematical acceptance or publication effect is recorded here.
+
+The [public questions](questions.json) use the existing `OpenResearchQuestion`
+format. They require theory, scientific source, empirical work and source
+reconstruction together. They are not source-only tasks relabelled as a
+multi-agent comparison. These files are research intent, not a runtime recipe or
+an answer key. Mathematical content remains model-authored Markdown/LaTeX.
+
+## Selection and Access
+
+Use three distinct published software/method studies already inspected, rather
+than add another reference panel. The intended access condition is **paper plus
+original code and data**, excluding cached outputs and operator/evaluator findings.
+Both papers may use the same qualified questions with distinct frozen draws:
+host bare/package for H, four existing standalone modes for S. A shared question
+does not make their experiments independent; task overlap is disclosed.
+
+| Family and domain | Exact candidate deliverable | Numerical reference scope | Current disposition |
+| --- | --- | --- | --- |
+| [StepMix, JSS 113(8)](https://www.jstatsoft.org/article/view/v113i08); latent classes and external variables; Python | Argument for external-variable estimation/correction; all three simulation grids and GSS; reusable estimators and empirical source; scientific report | Six unchanged Python invocations in the [bound reference record](../../publication_reference_qualification_20261003/stepmix_results.json) | Integrated main-study candidate, conditional on authority, rights and arm qualification. Not generic EM rediscovery. |
+| [ebnm, JSS 114(3)](https://www.jstatsoft.org/article/view/v114i03); empirical Bayes; R | Prior-fitting/posterior argument; complete default main-text script, simulation and wOBA; reusable estimators and empirical source; report | One unchanged default run in the [bound reference record](../../publication_reference_qualification_20261002/ebnm_results.json) | Integrated main-study candidate, conditional on authority, rights and arm qualification. Not untouched normal-means theory. |
+| [bizicount, JSS 109(1)](https://www.jstatsoft.org/article/view/v109i01); joint count regression; R | Joint-model/likelihood argument; complete eight-setting simulation and Nigeria analysis; reusable estimators and empirical source; discrepancy report | Full unchanged scientific script in the [bound source record](../../publication_reference_qualification_20261002/sources.json), entry `jss_bizicount_2024` | Integrated reconstruction/assessment candidate, not an automatically correct software oracle. |
+
+These are candidate inclusion decisions, not the official test split, a random
+sample or a sufficient sample-size argument. All variants/access conditions from
+each paper stay together. The roster is purposive, drawn from one journal's
+reproducible software articles; it cannot establish general frontier statistical
+research or broad open-problem capability. A later rediscovery/extension track
+requires distinct qualified tasks and source horizons, not reinterpretation of
+these source-visible reconstructions.
+
+Published papers and code intentionally expose the known methods and reported
+results. Holding cached execution outputs outside the author workspace prevents
+direct reuse of those files, not pretraining contamination or memorization.
+Exact submitted source must execute on the prospectively specified evaluation
+inputs; a report containing remembered values is not a reproduced computation.
+
+## Background and Consumed-Family Boundaries
+
+- StepMix's selected obligations concern external-variable correction, the
+  associated simulations and application. Previously exposed two-component
+  Gaussian EM monotonicity remains background, not a fresh theorem or separate
+  benchmark success.
+- ebnm's selected obligations concern the published prior-family study and
+  application. James-Stein, SURE, conjugacy and Tweedie development exposure is
+  disclosed; no such known-result task is reopened under a new paper title.
+- The current exact-name/DOI scan of 134 top-level public benchmark question lists
+  and example files found no match for these three papers/packages. It excluded
+  sealed/held-out paths and did not inspect nested histories or raw chats. Previous
+  qualification records have the same bounded exact-paper finding. This is not
+  a certificate that no older exposure exists. Check the final exclusion ledger
+  before freezing, without opening sealed old gold.
+- TSCI B1/Card is assigned to exposed preparation/illustration, not an untouched
+  main-study test. Its failed Theory preparation remains consumed. These three
+  candidates neither replace its substantive case obligations nor permit rerun.
+- Consumed DoubleML, CORE Type-M/Type-S, scikit-fda and fixed-K L2 families remain
+  excluded. No new version, renamed question or model configuration resets them.
+
+## What the Existing References Can Judge
+
+The previous reference executions and inspections are immutable. No acceptance
+threshold was frozen by their execution; their numerical outputs do not by
+themselves accept a future agent submission.
+
+| Candidate | Literal computation | Separately required scientific assessment |
+| --- | --- | --- |
+| StepMix | The exact package/scripts, environment, inputs, settings and specified numerical summaries; declare the journal/source differences rather than require incompatible displays to match | Correction argument and assumptions, alignment, missing-data and bootstrap interpretation, fresh per-repetition diagnostics and valid Monte Carlo uncertainty. Suppressed warnings or discarded fits cannot be recovered from the old aggregates. |
+| ebnm | The default source scope and available outputs; unavailable likelihoods are not ordinary zero values; timings are hardware-specific | Prior/model assumptions, posterior versus repeated-sampling claims, code/argument agreement, data interpretation and independent new-experiment assessment. The licensed appendix and full timing grid remain outside this declared task. |
+| bizicount | The exact recorded source convention and aggregation, including missing outputs and observed diagnostics | Model/likelihood argument, inference and numerical conventions, unexplained paper differences and handling of failures. Agreement with a source convention is not evidence that the convention is scientifically valid. |
+
+The exact final selected argument and source, not internal product verdicts or
+intermediate files, receive the common assessment in every arm. Freeze numerical
+tolerances and valid alternative scientific dispositions before product calls.
+Independent mathematical review is still necessary; no assessors are appointed.
+When a software/reference discrepancy is unresolved, do not invent corrected gold
+or grade mathematical truth by equality with that output. A declared faithful
+reconstruction can coexist with an unresolved scientific issue; full acceptance
+still follows the frozen task obligations.
+
+No operator diagnosis, previous numerical result, critique or candidate qualification
+record above belongs in the model's source capsule. The public questions do not
+give failure locations or expected numeric values. Source-assisted access includes
+the original paper, whose own results are not a hidden rediscovery target.
+
+## Inputs, Rights and Execution Decisions Still Required
+
+Input identities already exist in the original preparation records:
+
+- StepMix: [plan](../../publication_reference_qualification_20261003/stepmix_plan.json),
+  [readiness](../../publication_reference_qualification_20261003/stepmix_ready.json),
+  [environment](../../publication_reference_qualification_20261003/stepmix_reference_requirements.txt).
+  Script correspondence to the MIT package is recorded. Original dataset rights
+  are separate; do not redistribute those data under the package license.
+- ebnm: [plan](../../publication_reference_qualification_20261002/ebnm_plan.json),
+  [readiness](../../publication_reference_qualification_20261002/ebnm_ready.json).
+  Replication code is MIT; the package is GPL >=3. Dataset terms and the adapted
+  native R environment still need complete public reconstruction documentation.
+- bizicount: [source identities and observed environment](../../publication_reference_qualification_20261002/sources.json).
+  The package is GPL >=3; replication-archive and original-data redistribution
+  terms are not independently qualified. Do not commit third-party bytes here.
+
+The tasks do not yet carry frozen estimator ABIs or authoritative source-execution
+capsules. Before activation, construct those through existing interfaces, specify
+method inputs/outputs without prescribing an answer, bind exact data/runtime access
+in all arms, and qualify the complete native scientific execution path. An installed
+author reference environment is not automatically the model workspace environment.
+No new adapter, scheduler, repair loop or model call is justified by this document.
+
+Next finish the independent claim/implementation rubrics and rights, then common
+assessment and actual arm/input/resource conditions. Choose the study's primary
+roster, weights, repetitions, RNG/order and analysis together with a precision
+rationale. No counts, budgets, tolerances, split or study are frozen here.
+Q02/Q04/Q05/Q06/Q07 remain open in the
+[single delivery checklist](../../../docs/publication_programme.md#delivery-checklist).
+
+## Verification Scope
+
+The existing loader accepts all three questions and preserves their required
+theory, code, empirical and source-reconstruction intent through the runtime
+payload round trip. `frozen_direct_initial_task` returns no single-lane shortcut
+for any of them. This is static intent/routing evidence, not an Architect plan,
+multi-role execution trace or matched-arm qualification. No ABI is frozen.
+
+The existing contract tests passed: 15 tests in 60.30 seconds, exit zero.
+
+```sh
+.venv/bin/pytest -q tests/test_estimator_interface_contract.py \
+  tests/test_formal_target_contract.py
+```
+
+No model, assessor, scientific script or consumed evaluation ran. Product source
+is unchanged from the previously full-tested code checkpoint `4fb51df2`; no new
+full regression or deployment check was needed for these task/document edits.

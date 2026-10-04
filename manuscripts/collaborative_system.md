@@ -265,6 +265,16 @@ and analysis must be frozen prospectively. Family-level paired effects and
 uncertainty, rather than rubric-item counts treated as independent samples, will
 support the comparison.
 
+The current [candidate task definitions](../benchmarks/publication_case_candidates/published_methods/README.md)
+cover StepMix external-variable methods, ebnm prior-family comparison and
+bizicount joint count regression. They require theoretical argument, scientific
+source and empirical analysis together under declared paper/code access, not
+merely source execution. They are source-assisted reconstructions, not tests of
+unknown-theorem discovery. Existing EM/normal-means exposure and the common
+software-journal source channel remain limitations. Independent argument authority,
+input/ABI and arm qualification, rights and the roster/precision freeze are still
+pending; these definitions provide no collaborative effect estimate.
+
 The source-only replication entry currently exercises TheoryDeveloper, not the
 Theory/code/Simulation collaboration under study. It can support a reproduction
 component check but cannot identify the effect of reverse specialist feedback.

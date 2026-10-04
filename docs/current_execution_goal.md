@@ -90,6 +90,16 @@ The integrated source/executable obligations also mean this is not an isolated
 Theory reasoning benchmark. Missing source and independent authority remain real
 scientific obligations; the failed handoff does not decide mathematics.
 
+The [published-method task decisions](../benchmarks/publication_case_candidates/published_methods/README.md)
+now define three integrated source-assisted candidates, using the already inspected
+StepMix, ebnm and bizicount references rather than another execution panel. They
+require reviewable arguments, scientific source and empirical analysis together.
+Background exposure and source/software discrepancies remain declared, not renamed
+into fresh discovery or silently accepted as gold. TSCI remains the substantive
+exposed case. Exact input/ABI and common assessment, rights, arm access/resources
+and roster/precision freeze still precede official calls. No new scientific draw,
+reference rerun or product mechanism change occurred in this selection work.
+
 The separate shared-tool correction declares each writable artifact's existing
 top-level type in the model schema. Runtime checks and atomic replacement are
 unchanged. There is no mathematical field rule, content conversion, source patch

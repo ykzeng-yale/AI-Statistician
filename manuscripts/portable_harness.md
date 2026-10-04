@@ -159,6 +159,15 @@ analysis are resolved or declared during qualification, not removed after observ
 agent performance. The selected population and exclusions determine the scope
 of the eventual claim; a reproducible-source subset is not all statistical research.
 
+The current [qualification candidates](../benchmarks/publication_case_candidates/published_methods/README.md)
+are source-assisted integrated reconstructions of StepMix external-variable
+methods, ebnm prior-family comparison and bizicount joint count regression.
+Their papers, code and requested data are intended inputs; these are not hidden-
+proof or blind-rediscovery tasks. The software-article source channel and prior
+EM/normal-means development exposure limit interpretation. Numerical reference
+execution does not qualify their arguments, rights or final assessment. No official
+roster, sample size or result is established by these candidate definitions.
+
 Replication tasks permit author code. Paper-to-code tasks hide it and the target
 numerical outputs. Known-result derivation tasks hide the target argument while
 providing sufficient definitions and background. These access conditions are

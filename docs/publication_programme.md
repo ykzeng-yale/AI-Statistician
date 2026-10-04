@@ -252,6 +252,15 @@ segmentation remain excluded from the fresh test pool because their development
 draws were consumed. None of the rows above is a new model result, official draw,
 independent mathematical acceptance or a reason to mark Q02/Q04 complete.
 
+The [exact-task selection follow-up](../benchmarks/publication_case_candidates/published_methods/README.md)
+now supplies three loader-readable integrated candidates for StepMix external
+variables, ebnm prior-family comparison and bizicount reconstruction/assessment.
+All use declared paper/code access, not blind rediscovery. Background EM and
+normal-means exposure remains explicit; TSCI stays an exposed case/illustration.
+The source records support only their qualified numerical scope. Task input/ABI,
+rights, independent argument assessment, actual arms and roster/precision freeze
+remain required; candidate selection does not close Q02/Q04 or activate a study.
+
 ### 2. Theory and Scientific Agreement
 
 - [x] **T01. Evaluation-method appendix draft.** The shared
