@@ -29,6 +29,7 @@ from ai_statistician.research_schema import (
     OpenResearchQuestion, research_dimension_requirements, research_question_payload,
     research_task_intent_requirement,
 )
+from ai_statistician.research_source_library import _source_replication_result_bytes
 from ai_statistician.scientific_project import scientific_main_path, scientific_project_hash
 from ai_statistician.scientific_sandbox import (
     ScientificEstimatorBinding, execute_scientific_sandbox, normalized_scientific_dependencies,
@@ -289,9 +290,20 @@ def _selected_source_replication_material(checkpoint, submission):
             or attempts[selected_run - 1] != selected
             or any(ref.get("source_run") != index for index, ref in enumerate(body["source_execution_attempt_refs"], 1))):
             raise ValueError("selected source attempt lineage mismatch")
+    files = {}
+    results = selected.get("result_artifacts", [])
+    for descriptor in (*results, *selected.get("execution_streams", [])):
+        path, _, raw = _source_replication_result_bytes(selected, descriptor["relative_path"])
+        if len(raw) != descriptor["size_bytes"]:
+            raise ValueError("selected source result size differs from its execution record")
+        files[path.as_posix()] = {"base64": base64.b64encode(raw).decode("ascii"),
+            "sha256": hashlib.sha256(raw).hexdigest(), "byte_size": len(raw)}
     return {"checkpoint_id": checkpoint_id,
             "report_document": {"path": report_ref["relative_path"], "content": report, "sha256": report_ref["sha256"]},
             "source_execution": selected, "source_execution_attempts": attempts,
+            "files": files,
+            "missing_files": [path for path in selected.get("declared_result_artifact_paths", [])
+                              if path not in {row["relative_path"] for row in results}],
             "unresolved_gaps": deepcopy(body["unresolved_gaps"])}
 
 

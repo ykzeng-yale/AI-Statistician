@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 from dataclasses import replace
+import base64
 import hashlib
 import json
 import os
@@ -570,3 +571,162 @@ def test_invalid_projection_identity_or_contract_is_not_repaired(tmp_path, chang
         kind = "native"
     with pytest.raises(ValueError):
         outcomes.publication_material_from_submission(submission, source_kind=kind, control_estimator_scopes=scopes)
+
+
+def source_file_projection_fixture(tmp_path, *, status="FAILED", selected_run=2):
+    def reference(path):
+        raw = path.read_bytes()
+        return {"path": str(path), "sha256": hashlib.sha256(raw).hexdigest(), "byte_size": len(raw)}
+
+    intent = {"source_replication": "required", "theory": "not_applicable"}
+    manifests, refs, contents = [], [], []
+    for run in (1, 2):
+        directory = tmp_path / ("source-run-" + str(run))
+        workspace = directory / "source_workspace"
+        workspace.mkdir(parents=True)
+        results = {"results/opaque.csv": b"label,value\r\nopaque," + str(run).encode() + b"\r\n",
+                   "results/opaque.bin": bytes([255, 0, run, 128])}
+        streams = {"runtime_streams/source_stdout.txt": b"opaque output\r\n" * 10001 + str(run).encode(),
+                   "runtime_streams/source_stderr.txt": b"opaque raw failure\r\n"}
+        descriptors, stream_rows = [], []
+        for collection, files, root in ((descriptors, results, workspace), (stream_rows, streams, directory)):
+            for relative, raw in files.items():
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(raw)
+                collection.append({"relative_path": relative, "sha256": hashlib.sha256(raw).hexdigest(),
+                                   "size_bytes": len(raw), "content_encoding": "binary_not_embedded"})
+        path = directory / "source_replication_manifest.json"
+        manifest = {"artifact_kind": "SourceReplicationManifest", "artifact_id": "opaque-source-" + str(run),
+                    "question_id": "opaque", "manifest_path": str(path),
+                    "execution_status": "EXECUTED" if run == 1 else status,
+                    "raw_stdout": "truncated opaque preview", "raw_stdout_truncated": True,
+                    "result_artifacts": descriptors, "execution_streams": stream_rows,
+                    "declared_result_artifact_paths": list(results) + ["results/missing.rds",
+                                                                          "runtime_streams/source_stdout.txt"]}
+        manifest["manifest_hash"] = stable_hash(manifest)
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        ref = {**reference(path), **{key: manifest[key] for key in
+                                    ("artifact_id", "manifest_hash", "execution_status")}, "source_run": run}
+        manifests.append(manifest)
+        refs.append(ref)
+        contents.append({**results, **streams})
+    report = tmp_path / "selected-report.md"
+    report.write_bytes(b"# Opaque source report\r\nUnresolved mechanism fixture, not a scientific claim.\r\n")
+    body = {"artifact_kind": "SourceReplicationCheckpoint", "question_id": "opaque", "task_intent": intent,
+            "source_replication_manifest_ref": refs[selected_run - 1], "source_execution_attempt_refs": refs,
+            "selected_source_run": selected_run, "report_document": {**reference(report), "relative_path": "report.md"},
+            "unresolved_gaps": ["Opaque source remains unresolved."]}
+    checkpoint = {**body, "checkpoint_id": "source_replication_checkpoint:" + stable_hash(body)[:20]}
+    runtime = {"question_id": "opaque", "task_intent": intent,
+               "selected_artifacts": {"source_replication": checkpoint}}
+    control = {"question_id": "opaque", "task_intent": intent,
+               "checkpoint_payloads": {"theory": {"core_packet": checkpoint}}}
+    return runtime, control, manifests, contents
+
+
+@pytest.mark.parametrize("status", ["EXECUTED", "FAILED"])
+@pytest.mark.parametrize("selected_run", [1, 2])
+def test_selected_source_projection_keeps_full_result_and_stream_bytes_without_draft_salvage(tmp_path, status, selected_run):
+    runtime, control, manifests, contents = source_file_projection_fixture(tmp_path, status=status, selected_run=selected_run)
+    original = deepcopy((runtime, control))
+    product = outcomes.publication_material_from_submission(runtime, source_kind="runtime")
+    shared = outcomes.publication_material_from_submission(control, source_kind="control", control_estimator_scopes={})
+    assert product == shared
+    artifact = product["source_replication_artifact"]
+    assert artifact["source_execution"] == manifests[selected_run - 1]
+    assert artifact["source_execution_attempts"] == manifests
+    assert artifact["missing_files"] == ["results/missing.rds", "runtime_streams/source_stdout.txt"]
+    assert set(artifact["files"]) == set(contents[selected_run - 1])
+    for path, raw in contents[selected_run - 1].items():
+        assert artifact["files"][path] == {"base64": base64.b64encode(raw).decode("ascii"),
+            "sha256": hashlib.sha256(raw).hexdigest(), "byte_size": len(raw)}
+    assert artifact["report_document"]["content"].endswith("\r\n")
+    assert not product["theory_documents"] and not product["estimator_bindings"] and product["empirical_artifact"] is None
+    assert "task_passed" not in artifact and "confirmatory_empirical_evidence_eligible" not in artifact
+    assert (runtime, control) == original
+
+
+@pytest.mark.parametrize("defect", ["changed_result", "missing_result", "changed_stream", "missing_stream", "size", "duplicate", "escape", "ambiguous", "missing_manifest"])
+def test_selected_source_projection_rejects_unbound_files_without_a_previous_run_fallback(tmp_path, defect):
+    runtime, _, manifests, _ = source_file_projection_fixture(tmp_path)
+    manifest = manifests[1]
+    root = Path(manifest["manifest_path"]).parent
+    if defect in {"changed_result", "missing_result", "changed_stream", "missing_stream"}:
+        path = root / ("source_workspace/results/opaque.bin" if defect.endswith("result") else "runtime_streams/source_stderr.txt")
+        if defect.startswith("changed"):
+            path.write_bytes(b"changed opaque bytes")
+        else:
+            path.unlink()
+    elif defect == "missing_manifest":
+        Path(manifest["manifest_path"]).unlink()
+    else:
+        if defect == "size":
+            manifest["result_artifacts"][0]["size_bytes"] += 1
+        elif defect == "duplicate":
+            manifest["result_artifacts"].append(deepcopy(manifest["result_artifacts"][0]))
+        elif defect == "escape":
+            manifest["result_artifacts"][0]["relative_path"] = "../outside.csv"
+        else:
+            manifest["execution_streams"].append(deepcopy(manifest["result_artifacts"][0]))
+        manifest.pop("manifest_hash")
+        manifest["manifest_hash"] = stable_hash(manifest)
+        path = Path(manifest["manifest_path"])
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        checkpoint = runtime["selected_artifacts"]["source_replication"]
+        ref = checkpoint["source_replication_manifest_ref"]
+        ref.update(sha256=hashlib.sha256(path.read_bytes()).hexdigest(), byte_size=len(path.read_bytes()),
+                   manifest_hash=manifest["manifest_hash"])
+        body = {key: value for key, value in checkpoint.items() if key != "checkpoint_id"}
+        checkpoint["checkpoint_id"] = "source_replication_checkpoint:" + stable_hash(body)[:20]
+    with pytest.raises(ValueError):
+        outcomes.publication_material_from_submission(runtime, source_kind="runtime")
+
+
+@pytest.mark.parametrize("kind", ["runtime", "control"])
+@pytest.mark.parametrize("profile", ["scientific_wasm", "scientific_native_python"])
+@pytest.mark.parametrize("expected", [2, 3])
+def test_selected_source_bytes_reach_the_real_common_artifact_harness(tmp_path, monkeypatch, kind, profile, expected):
+    if profile == "scientific_wasm":
+        require_runtime("python")
+    elif not os.environ.get("AI_STATISTICIAN_NATIVE_PYTHON_CONFIG"):
+        pytest.skip("pinned native Python config is not supplied")
+    runtime, control, _, _ = source_file_projection_fixture(tmp_path)
+    material = outcomes.publication_material_from_submission(
+        runtime if kind == "runtime" else control, source_kind=kind,
+        **({"control_estimator_scopes": {}} if kind == "control" else {}))
+    question = OpenResearchQuestion("opaque", "Opaque file transport", "Not a scientific assessment.",
+                                   task_intent=runtime["task_intent"])
+    public = research_question_payload(question, include_task_intent=True)
+    harness = tmp_path / "opaque-file-evaluator.py"
+    harness.write_text("import base64, csv, io\n"
+        "def evaluate_artifact(candidate, seed, replicates):\n"
+        "    files = candidate['files']\n"
+        "    text = base64.b64decode(files['results/opaque.csv']['base64']).decode('utf-8')\n"
+        "    row = next(csv.DictReader(io.StringIO(text)))\n"
+        "    return {'measurement': int(row['value']),\n"
+        "        'binary': base64.b64decode(files['results/opaque.bin']['base64']) == bytes([255,0,2,128]),\n"
+        "        'full_stream': len(base64.b64decode(files['runtime_streams/source_stdout.txt']['base64'])) > 100000,\n"
+        "        'missing_kept': candidate['missing_files'] == ['results/missing.rds', 'runtime_streams/source_stdout.txt']}\n",
+        encoding="utf-8")
+    task = {"task_id": question.id, "task_intent": deepcopy(question.task_intent),
+            "visible_question_hash": stable_hash(_visible_question_hash_payload(public)),
+            "hidden_source_replication_evaluator": {"language": "python", "harness_path": str(harness),
+                "harness_sha256": hashlib.sha256(harness.read_bytes()).hexdigest(), "dependencies": [],
+                "seed": 17, "replicates": 1, "timeout_seconds": 30, "execution_profile": profile,
+                "acceptance_checks": [{"check_id": "opaque-" + key, "path": [key], "operator": "eq", "expected": value}
+                                      for key, value in (("measurement", expected), ("binary", True),
+                                                         ("full_stream", True), ("missing_kept", True))]}}
+    original = deepcopy(material)
+    calls = scripted_semantics(monkeypatch)
+    result = outcomes.evaluate_final_research_artifacts(
+        question=question, task=task,
+        submission_identity={"question_id": question.id, "question_hash": stable_hash(public),
+                             "task_intent": deepcopy(question.task_intent)},
+        project_root=tmp_path, out_dir=tmp_path / "common-outcome", **material)
+    row = result["dimension_status"]["source_replication"]
+    assert row["execution"]["execution_passed"] is True
+    assert row["status"] == ("passed" if expected == 2 else "failed")
+    assert result["task_passed"] is (expected == 2)
+    assert material == original and not calls
+    assert result["evaluation_role"] == "external_publication_outcome_not_product_acceptance_or_proof"
