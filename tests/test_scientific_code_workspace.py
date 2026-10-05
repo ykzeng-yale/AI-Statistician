@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -1211,6 +1212,67 @@ def test_scientific_source_discovery_survives_same_owner_checkpoint(tmp_path) ->
     assert "source:published-implementation" in str(second_backend.requests[0].messages)
     assert "published_method" not in str(result.evidence["history"])
     assert "research source text omitted" in str(result.evidence["history"])
+
+
+@pytest.mark.parametrize("early_commit", [False, True])
+@pytest.mark.parametrize("action_budget", [2, 3])
+def test_scientific_owner_dispatches_batched_calls_serially_before_observed_commit(early_commit, action_budget) -> None:
+    draft = {
+        "language": "python", "execution_profile": "stdlib", "dependencies": [],
+        "entrypoint": "run_sandbox", "code": "def run_sandbox(seed, replicates):\n    return {}\n",
+    }
+    calls = [
+        ClientToolCall(call_id="submit", name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL, input=draft),
+        ClientToolCall(call_id="read", name=SCIENTIFIC_SOURCE_READ_TOOL,
+                       input={"line_start": 1, "line_end": 2}),
+        ClientToolCall(call_id="run", name=SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
+                       input={"reason": "Observe exact opaque source."}),
+    ]
+    if early_commit:
+        calls.append(ClientToolCall(call_id="early-commit", name=SCIENTIFIC_SOURCE_COMMIT_TOOL, input={}))
+    backend = ScriptedScientificBackend([
+        replace(response, provider="scripted_local_fixture", model="Qwen3-4B-Instruct-2507")
+        for response in (_response(*calls), _commit_response())
+    ])
+    backend.provider_name = "scripted_local_fixture"
+    checked = []
+
+    def check(candidate):
+        checked.append(dict(candidate))
+        return {"code_draft_hash": stable_hash(dict(candidate)), "accepted": True,
+                "stdout": "opaque execution observation", "stderr": ""}
+
+    options = dict(
+        system_prompt="Use the provided source tools.",
+        user_prompt="Own the current opaque file and inspect execution before committing.",
+        model="Qwen3-4B-Instruct-2507", model_tier="local", temperature=0.0,
+        max_tokens=1200, max_turns=action_budget, max_no_progress_turns=2,
+        artifact_id="opaque:batched-source", initial_code_draft={},
+        initial_check_result={}, check_candidate=check, workspace_operation="initial_authoring",
+    )
+    if action_budget == 2:
+        with pytest.raises(PacketValidationError, match="turn budget exhausted"):
+            _run_source_workspace(provider=backend, **options)
+        assert checked == []
+        assert "workspace_action_budget_exhausted" in str(backend.requests[1].messages[-1])
+        if early_commit:
+            assert "accepted hash-bound" in str(backend.requests[1].messages[-1])
+        return
+    result = _run_source_workspace(provider=backend, **options)
+    assert checked == [draft] and dict(result.code_draft) == draft
+    assert len(backend.requests) == result.evidence["turns"] == 2
+    assert all(request.disable_parallel_tool_use for request in backend.requests)
+    assert result.evidence["runtime_executed_tool_calls"] == 4 + int(early_commit)
+    assert [row["name"] for row in result.evidence["history"][0]["tool_calls"]] == [call.name for call in calls]
+    returned = backend.requests[1].messages[-1]["content"]
+    assert [row["tool_use_id"] for row in returned] == [call.call_id for call in calls]
+    assert draft["code"] in json.loads(returned[1]["content"])["content"]
+    assert "opaque execution observation" in returned[2]["content"]
+    if early_commit:
+        assert returned[-1]["is_error"]
+        assert "subsequent model turn" in returned[-1]["content"]
+    assert result.evidence["model_commit_after_observation"] is True
+    assert result.evidence["runtime_edited_source"] is False
 
 
 def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> None:

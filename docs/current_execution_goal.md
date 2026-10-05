@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-10-04. The native chat goal remains active.
+Updated: 2026-10-05. The native chat goal remains active.
 
 ## Outcome
 
@@ -122,6 +122,11 @@ source files with fixed versions/hashes and offline observation reuse. Two real
 source archives are byte-verified; bounded edition differences prohibit silently
 replacing the journal inputs. No new scheduler, content repair or scientific
 result is introduced. Full-paper input and comparative conditions still need qualification.
+The [actual batching/action review](../benchmarks/publication_case_candidates/published_methods/assessment_protocol.md#actual-batching-and-action-allowances-2026-10-05)
+also corrects an experimental premise: disable-parallel is a request hint, not a
+single-call rule. The shared loop executes returned batches serially; ordinary
+action allowances differ across prepared workspaces. Freeze actual opportunities
+and resources, not parity inferred from flags or model-call counts.
 Next resolve these declared access/authority differences and long-session scope,
 qualify numerical interpretation/endpoints, independent assessment and the freeze.
 Do not open another reference panel, repeat

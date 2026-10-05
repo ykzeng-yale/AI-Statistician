@@ -1,6 +1,6 @@
 # AI-Statistician: Scoped Collaboration for Statistical Research Through a Single Model API
 
-Working methods draft, 2026-10-04. Not submission-ready. Authors and affiliations
+Working methods draft, 2026-10-05. Not submission-ready. Authors and affiliations
 are not yet supplied. Official comparative experiments have not been activated;
 this draft makes no claim that collaboration improves scientific correctness.
 
@@ -216,9 +216,13 @@ The unactivated case candidate now aligns required-tool turns across the shared
 session and retained specialist workspaces. This controls an avoidable request
 policy difference, not the research sequence. Integrated production first requests
 a structured Architect plan; the shared session can plan through its ordinary
-tools. Shared turns permit batching, while scientific-source specialists use
-single-call turns. These transport and opportunity differences remain part of
-the declared product bundle, not an isolated test of role separation.
+tools. Scientific-source requests carry a disable-parallel hint; the shared
+session does not. This is not an enforced single-call restriction: the common
+dispatcher executes returned tool batches sequentially. Effective batching must
+be observed under the frozen provider, not inferred from the flag. Execution
+feedback must precede the source owner's commit in a subsequent model turn.
+Remaining transport/opportunity differences are part of the declared product
+bundle, not an isolated test of role separation.
 
 Evaluator-owned cohort and transition metadata have a separate model-visible
 projection, used by the Architect, code reviewer and Theory feedback files.

@@ -200,6 +200,47 @@ theory result. Do not repair individual equations by operator transcription,
 inject known answers, or convert this finding into task-specific harness rules.
 Q06/A01 remain open.
 
+### Actual Batching and Action Allowances (2026-10-05)
+
+The source and experiment drafts previously called scientific-source turns
+single-call, unlike the shared controls. That is not the runtime contract.
+`client_tool_loop.py` iterates returned calls sequentially; the source workspace's
+disable-parallel request flag is a provider hint, not a one-call validator.
+Record actual returned batches and execution order under the frozen provider.
+The earlier local long-input observation already returned batches despite that
+flag, but used a different tool-choice condition; it is not rerun or relabelled.
+
+Four deterministic source-owner cases now exercise submission, exact source read
+and execution in one returned batch, with and without a premature commit.
+The same shared loop runs three admitted ordinary actions in order, returns their
+exact observations, and accepts a commit only on the following model turn.
+With only two ordinary actions admitted, execution is not called and no commit
+succeeds. The checks use scripted responses and an opaque checking callback,
+not real Qwen inference, numerical assessment or an author-study execution.
+No product source, request policy, scheduler or scientific task is changed.
+
+The prepared shared control allows `2 * call_limit` ordinary actions for its
+retained session. Scientific-source workspaces derive their ordinary action cap
+from `max_turns` per workspace; prepared Theory and reviewer allowances are
+`2 * call_limit`. Terminal tools do not consume this ordinary allowance.
+Re-entry/workspace boundaries and the global model meter are separate conditions.
+These declarations do not establish equal cumulative tools, computation or
+revision opportunities. Qualify them before freeze rather than blame a stopping
+cause on model reasoning or infer parity from a shared request ceiling.
+Q06 stays open; this corrects the comparison's premise, not its efficacy result.
+
+Final focused verification passed 293 tests in 28.667 seconds, covering the
+scientific workspace, shared loop, candidate preparation, native draw, shared
+control and core boundary tests. JUnit is
+`runs/publication_batching_qualification_20261005/focused_final.xml`, SHA-256
+`8cc881c0c9b02fe124f791448e228d01e55f108f3b41cd117e50e42102295e1a`.
+The scientific-workspace test file SHA-256 is
+`568fb4cff5cfd087c198c56ab33bd736b63f40c6cb92cd08cf5bc39657170550`.
+This is a focused mechanism regression, not a new full-suite result. The prior
+full regression at `3da2cb45` retains its separately recorded scope; product
+code is unchanged here. No real model inference, author-study script or consumed
+evaluation ran.
+
 ## Common Scientific Obligations
 
 Review the selected Markdown/LaTeX mathematics and its associated source/report.
