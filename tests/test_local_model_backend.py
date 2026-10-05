@@ -190,11 +190,11 @@ def test_unsupported_history_is_not_silently_dropped():
         _chat_messages(request)
 
 
-def _mock_local_completion(monkeypatch, *, usage=None, tool_calls=None, error=False):
+def _mock_local_completion(monkeypatch, *, usage=None, tool_calls=None, error=False, finish_reason="stop"):
     requests = []
     raw = {"model": "Qwen3-4B-Instruct-2507", "choices": [{
         "message": {"content": "transport fixture", "tool_calls": tool_calls or []},
-        "finish_reason": "stop",
+        "finish_reason": finish_reason,
     }], "timings": {"prompt_n": 10, "cache_n": 20, "prompt_ms": 12.5,
                      "predicted_ms": 8.0, "not_a_timing": "omitted"}}
     if usage is not None:
@@ -210,6 +210,35 @@ def _mock_local_completion(monkeypatch, *, usage=None, tool_calls=None, error=Fa
 
     monkeypatch.setattr("urllib.request.build_opener", lambda *args: Opener())
     return requests
+
+
+@pytest.mark.parametrize("finish_reason", ["length", "stop", "tool_calls", "content_filter", "unknown"])
+def test_local_transport_preserves_raw_finish_and_normalizes_output_limit(monkeypatch, finish_reason):
+    _mock_local_completion(monkeypatch, finish_reason=finish_reason)
+    response = LocalChatGeneratorBackend().generate_client_tool_turn(_request())
+    assert response.raw["choices"][0]["finish_reason"] == finish_reason
+    assert response.metadata["finish_reason"] == finish_reason
+    assert response.metadata["provider_stop_reason"] == ("max_tokens" if finish_reason == "length" else finish_reason)
+
+
+@pytest.mark.parametrize("with_call", [False, True])
+def test_local_output_limit_reaches_shared_loop_without_executing_truncated_turn(monkeypatch, with_call):
+    calls = [{"id": "opaque", "function": {"name": "observe", "arguments": "{}"}}] if with_call else []
+    requests = _mock_local_completion(monkeypatch, tool_calls=calls, finish_reason="length")
+    executed = []
+    with pytest.raises(ClientToolLoopError) as stopped:
+        run_bounded_client_tool_loop(backend=LocalChatGeneratorBackend(), request=_request(),
+            execute_tool=lambda call, context: executed.append(call),
+            max_turns=1, max_tool_calls=1, max_no_progress_turns=1)
+    assert len(requests) == 1
+    assert executed == []
+    row = stopped.value.history[0]
+    assert row["stop_reason"] == "max_tokens" and row["provider_output_truncated"] is True
+    if with_call:
+        assert row["tool_calls"][0]["executed_by_runtime"] is False
+        assert "provider_tool_input_truncated" in row["tool_calls"][0]["result_excerpt"]
+    else:
+        assert "ended at max_tokens" in stopped.value.reason
 
 
 @pytest.mark.parametrize("limit", [None, 4, 3])

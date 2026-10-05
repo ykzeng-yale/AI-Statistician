@@ -222,7 +222,14 @@ No product source, request policy, scheduler or scientific task is changed.
 The prepared shared control allows `2 * call_limit` ordinary actions for its
 retained session. Scientific-source workspaces derive their ordinary action cap
 from `max_turns` per workspace; prepared Theory and reviewer allowances are
-`2 * call_limit`. Terminal tools do not consume this ordinary allowance.
+`2 * call_limit`. Workspace terminal tools do not consume this ordinary allowance.
+In a shared conversation, component checkpoints are explicitly nonterminal and
+do consume it; only the shared final action is exempt. Two further opaque cases
+verify the distinction: submission and execution use two ordinary actions in
+both contexts, but the same component checkpoint is admitted at cap two for the
+isolated owner and denied at cap two for the shared conversation. Cap three
+admits the shared checkpoint. No executed callback or stored source is changed,
+and the shared final action remains available without manufacturing acceptance.
 Re-entry/workspace boundaries and the global model meter are separate conditions.
 These declarations do not establish equal cumulative tools, computation or
 revision opportunities. Qualify them before freeze rather than blame a stopping
@@ -240,6 +247,78 @@ This is a focused mechanism regression, not a new full-suite result. The prior
 full regression at `3da2cb45` retains its separately recorded scope; product
 code is unchanged here. No real model inference, author-study script or consumed
 evaluation ran.
+
+### First Actual Source-Owner Observation (2026-10-05)
+
+One new engineering session used the production source-owner tools, existing
+local backend and global graph request meter at `99937afd`. It did not repeat
+the earlier artificial-page task, execute an author study or supply a statistical
+question. The retained Qwen weights, server/libraries, template, 131072 context
+and declared decoding were hash/active-setting checked before requests. The
+session used required tools, a disable-parallel hint, 16384 output tokens,
+temperature 0.7, 900-second request timeout, 256 local turns/actions and a
+separate 12-request global cap. These are engineering conditions, not a frozen
+scientific resource envelope or full-arm qualification.
+
+The observer was incorrectly assembled: it loaded the pinned native Python
+executor into its checking callback but did not bind that runtime to the
+production tool schema. The actual initial source tool offered only `stdlib`
+and `scientific_wasm`, contrary to the observer's native-Python instruction.
+There was one observed Pyodide script execution, no native checking-callback
+execution and no selected source. Seven model requests completed; the last
+returned `finish_reason=length`, 16384 output tokens and no native call.
+The raw record's unnormalized loop reason remains unchanged. This invalidates
+the observation as native-workspace qualification; it is not evidence that the
+intended native contract, mathematical reasoning or scientific capacity failed.
+No partial text/source is salvaged, repaired, resumed, regraded or rerun.
+
+The first command lacked the package import root and stopped before output
+creation or a model call. The corrected invocation made one owned startup and
+one model session. Its measured elapsed time was 620.698 seconds; the final
+request's measured 596.601 seconds differs from the server-reported 6831.319
+generation seconds. Preserve both; do not use the latter as measured wall time
+or claim calibrated throughput. The owned server exited zero and port 8081 had
+no listener afterward. Credentials and original scientific inputs were unused.
+
+Local retained identities (SHA-256):
+
+| Artifact | Path | SHA-256 |
+| --- | --- | --- |
+| Prospective engineering plan | `runs/source_owner_native_20261005_plan.json` | `562b5a13424ea19fe2daa5065af7628951e30df26454a7cbd1b9a0ad94e487c8` |
+| Observer | `runs/observe_source_owner_native_20261005.py` | `09c16e81f3e84c5161fbe7f97d876b7af87625e822bddc8706f3162ec3144da1` |
+| Pre-call freeze | `runs/source_owner_native_20261005/frozen.json` | `11a4e44d0a49666a553fcee407c487eca4f50d48989884ee57433e6281807201` |
+| Initial actual tool request | `runs/source_owner_native_20261005/initial_request.json` | `940a12bb2ef463aa53fd0d55c6e74bef559a4c6b7718bc6e76e63e566e1728e0` |
+| Unchanged first observation | `runs/source_owner_native_20261005/observation.json` | `da62738deb1c7e6323d4626d75a74ff8567edd4f2948cc587d5b296d8278c494` |
+
+The observation did reveal a separately verifiable transport defect: the local
+backend copied `length` into the shared stop field, whereas the retained loop
+expects `max_tokens` for truncated output. The
+[Chat Completions response contract](https://developers.openai.com/api/reference/resources/chat)
+defines `length` as reaching the requested token ceiling. The adapter now maps
+only that standard state to the shared name, preserving the raw response and
+`finish_reason`. It adds no source edit, model/content rule, framework or retry.
+Five enum cases and two loop cases verify raw preservation and nonexecution of
+truncated turns, with or without a returned call. Unknown states remain unchanged.
+Do not reinterpret or rescore this or any prior observation under the new code.
+Feedback serialization is unchanged; this confounded session establishes no
+causal claim about its format. Actual arm/native contracts and authority remain
+unqualified; Q05/Q06/Q07 are not closed.
+
+Verification for this adapter change: 296 focused tests passed, two skipped in
+18.93 seconds. The final default full suite passed 2319 tests, skipped 74 and
+retained the existing `test_native_detached_process_lifetime` xfail in 780.99
+seconds. JUnit counts the xfail among its 75 skipped entries; this is not 75
+ordinary skips. Compileall and diff checks pass. Source inputs, all question
+editions, prepared study configurations, consumed records and Lean pins are
+unchanged. Neither tests nor the invalid engineering observation activate a study.
+
+| Verification identity | SHA-256 |
+| --- | --- |
+| `runs/source_owner_native_20261005/focused_final.xml` | `1ac145a41210303ccd11cc9ae06148ee83ed66d84e5d038a1f86278bb6c7184f` |
+| `runs/source_owner_native_20261005/full_suite.xml` | `382865a0bfacd39b038b18588354f3f67bdb90197dfec4606b2400d811c50136` |
+| `ai_statistician/local_model_backend.py` | `fe2527dd8a9086d63f688a05911c8ab70fb49622d677556518d272b938205fe1` |
+| `tests/test_local_model_backend.py` | `6b0da0d6799fe4877f2c65df7a6f21783b349e6386cd5eed36e76c100420f7c2` |
+| `tests/test_prepared_workspaces.py` | `de50391f9236d421523e5aef93a5ec89be51dd79e2f559ee088b5450630969fe` |
 
 ## Common Scientific Obligations
 

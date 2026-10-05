@@ -293,6 +293,34 @@ def test_shared_binding_exposes_all_actual_actions_without_role_drivers(tmp_path
     assert workspace.request.metadata["independent_role_review"] is False
 
 
+@pytest.mark.parametrize("action_budget", [2, 3])
+def test_shared_component_checkpoint_spends_an_ordinary_action_unlike_owner_terminal(tmp_path, monkeypatch, action_budget):
+    monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
+    prepare, options, calls, owner_checks = _case("python", tmp_path / "owner")
+    owner = replace(prepare(**options), max_tool_calls=action_budget)
+    selected = run_client_tool_workspace(backend=ScriptedLocalBackend(calls), workspace=owner)
+    assert selected.evidence["accepted"] is True
+    assert len(owner_checks) == 1
+    assert selected.evidence["runtime_executed_tool_calls"] == 3
+
+    shared, _, checkpoints, shared_checks = _shared_case(
+        tmp_path / "shared", monkeypatch, max_turns=4, max_tool_calls=action_budget,
+    )
+    backend = ScriptedLocalBackend([
+        *[replace(call, name="python__" + call.name) for call in calls],
+        ClientToolCall("finish", "finish_control", {"report": "Opaque observations, not science."}),
+    ])
+    loop = run_client_tool_workspace(backend=backend, workspace=shared)
+    assert len(shared_checks["python"]) == 1
+    assert len(checkpoints) == int(action_budget == 3)
+    assert loop.history[2]["tool_calls"][0]["executed_by_runtime"] is (action_budget == 3)
+    assert backend.requests[-1].metadata["client_tool_loop_ordinary_calls_before"] == action_budget
+    assert loop.terminal_payload == {"report": "Opaque observations, not science."}
+    assert loop.history[-1]["tool_calls"][0]["executed_by_runtime"] is True
+    if action_budget == 2:
+        assert "workspace_action_budget_exhausted" in loop.history[2]["tool_calls"][0]["result_excerpt"]
+
+
 def test_shared_session_keeps_raw_feedback_and_component_checkpoints_without_promotion(tmp_path, monkeypatch):
     workspace, owners, checkpoints, checks = _shared_case(tmp_path, monkeypatch)
     python_calls = _case("python", tmp_path / "unused-python")[2]

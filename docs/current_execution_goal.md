@@ -127,6 +127,13 @@ also corrects an experimental premise: disable-parallel is a request hint, not a
 single-call rule. The shared loop executes returned batches serially; ordinary
 action allowances differ across prepared workspaces. Freeze actual opportunities
 and resources, not parity inferred from flags or model-call counts.
+Shared component checkpoints spend ordinary actions; isolated workspace terminal
+actions do not. The first real source-owner observation was incorrectly assembled
+with a native callback but no native option in the actual tool schema. It is
+preserved, not a native-capacity result or a reason to rerun the failed condition.
+A separately verified standard stop-state adapter fix preserves raw `length`
+while exposing `max_tokens` to the existing loop; no research content or retry
+mechanism is added. No scientific checklist item closes from these checks.
 Next resolve these declared access/authority differences and long-session scope,
 qualify numerical interpretation/endpoints, independent assessment and the freeze.
 Do not open another reference panel, repeat

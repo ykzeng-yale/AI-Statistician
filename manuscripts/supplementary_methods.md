@@ -1,6 +1,6 @@
 # Supplementary Methods for the Two AI-Statistician Studies
 
-Methods draft, 2026-10-04. Shared by Paper H and Paper S, with overlap disclosed.
+Methods draft, 2026-10-05. Shared by Paper H and Paper S, with overlap disclosed.
 No official study is activated and no result is supplied here. The calculations
 below are standard evaluation and Monte Carlo methods, not new statistical
 theory or proof of an agent's scientific argument. Independent review and a
@@ -27,6 +27,12 @@ Different hosts, model weights, quantizations or resource conditions define
 different comparisons unless a prospective aggregation target is declared.
 Human-effort effects require a separate researcher study. Historical Haiku and
 consumed Qwen development draws are not official efficacy observations.
+
+The graph-scoped model-call meter does not equate tool or revision opportunities.
+Shared component checkpoints spend ordinary actions; isolated workspace terminal
+actions do not. Local action/no-progress allowances also have workspace scope.
+Freeze and disclose these actual boundaries and measured computation rather than
+attribute a bundle contrast to context separation or feedback alone.
 
 Final assessment uses the selected artifacts at termination, not an intermediate
 candidate, internal acceptance flag or attractive trace. The outcome records

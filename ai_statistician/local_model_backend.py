@@ -143,7 +143,7 @@ class LocalChatGeneratorBackend:
             if raw.get("model") != payload["model"]:
                 raise ValueError(f"local server model identity mismatch: requested {payload['model']!r}, reported {raw.get('model')!r}")
             metadata["finish_reason"] = raw["choices"][0].get("finish_reason", "")
-            metadata["provider_stop_reason"] = metadata["finish_reason"]
+            metadata["provider_stop_reason"] = "max_tokens" if metadata["finish_reason"] == "length" else metadata["finish_reason"]
         return raw, metadata
 
     def generate(self, request: GeneratorRequest) -> GeneratorResponse:

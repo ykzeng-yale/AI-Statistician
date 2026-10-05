@@ -224,6 +224,14 @@ feedback must precede the source owner's commit in a subsequent model turn.
 Remaining transport/opportunity differences are part of the declared product
 bundle, not an isolated test of role separation.
 
+Tool accounting also differs: a component checkpoint does not terminate the
+shared conversation and consumes its ordinary-action allowance, whereas an
+isolated workspace's terminal action is exempt. Local action and no-progress
+allowances have workspace scope; the model-call meter has graph scope. The
+comparison must disclose these boundaries and actual tool/compute use. It does
+not identify a role-separation effect at equal revision opportunities merely
+because all arms have the same model-call ceiling.
+
 Evaluator-owned cohort and transition metadata have a separate model-visible
 projection, used by the Architect, code reviewer and Theory feedback files.
 The same projection is applied to scientific-owner context and observation views.
