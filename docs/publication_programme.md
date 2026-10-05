@@ -331,6 +331,10 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   short synthetic tool turn. Its explicit API limitation, untested long-session
   behavior and still-unfrozen study conditions keep Q07 open; it is not an official
   scientific draw and does not change consumed records.
+  The [pinned sampling-source inspection](publication_experiments.md#model-randomness-and-the-prospective-schedule)
+  identifies repeated per-request use of a fixed startup seed, not a continuous
+  random stream. The proposed per-draw seed/pairing procedure still needs an exact
+  schedule and observed effective conditions; it does not close Q07 or independence.
 
 #### Roster Qualification Evidence
 

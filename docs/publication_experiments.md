@@ -758,6 +758,53 @@ are unsupported, use a separately justified prospective analysis or descriptive
 outcomes without a calibrated interval. Counts, weights and uncertainty remain
 unfrozen; the appendix is not an activated protocol.
 
+#### Model Randomness and the Prospective Schedule
+
+The 2026-10-05 source inspection resolves one concrete scheduling question at
+the deployment's reported upstream revision
+`4fea119de30f6a923992780f6fd5ccb0bee5d47d`.
+The existing client omits `seed` in both structured and tool requests.
+Upstream [request parsing](https://github.com/ggml-org/llama.cpp/blob/4fea119de30f6a923992780f6fd5ccb0bee5d47d/tools/server/server-schema.cpp#L519)
+copies the server's sampling defaults and permits request overrides. Each
+[sampling task](https://github.com/ggml-org/llama.cpp/blob/4fea119de30f6a923992780f6fd5ccb0bee5d47d/tools/server/server-context.cpp#L1780)
+initializes its sampler; the ordinary distribution sampler
+[initializes and resets its generator](https://github.com/ggml-org/llama.cpp/blob/4fea119de30f6a923992780f6fd5ccb0bee5d47d/src/llama-sampler.cpp#L1225)
+from that seed. A fixed startup seed therefore specifies a repeated per-request
+initialization, not one advancing random stream across all role calls.
+Temperature above zero alone does not create independently seeded agent draws.
+The random sentinel instead selects entropy or clock-derived seeds; it is not
+an exact logged seed schedule merely because its value appears in `/props`.
+
+The local binary still reports that revision; the server and server/common/core
+library hashes match the retained deployment plan. This establishes the source
+semantics under the reported pin, not a reproducible-build attestation, observed
+sampler state, bit-identical generation or qualified cross-draw independence.
+No service was started and no model or author-study call was made for this check.
+It changes neither the interpretation nor the bytes of consumed evaluations.
+
+For the prospective S schedule, use the existing startup seed option with one
+prespecified seed per draw, rather than add a client RNG controller. Freeze the
+seed-generation law, complete realized table and pairing before official calls.
+A declared paired block may reuse its seed across arms; separate blocks need
+their declared independent seed draws, with any collisions retained rather than
+outcome-dependent replacement. Keep a draw's seed fixed through its requests;
+record the resulting per-request reset semantics as part of the intervention.
+Use an owned, isolated service per draw and retain its launch, active defaults
+and actual request overrides. No unrelated request or replacement startup belongs
+in a consumed draw. Executor/data streams and product/private confirmation
+streams remain separately defined; none substitutes for model sampling identity.
+The exact schedule, count, permissions and service behavior are still unqualified.
+For H, verify the native host's actual request overrides before adopting this
+procedure; no equivalence to S follows from sharing an endpoint.
+
+The S3 expectation is over the declared randomization law, not conditional on the
+entire realized sampling-seed table. Preserve that table for reproduction, but
+do not claim repeated-run sampling uncertainty after conditioning away its
+randomness. Independent seed assignment alone also does not remove shared
+environment or assessor dependence. If the complete independence conditions
+cannot be justified, retain all scheduled descriptive outcomes without the
+conditional interval; do not invent a different post-result sampling law.
+
 [Supplement S4](../manuscripts/supplementary_methods.md#s4-inner-statistical-method-simulation)
 separately defines inner bias, valid-interval coverage, successful covering-interval
 delivery, failure denominators, paired-method comparison and MCSE. Its equations

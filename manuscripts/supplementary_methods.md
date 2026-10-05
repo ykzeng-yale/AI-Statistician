@@ -94,9 +94,14 @@ and $R_i\geq1$ scheduled paired draws in family $i$. Equal-family weighting uses
 $w_i=1/N$. If variants are included, their within-family aggregation is specified
 before outcomes. Denote the roster by $\mathcal B$ and the frozen task, model,
 access, execution, adjudication and scheduling conditions by $\mathcal F$.
+Here $\mathcal F$ fixes the randomization law, not every realized random seed or
+generated trajectory. Otherwise conditioning on a deterministic seed table and
+deterministic execution can remove the repeated-run randomness being estimated.
+The realized seeds are retained separately for reproduction. Any remaining
+environment or assessor randomness and dependence must be explicitly identified.
 
-For arm $a$, $Y_{ir}^a\in\{0,1\}$ denotes independent complete acceptance in
-family $i$, scheduled draw $r$, after the assessment is resolved under S2.
+For arm $a$, $Y_{ir}^a\in\{0,1\}$ denotes complete acceptance by independent
+assessment in family $i$, scheduled draw $r$, after resolution under S2.
 A missing final selection is not an accepted delivery. Environmental interruption,
 scientific rejection, incompletion and unresolved adjudication have distinct
 causes in the record. The endpoint is accepted delivered research, not an
@@ -195,11 +200,19 @@ permission to add draws after seeing outcomes. No official weights, counts or
 interval procedure are yet frozen. A different inferential method requires its
 own prospective assumptions, not a result-dependent replacement of this one.
 
-Fresh directories do not establish independent draws. Shared mutable memory,
-server RNG, deterministic decoding, hardware scheduling or rater behavior can
-induce dependence. The current client sends no per-request model seed; executor
-seeds therefore do not qualify paired model randomness. If cross-block
-independence is unsupported, do not use the bound. Qualify a different design or
+Fresh directories do not establish independent draws. Shared memory, server RNG,
+decoding, hardware scheduling or rater behavior can remove assumed randomness
+or induce dependence. The current client sends no per-request model seed; executor
+seeds therefore do not qualify paired model randomness. At the deployment's
+reported upstream pin, sampling defaults are copied into each request and a
+sampler is initialized from the resulting seed for each sampling task. A fixed
+startup seed is thus reused per request, not an advancing cross-request stream;
+positive temperature does not resolve the repeatability/independence distinction.
+The [source inspection and prospective schedule](../docs/publication_experiments.md#model-randomness-and-the-prospective-schedule)
+declare the proposed per-draw startup seeds, pairing and separate data streams.
+They establish neither observed sampler state nor cross-block independence.
+If cross-block independence is unsupported, do not use the bound. Qualify a
+different design or
 report descriptive outcomes without a calibrated interval. A purposive roster is
 not a probability sample, and family resampling does not create generalization
 to unseen statistical research.

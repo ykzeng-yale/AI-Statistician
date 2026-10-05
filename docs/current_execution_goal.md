@@ -168,6 +168,11 @@ package/version probes or build a new execution framework.
   template, decoding, hardware, schedule and randomness. A short deployment probe
   is not long-session qualification. Do not repeat the completed setup check or
   resume consumed research runs.
+  The [pinned sampling-source inspection](publication_experiments.md#model-randomness-and-the-prospective-schedule)
+  identifies fixed startup seeds reused per request, not an advancing role-call
+  stream. Freeze the proposed per-draw startup seeds and pairing through the
+  existing launcher; qualify actual host overrides separately. Executor seeds
+  do not provide this randomness, and source inspection alone proves no independence.
   The separate [first long-input observation](../benchmarks/publication_deployment_qualification_20261003/retained_session_results.json)
   processed 58134 input tokens but ended without the requested files. Its `auto`
   choice differs from the product's `any`/`required`; actual batches were 8/16 calls
