@@ -33,28 +33,28 @@ contribution of this package. Morris, White and Crowther describe planning in
 terms of aims, data-generating mechanisms, estimands, methods and performance
 measures, with explicit Monte Carlo uncertainty. We use those distinctions in
 the package's operating guidance rather than impose a fixed number of simulation
-repetitions or a compulsory research sequence. [Morris et al.](https://pmc.ncbi.nlm.nih.gov/articles/PMC6492164/)
+repetitions or a compulsory research sequence. [Morris et al.](https://doi.org/10.1002/sim.8086)
 
 Research-agent evaluation also needs to separate producing a plausible artifact
 from reproducing the required result. PaperBench supplies a relevant replication
 evaluation precedent, but replicating machine-learning research does not itself
-establish the correctness of statistical derivations. [PaperBench](https://arxiv.org/abs/2504.01848)
+establish the correctness of statistical derivations. [PaperBench](https://arxiv.org/abs/2504.01848v1)
 Cost, holdout construction and reproducibility are part of the comparison,
-following the concerns identified by Kapoor and colleagues. [AI Agents That Matter](https://arxiv.org/abs/2407.01502)
+following the concerns identified by Kapoor and colleagues. [AI Agents That Matter](https://arxiv.org/abs/2407.01502v1)
 
 NORA already uses scientific skills, file-backed state and separate research
 evaluation in a domain-specific harness. PARNESS likewise studies research
 workflow infrastructure. These are close architectural precedents, not evidence
 that our statistical package improves a native host. Our comparison must therefore
 test statistical research value rather than present skills or persistent files
-as a new agent architecture. [NORA](https://arxiv.org/abs/2605.02092),
-[PARNESS](https://arxiv.org/abs/2605.05258)
+as a new agent architecture. [NORA](https://arxiv.org/abs/2605.02092v1),
+[PARNESS](https://arxiv.org/abs/2605.05258v1)
 
 FUSION is an especially close precedent for portable scientific skills and
 reference-driven code use, while LabAgent connects executable laboratory skills
 to reproduction experience. Our package does not claim to invent either route
-or adopt their task-specific execution recipes. [FUSION](https://arxiv.org/abs/2609.04742),
-[LabAgent](https://arxiv.org/abs/2609.13437)
+or adopt their task-specific execution recipes. [FUSION](https://arxiv.org/abs/2609.04742v1),
+[LabAgent](https://arxiv.org/abs/2609.13437v1)
 
 The proposed contribution is a statistical operating package and an evaluation
 of its incremental value within a fixed coding host. Native skills, file-backed
@@ -116,7 +116,7 @@ premises, not proof evidence. Accessible imports, current compilation, target
 identity, allowed axioms and correspondence to the informal claim are separate
 checks. LeanDojo provides relevant prior work on accessible premises and verified
 proof feedback; neither retrieval nor a kernel proof of a different statement
-establishes source fidelity. [LeanDojo](https://arxiv.org/abs/2306.15626)
+establishes source fidelity. [LeanDojo](https://arxiv.org/abs/2306.15626v2)
 
 The existing library is not claimed to formalize entire textbooks. Its source
 ledger contains author-maintained scope labels; these do not supply an independently
@@ -162,8 +162,10 @@ agent performance. The selected population and exclusions determine the scope
 of the eventual claim; a reproducible-source subset is not all statistical research.
 
 The current [qualification candidates](../benchmarks/publication_case_candidates/published_methods/README.md)
-are source-assisted integrated reconstructions of StepMix external-variable
-methods, ebnm prior-family comparison and bizicount joint count regression.
+are source-assisted integrated reconstructions of
+[StepMix](https://www.jstatsoft.org/article/view/v113i08) external-variable methods,
+[ebnm](https://www.jstatsoft.org/article/view/v114i03) prior-family comparison and
+[bizicount](https://www.jstatsoft.org/article/view/v109i01) joint count regression.
 Their papers, code and requested data are intended inputs; these are not hidden-
 proof or blind-rediscovery tasks. The software-article source channel and prior
 EM/normal-means development exposure limit interpretation. Numerical reference
@@ -216,7 +218,7 @@ gap report are different observations. Automated grading, if used for mathematic
 claims, must first be checked on independently adjudicated valid and invalid
 artifacts; it cannot acquire authority from agreement with the author model.
 PaperBench's separate JudgeEval is a relevant evaluation precedent, not a
-mathematical referee for this study. [PaperBench](https://arxiv.org/abs/2504.01848)
+mathematical referee for this study. [PaperBench](https://arxiv.org/abs/2504.01848v1)
 
 ### 3.3. Installation and Effort
 
@@ -303,7 +305,7 @@ scientifically meaningful departures, not just settings favorable to the proposa
 Monte Carlo uncertainty accompanies bias, error, coverage, power or other specified
 measures. Where justified, methods use the same generated datasets for paired
 comparison. Failure rates and performance conditional on valid outputs are
-reported separately. [Morris et al.](https://pmc.ncbi.nlm.nih.gov/articles/PMC6492164/)
+reported separately. [Morris et al.](https://doi.org/10.1002/sim.8086)
 
 Numerical reference checks qualify an implementation comparison within their
 scope. Diagnostic simulations may expose contradictions; finite numerical
@@ -351,7 +353,7 @@ interventions. A retrospective success vignette can illustrate behavior but cann
 estimate efficacy. Selection among ideas, runs or manuscripts must be disclosed.
 AI Scientist-v2 explicitly separates autonomous work within a run from human
 selection of ideas and completed manuscripts; its selected-paper result is not
-a population success rate. [AI Scientist-v2](https://arxiv.org/abs/2504.08066)
+a population success rate. [AI Scientist-v2](https://arxiv.org/abs/2504.08066v1)
 
 The main paper will contain the scientific interpretation and essential results;
 the supplement will contain the complete derivation, exact source, execution
@@ -468,3 +470,10 @@ record, not an activated preregistration. Permitted artifacts, exact versions,
 failures and adaptations will accompany the completed study. Private credentials,
 private model reasoning and source assets without redistribution rights will
 not be included in a public release.
+
+## References
+
+The [shared scholarly bibliography](references.bib) records the cited paper
+editions, including the fixed arXiv versions used for this draft's source review.
+Software and venue-guidance links above identify separate implementation and
+submission resources, not additional peer-reviewed scientific evidence.

@@ -1,6 +1,6 @@
 # Publication Programme
 
-Updated: 2026-10-04. Status: design and release work in progress; no new scientific
+Updated: 2026-10-05. Status: design and release work in progress; no new scientific
 benchmark result. The native chat goal is active and covers both publications.
 
 ## Execution Roadmap
@@ -555,6 +555,13 @@ names the required tables, figures and supplements without inventing their value
   acknowledgments, checked bibliography, artifact access/rights, venue-specific
   disclosure and overlap. Produce compiled, visually checked submission packages
   with no missing references, placeholders or unsupported numbers.
+  The [shared bibliography](../manuscripts/references.bib) now supplies 17
+  primary-verified scholarly records for all 31 citation occurrences in the current
+  masters/supplement. Links identify examined arXiv versions; Kim v2 uses its
+  December 2025 authors/year and VERITAS uses its April 2026 v1 title rather than
+  silently following later metadata. Standard BibTeX/Markdown parsing passes.
+  This completes current-draft bibliographic preparation only, not future result
+  citations, authorship, rights, scientific assessment or compiled submission QA.
 - [ ] **R05. Goal closure.** Verify both papers independently satisfy their
   stated contributions, reproducible comparisons and releases. Only then mark
   the native goal complete; do not infer readiness from this checklist count.

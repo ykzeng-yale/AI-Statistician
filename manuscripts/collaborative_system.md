@@ -28,9 +28,9 @@ research outcomes over one capable source-owning agent with comparable tools
 and resources. A reviewer can expose a missing assumption or estimator mismatch,
 but additional sessions also consume context, calls and time and can repeat a
 shared model error. Controlled agent-system work reports task-dependent benefits
-and costs rather than a universal advantage of additional agents. [Kim et al.](https://arxiv.org/abs/2512.08296)
+and costs rather than a universal advantage of additional agents. [Kim et al., v2](https://arxiv.org/abs/2512.08296v2)
 Evaluation therefore separates architectural effects from model choice and
-resource allocation, consistent with the concerns in [AI Agents That Matter](https://arxiv.org/abs/2407.01502).
+resource allocation, consistent with the concerns in [AI Agents That Matter](https://arxiv.org/abs/2407.01502v1).
 
 The neighboring literature measures different targets. PaperBench evaluates
 research replication and separately evaluates its grader. Fisher-R1 studies
@@ -38,15 +38,15 @@ executed hypothesis testing against reference p-values and decisions. Neither
 endpoint alone measures whether a research agent develops a complete, correct
 statistical argument. Our proposed comparison adds assessment of the argument,
 its exact implementation and empirical interpretation; that assessment has not
-yet been qualified or run. [PaperBench](https://arxiv.org/abs/2504.01848),
-[Fisher-R1](https://arxiv.org/abs/2608.07437)
+yet been qualified or run. [PaperBench](https://arxiv.org/abs/2504.01848v1),
+[Fisher-R1](https://arxiv.org/abs/2608.07437v1)
 
 VERITAS supplies a closer statistical-analysis comparison, including a
 phase-guided single-agent arm. Its local role configuration uses different
 checkpoints, so its reported effects do not isolate our same-model question.
 LabAgent separately studies laboratory reproduction and memory. Neither supplies
-our independent statistical-derivation outcome. [VERITAS](https://arxiv.org/abs/2604.12144),
-[LabAgent](https://arxiv.org/abs/2609.13437)
+our independent statistical-derivation outcome. [VERITAS](https://arxiv.org/abs/2604.12144v1),
+[LabAgent](https://arxiv.org/abs/2609.13437v1)
 
 The statistical task is defined by its inferential target and evidence needs.
 Identification, estimation, computation and inference are different obligations.
@@ -137,7 +137,7 @@ initialization does not itself establish data freshness; Section 4.1 records the
 qualification still needed. A result cannot repair its own acceptance criteria.
 The simulation design must specify the scientific aim,
 DGP, estimand, method, measure and Monte Carlo uncertainty rather than use a
-universal repetition count. [Morris et al.](https://pmc.ncbi.nlm.nih.gov/articles/PMC6492164/)
+universal repetition count. [Morris et al.](https://doi.org/10.1002/sim.8086)
 
 Internal acceptance is a product disposition under that task's evidence contract.
 It is not a common external correctness measure, especially when a comparison
@@ -158,7 +158,7 @@ Lean checks establish the encoded statement. Exact target identity, fresh
 compiled dependencies and an allowed-axiom audit are required for formal evidence;
 correspondence to the requested informal theorem also requires semantic scrutiny.
 LeanDojo's accessible-premise and verified-feedback design is relevant prior art,
-not evidence for this system's proving performance. [LeanDojo](https://arxiv.org/abs/2306.15626)
+not evidence for this system's proving performance. [LeanDojo](https://arxiv.org/abs/2306.15626v2)
 
 EmpericalProcessLEAN supplies the pinned Mathlib/Statlib foundation and downstream
 StatInference library. The active foundation remains Lean 4.30.0 until a separately
@@ -262,7 +262,7 @@ The primary endpoint is independently accepted full-task output for the frozen
 intent. Mathematical acceptance requires qualified authority and a hidden claim
 rubric. An executable reference can judge numerical reproduction but not a proof.
 PaperBench's replication evaluation motivates artifact-level assessment, while
-statistical derivations require additional mathematical scrutiny. [PaperBench](https://arxiv.org/abs/2504.01848)
+statistical derivations require additional mathematical scrutiny. [PaperBench](https://arxiv.org/abs/2504.01848v1)
 Optional formal outcomes remain separately reported.
 
 For the theoretical endpoint, a prospectively frozen authority supplies its
@@ -301,8 +301,10 @@ uncertainty, rather than rubric-item counts treated as independent samples, will
 support the comparison.
 
 The current [candidate task definitions](../benchmarks/publication_case_candidates/published_methods/README.md)
-cover StepMix external-variable methods, ebnm prior-family comparison and
-bizicount joint count regression. They require theoretical argument, scientific
+cover [StepMix](https://www.jstatsoft.org/article/view/v113i08) external-variable
+methods, [ebnm](https://www.jstatsoft.org/article/view/v114i03) prior-family comparison
+and [bizicount](https://www.jstatsoft.org/article/view/v109i01) joint count regression.
+They require theoretical argument, scientific
 source and empirical analysis together under declared paper/code access, not
 merely source execution. They are source-assisted reconstructions, not tests of
 unknown-theorem discovery. Existing EM/normal-means exposure and the common
@@ -399,7 +401,7 @@ measures, with justified finite-sample and assumption-departure settings. Outcom
 can include error, coverage, type-I error, power or other task-appropriate measures;
 these are not interchangeable. Monte Carlo uncertainty, invalid fits and failure
 handling accompany each measure. Common generated datasets can support paired
-method comparisons where appropriate. [Morris et al.](https://pmc.ncbi.nlm.nih.gov/articles/PMC6492164/)
+method comparisons where appropriate. [Morris et al.](https://doi.org/10.1002/sim.8086)
 
 These inner repetitions evaluate one statistical procedure under specified DGPs.
 They are not repetitions of the research agent and do not establish mathematical
@@ -451,7 +453,7 @@ All prespecified cases and interventions are reported, including failure to
 finish, source adaptations and any human selection of ideas or runs. AI Scientist-v2
 discloses such selection and its own code/manuscript discrepancies; autonomous
 activity within a selected run does not remove selection bias from a success-rate
-claim. [AI Scientist-v2](https://arxiv.org/abs/2504.08066)
+claim. [AI Scientist-v2](https://arxiv.org/abs/2504.08066v1)
 Complete case artifacts belong in the supplement, while scientifically essential
 results and limitations remain in the main paper.
 
@@ -565,3 +567,10 @@ The [publication programme](../docs/publication_programme.md) separates this pap
 from the portable intervention. Exact code, model/runtime/template, source,
 environment, task and authority pins must accompany future results; private
 credentials and model reasoning are not public trajectory artifacts.
+
+## References
+
+The [shared scholarly bibliography](references.bib) records the cited paper
+editions. Scaling-agent claims refer to the December 2025 v2, not the later v3;
+the VERITAS comparison refers to its April 2026 v1. Software and venue guidance
+remain separately identified resources rather than comparative study outcomes.

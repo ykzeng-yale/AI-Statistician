@@ -487,3 +487,11 @@ The full delivery checklist is maintained in the
 [publication programme](../docs/publication_programme.md#delivery-checklist).
 Results, full case arguments, task assessment records and release qualification
 are not yet available; writing this methods appendix does not complete them.
+
+## References
+
+The [shared scholarly bibliography](references.bib) supplies the journal editions
+for Hoeffding's inequality, the ADEMP simulation reference, TSCI and the three
+candidate software articles, together with the fixed agent-paper versions cited
+by the main texts. Bibliographic checks do not certify an argument, reference
+implementation, reproduction result or independent scientific assessment.
