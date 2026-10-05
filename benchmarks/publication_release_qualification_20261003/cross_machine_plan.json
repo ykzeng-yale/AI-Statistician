@@ -1,0 +1,67 @@
+{
+  "purpose": "Reconstruct the installed package and existing local Python/R probe on a second owned Mac, not a scientific study or researcher efficacy result.",
+  "source_commit": "50dcec2550d35d5b5032225e77c91308676c9dfe",
+  "source_members": [
+    "pyproject.toml",
+    "ai_statistician",
+    "package.json",
+    "package-lock.json",
+    "skills/statistical-research",
+    "benchmarks/publication_release_qualification_20261003/probe_installed_tools.py"
+  ],
+  "package_lock_sha256": "1665b50c81137dc5efa7cfbbf8de9a6a616f9090f2cdb23db3d54dd062f28d10",
+  "probe_sha256": "5dd76f03947917c1346ba6fd7be52ba7b26b3094d3bdf09d48876fb0c91065cd",
+  "host_condition": {
+    "platform": "macOS 15.3.1 arm64",
+    "cpu": "Apple M4",
+    "installed_ram_bytes": 17179869184,
+    "observation": "Verified owner SSH host key; 63 percent memory free, 217.31 MiB swap used and about 15 GiB disk free before admission. These are not idle-host or available-RAM guarantees."
+  },
+  "existing_toolchain": {
+    "python": "3.12.12",
+    "python_sha256": "322572c8d73b308856d23a07f26afe9d65b9159f8174575e14fb23503a7f734e",
+    "node": "v22.22.0",
+    "node_sha256": "913b144fdb40638b1acef7974ab3c33fbd527cc0974cb5da467ab1e6ac51b4d4",
+    "npm": "10.9.4",
+    "npm_entry_sha256": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+    "uv": "0.9.30 (ea4560831 2026-02-04)",
+    "uv_sha256": "45c1bb878d966e8e51d743d3d3e694745f4c2cccc8529ed4478bc9c3a1e25b39"
+  },
+  "python_dependencies": [
+    "attrs==26.1.0",
+    "jsonschema==4.26.0",
+    "jsonschema-specifications==2025.9.1",
+    "numpy==2.5.3",
+    "referencing==0.37.0",
+    "rpds-py==2026.6.3",
+    "typing_extensions==4.16.0"
+  ],
+  "execution": [
+    "Commit this plan and the reconstruction driver before archive transfer or installation.",
+    "Archive only the named tracked source members at source_commit. Transfer no credentials, old environment, caches, node_modules, results, textbook assets or Lean artifacts.",
+    "Use the existing observed Python/Node/uv binaries, a fresh venv/HOME and empty uv/npm caches. No new system toolchain, model server, VM, proxy or global setting.",
+    "Build a wheel without cloud/proof extras; install the wheel with the declared Python dependencies. Preserve resolved build dependency/log identities without claiming a fully locked build toolchain.",
+    "Run npm ci --omit=dev and the unchanged scientific preparation command, permitting only these required public dependency downloads.",
+    "Run installed CLI help/list/doctor and the unchanged synthetic two-file Python/R positive/raw-failure probe from an empty researcher directory.",
+    "Retain every stage command, environment, PID/start identity, raw output, exit/time and artifact hashes. Stop at the first failed stage; no alternative backend, package-version substitution or same-condition retry.",
+    "Copy records back and remove only the owned remote temporary tree after verified retrieval. Preserve the local raw record; never stop peer work."
+  ],
+  "resource_envelope": {
+    "total_timeout_seconds": 2400,
+    "ordinary_stage_timeout_seconds": 300,
+    "runtime_preparation_timeout_seconds": 900,
+    "owned_disk_post_stage_limit_bytes": 4294967296,
+    "node_old_space_megabytes": 1024,
+    "scientific_threads": 1,
+    "limits": "Wall-clock timeouts terminate only the owned process group. Disk is checked after stages, not continuously capped; Node old-space is not an RSS limit. Existing probe has its own 60-second execution timeouts."
+  },
+  "limits": [
+    "Fresh installation on another existing Mac is not a factory-reset machine, broad OS support or a full model-driven researcher workflow.",
+    "MacOS, Python and Node differ from the earlier same-machine check and remain separate conditions, not replicates of that installation.",
+    "No model inference, native-R/Lean validation, scientific result, official draw or publication readiness follows from the probe.",
+    "Root/third-party rights, researcher usability, independent mathematical assessment and comparative efficacy remain unresolved."
+  ],
+  "model_calls": 0,
+  "study_activated": false,
+  "consumed_evaluations_changed": false
+}
