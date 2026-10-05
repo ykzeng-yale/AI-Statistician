@@ -370,6 +370,12 @@ separately tests the standalone package in a fresh Python environment and new HO
 on the existing macOS host. CLI configuration and synthetic two-file Python/R
 execution, including raw failure observations, passed outside the source checkout.
 This check used no model and does not measure host uptake or scientific accuracy.
+A separate precommitted reconstruction built the fixed source on another existing
+Apple M4 Mac, using macOS 15.3.1, Python 3.12.12 and Node 22.22.0. A new HOME,
+venv and dependency caches supplied installed CLI and the unchanged Python/R
+probe; all ten stages passed and all 154 transferred source files stayed exact.
+This extends installation evidence to a second machine/version condition, not
+cross-host efficacy, a factory-reset machine or a full researcher workflow.
 Consumed Qwen development failures remain outside the main test pool. Historical
 Haiku records are development archives only, not publication baselines.
 
@@ -424,6 +430,14 @@ Source/wheel identities, resolved dependencies, fixture observations and retaine
 preparation/regression failures are in the linked record. This is same-machine
 installation/tool conformance, not a public release, model iteration, broad
 operating-system support or a successful statistical research workflow.
+
+The separate second-machine condition reused existing toolchain binaries but no
+old application environment, node runtime or dependency cache. The wheel, stage
+logs and package/runtime inventories are retained in the same qualification record.
+Its 31.83-second stage time excludes admission, transfer and retrieval and is not a
+researcher time-saving estimate. Build dependencies were not prospectively locked;
+the produced wheel reports setuptools 84.0.0. Both conditions remain distinct and
+macOS-only; no model, native-R or Lean execution is established by these probes.
 
 The release record will supply the exact package and host versions, installation
 and activation instructions, relative-reference checks, allowed tools, model

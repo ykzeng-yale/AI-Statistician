@@ -120,6 +120,13 @@ permission is a frozen execution condition, not model-owned escalation. Two-work
 FORK/PSOCK conformance does not establish parallel research-agent execution or a
 scientific speed advantage.
 
+Separately, a precommitted package reconstruction on another existing macOS
+15.3.1 M4 machine passed installed CLI and unchanged default Python/R fixtures
+with a new HOME, venv and caches, using Python 3.12.12 and Node 22.22.0.
+The [installation record](../benchmarks/publication_release_qualification_20261003/README.md)
+binds exact sources, logs and inventories. This supplies no native-R, Lean,
+host activation, model inference or complete collaborative research outcome.
+
 ### 2.3. Review and Progressive Commitment
 
 Independent product reviewers receive immutable, scope-bound artifacts in their

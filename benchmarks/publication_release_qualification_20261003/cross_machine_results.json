@@ -1,0 +1,64 @@
+{
+  "scope": "Second-owned-Mac fresh package/runtime reconstruction and synthetic installed-tool conformance only; not a scientific result, native host uptake, clean scientific workflow or public release.",
+  "plan_commit": "23b36c42f954e8d22a8ac03eca79cb8fde2f0078",
+  "tested_source_commit": "50dcec2550d35d5b5032225e77c91308676c9dfe",
+  "plan_sha256": "67dad005aa61f15f304074f898cce8f4e5a959db3ab25090cfbfdc60c2b11afd",
+  "driver_sha256": "2d0ab882f44f566fd01894ff942ca4b7342992d766681e78b8643864490a73b9",
+  "source_archive_sha256": "84052b7f079719388842227a200583937e05ff61f3327ac3c2f1836ed3a7a99c",
+  "environment": {
+    "platform": "macOS-15.3.1-arm64-arm-64bit",
+    "cpu": "Apple M4",
+    "python": "3.12.12",
+    "node": "v22.22.0",
+    "npm": "10.9.4",
+    "uv": "0.9.30 (ea4560831 2026-02-04)",
+    "preparation": "Existing observed toolchain, new wheel/venv/HOME and empty uv/npm caches. Declared Python dependencies; fresh npm ci/runtime preparation. No old environment, cache, node_modules, study input/output, credentials or Lean assets transferred.",
+    "build_boundary": "Build dependencies were not prospectively locked. The wheel reports setuptools 84.0.0; scoped cached metadata is retained. This differs from the earlier Python 3.12.13/Node 24/macOS 26 condition."
+  },
+  "execution": {
+    "started_at": "2026-10-05T21:50:44.511921+00:00",
+    "driver_pid": 75728,
+    "recorded_stages": 10,
+    "nonzero_stage_exits": 0,
+    "elapsed_seconds": 31.829152250196785,
+    "timing_scope": "Driver stages only, excluding admission/transfer/capture/retrieval; not researcher time or scientific cost.",
+    "owned_bytes_after_last_stage": 414424904,
+    "disk_scope": "Summed regular non-symlink file sizes, not physical allocation or a continuously enforced quota.",
+    "doctor_required_ok": true,
+    "doctor_boundary": "Configuration only; local theory readiness attests no endpoint, weights, model inference or scientific authority. Lean/AXLE was optional and unavailable.",
+    "probe_dispositions": ["python EXECUTED", "python deliberate FAILED", "r EXECUTED", "r deliberate FAILED"],
+    "probe_observations": "Unchanged precommitted two-file fixtures imported the declared scientific Python stack and base/stats R, returned their positive markers and raw helper errors, and preserved main/helper bytes. Called from an empty researcher directory through new venv site-packages; no model authored/revised fixtures."
+  },
+  "artifact_identity": {
+    "original_files_compared": 154,
+    "changed_original_files": 0,
+    "wheel_sha256": "8cc16b0cf01ddd18eb1b4284d200c807e60c911ec0d7556d474c8f13a82f017e",
+    "installed_regular_files": 1234,
+    "installed_inventory_sha256": "faf80c66110c2e914c48a3aea6bc96f2b272363aafa872b2151932281c8491ef",
+    "runtime_regular_files": 1370,
+    "runtime_inventory_sha256": "c4c8b8c61dd2f9ba65d4e702403ae491050fae26f3f095777b681e4c310ba54b",
+    "skill_regular_files": 3,
+    "skill_inventory_sha256": "209dc5e7300940e7b971304320fadf0d17ed70d94900b6b0ae4d6396bec851db",
+    "inventory_encoding": "SHA-256 of ASCII compact JSON sorted [relative path, SHA-256] rows; excludes symlinks and Python bytecode. Full rows retained. Skill files are preserved, not activated by this probe."
+  },
+  "raw_records": {
+    "root": "runs/publication_release_cross_machine_20261005",
+    "observations_archive_sha256": "46212edebbf61bdc2a569aa5a00b81605e1ea341d6248602c29eecd12c3b1421",
+    "execution_record_sha256": "9536d9fad787064ec11576f5fe457a6d21222b5021a745310e021be028ed1e4f",
+    "probe_stdout_sha256": "83e193145143052572a141ceca49033eb9dca967bd01100fe95b26ad566f585c",
+    "post_terminal_inventory_sha256": "a8435efaac2bae1ff4894387725b21589f28a4c6ee117b20f813d90ffdabd8d2",
+    "verification": "Remote/local archive hashes agree; retrieved wheel and every stage channel match the original record. Source/inventory identities validate. No raw result was repaired or rerun."
+  },
+  "preparation_observations": [
+    "An initial public-known-host filename read failed; the actual configured file matched the owner registry. Strict checking remained enabled; no trust/private key changed.",
+    "Inherited C.UTF-8 failed a read-only shasum command; explicit C locale worked. Extraction emitted a locale warning with exit zero. The driver used a minimal explicit environment, not a global locale repair.",
+    "Post-terminal inventory capture initially failed local shell quoting before remote execution; its empty stdout remains. Corrected read-only capture produced post_terminal_inventory_v2.json. No installation stage or scientific evaluation repeated."
+  ],
+  "cleanup": "Recorded PIDs were absent after terminal exit. Verified retrieval preceded removal of only the new remote task tree; absence check passed. Local raw material remains. No peer job, service, global runtime or SSH configuration changed.",
+  "verification": "Driver syntax/help passed before transfer; core regression 10 passed in 0.54 seconds. Production mechanisms/dependencies unchanged. No new full-suite run; eb09d83f's 2319 passed, 74 skipped and one xfail retains its original scope.",
+  "model_calls": 0,
+  "study_activated": false,
+  "consumed_evaluations_changed": false,
+  "lean_changed": false,
+  "remaining": "R02 remains open: full host/model researcher workflow, rights/public access and qualified scientific comparisons are absent. No theory, simulation, case or efficacy item closes."
+}

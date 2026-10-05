@@ -548,6 +548,12 @@ names the required tables, figures and supplements without inventing their value
   failures passed outside the source checkout, with zero model calls. This advances
   installation only; same-host binaries, macOS-only execution, untested full
   research/host workflow and unresolved rights keep R02 open.
+  A separate [second-machine reconstruction](../benchmarks/publication_release_qualification_20261003/cross_machine_results.json)
+  now passes all ten precommitted stages on another existing macOS 15.3.1 M4 Mac,
+  with Python 3.12.12/Node 22.22.0, fresh HOME/venv/caches and unchanged fixtures.
+  All 154 transferred source files remain exact; logs/wheel/inventories are bound
+  and retrieval/owned cleanup verified. This extends installation only, not a
+  factory-reset machine, host/model workflow, rights, scientific result or R02 closure.
 - [ ] **R03. Independent full-paper review.** Review both complete main texts,
   appendices and scientific analyses for correctness, contribution, agreement,
   reproducibility and claim scope. Correct all consequential findings.

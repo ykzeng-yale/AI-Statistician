@@ -96,3 +96,43 @@ Lean, actual Qwen server, long-session, researcher usability or scientific effic
 claim is supported here. The two publications still require qualified official
 comparisons, independent mathematical assessment, substantive case results and
 resolved release rights.
+
+## Second-Machine Reconstruction: 2026-10-05
+
+The separate [plan](cross_machine_plan.json) and
+[reconstruction driver](cross_machine_reconstruct.py) were committed at
+`23b36c42f954e8d22a8ac03eca79cb8fde2f0078` before transfer/installation. This is a
+new condition, not a rerun or reinterpretation of the earlier record. Source is
+pinned at `50dcec2550d35d5b5032225e77c91308676c9dfe`; the existing probe is unchanged.
+
+On another owned Apple M4 Mac with macOS 15.3.1, existing Python 3.12.12 and
+Node 22.22.0, all ten recorded stages passed: build, fresh venv, declared base
+dependencies, new npm cache/runtime preparation, installed CLI checks, Python/R
+probe and dependency reporting. Stages took 31.83 seconds, excluding admission,
+transfer/capture/retrieval. Positive two-file fixtures and raw helper failures
+passed; all 154 archived source files remain exact. The [results](cross_machine_results.json)
+bind source, wheel, inventories and every stage channel. Raw material remains at
+`runs/publication_release_cross_machine_20261005/`; no model/scientific task ran.
+
+The driver accepts the plan, extracted source, nonexistent output directory and
+existing observed uv/Python/Node-bin paths:
+
+```sh
+/existing/python3.12 cross_machine_reconstruct.py \
+  cross_machine_plan.json /new/task/source /new/task/execution \
+  /existing/uv /existing/python3.12 /existing/node/bin
+```
+
+Use the exact archive members in the plan, not an old environment/runtime. New
+HOME and caches prevent implicit reuse; required public downloads occur during
+preparation. The driver stops on the first failed stage and bounds owned process
+groups. Post-stage disk checks and Node old-space are not hard disk/RSS quotas.
+Build dependencies were not prospectively locked; the wheel reports setuptools
+84.0.0 and cache metadata is retained. Preparation/capture errors remain disclosed.
+
+This supports installation/tool execution on another existing Mac/version
+condition. Neither machine was factory-reset. It establishes no Linux/Windows,
+native-R, Lean, model deployment, host activation, model-owned revision, researcher
+usability or statistical correctness. Doctor readiness is configuration only.
+After verified retrieval, only the owned remote tree was removed; peer work and
+global configuration were untouched. R02 and scientific comparisons remain open.
