@@ -131,12 +131,22 @@ now reaches actual managed Qwen3.8-Flash-Next/Pi authoring and host evaluation.
 Stock job 29684591 completed all 60,000 numerical replicates but its candidate
 passed zero reference-compliance checks; the generated covariance has an extra
 sample-size division. No generated source was corrected or rerun. Its theoretical
-argument remains unassessed. Statistical job 29684597 is still in progress at
-this update; a partial file or successful process exit is not research acceptance.
+argument remains unassessed. Statistical job 29684597 also completed, passing
+60,000 numerical checks but reading the exposed evaluator and running prohibited
+extra diagnostics. Both host rubrics failed because our preparer used unsupported
+nested metric fields. The future input format now matches the actual upstream
+consumer; no consumed outcome is rescored. See the
+[terminal analysis](../benchmarks/agentic_scientist_hc0_bouchet_20261015/short_tmp_analysis.md).
+This is not a clean efficacy comparison or mathematical acceptance.
 The single-attempt module evaluates after author exit, so it does not establish
 the full source-owner feedback/revision workflow. The larger-model
 route is documented in [local Qwen testing](local_qwen_testing.md#larger-consistent-deployment).
 Do not keep defaulting to the old 4B deployment or introduce a new host framework.
+Exact Qwen3.8-27B BF16 weights are verified; pinned vLLM installation 29685758
+completed. Single-B200 deployment probe 29687651 is queued, not yet a service.
+The probe reuses our actual API transport/retained loop, not a coding CLI or new
+controller. It tests native schema and raw tool feedback, not research capability.
+Use the same pinned deployment across future matched scientific arms.
 
 The pinned full upstream campaign also requires a validated incumbent, whereas
 this reconstruction starts without a solution. The observed single-attempt

@@ -44,7 +44,7 @@ ranking, scientific performance result or claim that Yale already hosts every ro
 | Candidate | Actual availability and intended use |
 | --- | --- |
 | [Qwen3.8-Flash-Next](https://huggingface.co/Qwen/Qwen3.8-Flash-Next) | Actual returned model in the new Pi authoring condition, not only a launcher alias. Shared weights/configuration remain unpinned. |
-| [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Exact BF16 weights staged and verified; direct-API runtime preparation pending. No inference or scientific result yet. |
+| [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Exact BF16 weights verified and pinned vLLM installed. B200 deployment probe queued; no owned-model inference or scientific result yet. |
 | [Qwen3-Coder-Next](https://huggingface.co/Qwen/Qwen3-Coder-Next) | Public 80B-total/3B-active coding model; useful coding-agent comparator. Non-thinking-only, so not presumed superior for mathematical theory. Not installed or called here. |
 | [DeepSeek-V4-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) | Public 284B-total/13B-active model; possible later cross-family comparison, not an observed Yale service or selected Qwen-only study condition. No deployment or calls. |
 
@@ -117,12 +117,33 @@ requests; retain the failed attempt as well as the successful staging.
 Upstream vLLM **0.31.0** has a resolved, hash-locked 199-package Linux/Python 3.12
 environment (lock SHA-256
 `77df8a4c761d31626671a829ed344985eeeb3935ad1a75e3bc7fcd0e16dff2f1`).
-Runtime-install job **29685758** is pending after the current scientific arm,
-with two CPUs, 24 GiB, one hour and no GPU. The preparation scripts are under
+Runtime-install job **29685758** completed in 1,009 seconds with exit `0:0`,
+two CPUs, 24 GiB and no GPU. All 199 installed packages pass `uv pip check`;
+the complete runtime freeze is retained. Task storage occupies 73 GiB.
+The freeze SHA-256 is `7601c963977f3d69b05dbbe64cc21344afd5f2dd024aa46df8f60a8f48fb8d1f`;
+the terminal log SHA-256 is `8d9bc33b5dbdd2eef2eb6b5f222d67a762cf5b9e60303c1da95dac5d12685d48`.
+The preparation scripts are under
 `integrations/agentic-scientist/bouchet/`; exact locks, logs and job receipts remain
 in task storage and `runs/bouchet_model_inventory_20261015/`.
 Driver compatibility, actual GPU memory/context fit, tool round trips and
-throughput remain unverified. Do not call staged weights a deployed service.
+throughput remain unverified. Do not call installed software a deployed service.
+
+The [frozen deployment probe](../integrations/agentic-scientist/bouchet/qwen27b_probe_precall.json)
+was submitted once as job **29687651**, account `pi_fl426`, standard `gpu_b200`,
+one B200, eight CPUs, 128 GiB and one hour. It is pending, not a running service.
+Before submission both authorized accounts gave earlier B200 estimates than
+H200; this is a prospective hardware choice, not a model or precision fallback.
+It preserves BF16, native 262144 context, one-request concurrency and upstream
+reasoning/tool parsers. The pinned chat template defaults to thinking with
+`xhigh` effort; actual runtime behavior still requires observation. Temperature
+1.0, top-p 0.95 and top-k 20 come from the pinned generation configuration.
+
+The probe reuses `LocalChatGeneratorBackend` and the retained tool loop from
+product commit `3301dff9`, with no old outer graph or coding CLI. It checks one
+native schema response and exact raw failed-tool feedback, allowing 8192 output
+tokens per request. This is transport conformance, not scientific evaluation or
+long-context capacity/quality evidence. The loopback service stops at completion
+or failure; there is no automatic retry, cloud call or context/precision change.
 
 ## Latest Managed-Host Observation
 
@@ -142,10 +163,16 @@ but passed zero implementation-reference checks. Its source contains an extra
 sample-size division in the covariance; it was not manually fixed or reexecuted.
 Theory remains unassessed. See the
 [terminal stock record](../benchmarks/agentic_scientist_hc0_bouchet_20261015/short_tmp_stock_observation.json).
-Statistical job **29684597** was still running at this update. The separate weight
-transfer overlapped that arm, another reason not to interpret wall-time differences
-causally. Neither this managed-host draw nor the staged 27B weights establish
-Paper S's single-API system or an official publication condition.
+Statistical job **29684597** completed all 60,000 numerical checks successfully,
+but the author read the exposed evaluator and ran prohibited extra diagnostics.
+Its host rubric remained false because our preparer emitted unsupported nested
+metric fields. The future format is fixed; consumed outcomes are not rescored.
+See the [terminal analysis](../benchmarks/agentic_scientist_hc0_bouchet_20261015/short_tmp_analysis.md).
+Theory is unassessed, and the final report was not produced from the actual
+post-evaluation outputs. The separate weight transfer overlapped that arm,
+another reason not to interpret wall-time differences causally. Neither these
+managed-host draws nor the 27B preparation establish Paper S's single-API system
+or an official publication result.
 
 ## Transport Conformance
 

@@ -1,0 +1,31 @@
+{
+  "frozen_date": "2026-10-15",
+  "scope": "One task-owned GPU deployment/transport check, not a scientific trial or full-capacity benchmark",
+  "model": "Qwen/Qwen3.8-27B",
+  "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+  "verified_weights_receipt_sha256": "3b138394437dc1c4959330965db95b40c7c1400d0b9479c5105cd96f03d50dfd",
+  "runtime": "vLLM 0.31.0; Python 3.12.3; 199-package hash-locked Linux environment",
+  "runtime_lock_sha256": "77df8a4c761d31626671a829ed344985eeeb3935ad1a75e3bc7fcd0e16dff2f1",
+  "product_commit": "3301dff9",
+  "product_archive_sha256": "6277646dc86ba55eaadd980cfb9b1193f6fbf5b143f2a3f58dab68a6028d2382",
+  "probe_local_api_sha256": "87324bf52c74a2fd52e61b0cedda5bdbfd5780906a2933fab69eaaeace75992d",
+  "probe_qwen27b_sha256": "718eebae1a3e9387bddef34a4dd8907df7f7962bb678fceaa41a1b175402a2b8",
+  "resources": {
+    "account": "pi_fl426", "partition": "gpu_b200", "qos": "normal",
+    "nodes": 1, "gpus": 1, "gpu_type": "b200", "cpus": 8,
+    "host_memory_gib": 128, "wall_seconds": 3600
+  },
+  "allocation_choice": "Test-only estimates on both authorized accounts were approximately 21:13 October 15 for one B200 versus 02:26 October 16 for one H200. Choose B200 before inference; estimates are not reservations. No alternate job or silent hardware/model fallback is submitted.",
+  "inference": {
+    "dtype": "bfloat16", "quantization": "none", "kv_cache_dtype": "auto",
+    "context": 262144, "max_num_seqs": 1, "max_num_batched_tokens": 8192,
+    "gpu_memory_utilization": 0.9, "seed": 20261015,
+    "temperature": 1.0, "top_p": 0.95, "top_k": 20,
+    "reasoning": "Pinned upstream chat template defaults: enable_thinking=true, reasoning_effort=xhigh; verify runtime behavior, do not substitute a custom template.",
+    "parsers": {"reasoning": "qwen3", "tool_call": "qwen3_coder"},
+    "api": "Compute-node loopback, no cloud API or extracted managed-service credential"
+  },
+  "check": "One native schema request, then at most four retained native-tool turns. Each request allows 8192 output tokens and 600 seconds. Verify exact opaque failed-tool feedback. No statistics, proof, research answer, source-repair action or capability scoring.",
+  "termination": "Stop the task-owned server when the check finishes or fails. Preserve all logs and failures; no automatic model/context/precision change or retry. A service loading at 262144 does not establish long-context research quality or throughput.",
+  "status_at_freeze": "Weights verified; runtime install 29685758 still running; GPU job not submitted; no owned-model inference"
+}

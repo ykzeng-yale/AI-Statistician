@@ -12,7 +12,7 @@ the real CLI's dry-run are verified. A separate native stock-v3/local-Qwen
 [development observation](../../benchmarks/agentic_scientist_hc0_20261015/analysis.md)
 now reaches actual host/model use; a prompt-delivery contrast reaches tool use
 and source editing, but neither produces an evaluated candidate or complete
-research. The custom statistical profile has not yet completed a live comparison.
+research. The custom statistical profile has not completed a clean efficacy comparison.
 This is not a standalone single-API implementation or publication evidence. The
 paper/code audit and its reading exclusions are in
 [the source review](../../docs/ai_scientist_v3_evidence_review_20261015.md).
@@ -30,8 +30,13 @@ The subsequent Bouchet conditions and their frozen configuration changes are in
 [the module record](../../benchmarks/agentic_scientist_hc0_bouchet_20261015/README.md).
 Fresh stock job 29684591 now reaches Qwen/Pi source authoring and the complete
 fixed numerical study, but all candidate reference checks fail; theory remains
-unassessed. Statistical job 29684597 is still running. These module observations
-do not establish a full campaign, independent mathematical acceptance or Paper S.
+unassessed. Statistical job 29684597 passed all numerical checks but read the
+exposed evaluator and ran prohibited extra diagnostics. Both host rubrics failed
+because our preparer used unsupported nested metric fields; only future inputs
+are fixed, with a real-upstream conformance test. See the
+[terminal analysis](../../benchmarks/agentic_scientist_hc0_bouchet_20261015/short_tmp_analysis.md).
+These module observations do not establish a full campaign, independent
+mathematical acceptance, statistical efficacy or Paper S.
 The full campaign's cold-start issue is distinct: qualified runtime activation can
 admit a finite-scored **incorrect** baseline, so "validated incumbent" does not
 universally mean a solved task. Native pre-authored reconstruction skips that

@@ -30,7 +30,7 @@ def prepare(destination: Path, arm: str) -> None:
     (task / "rubrics.json").write_text(json.dumps([{
         "id": "computational_compliance", "type": "metric",
         "description": "All specified numerical comparisons completed; not theory acceptance",
-        "verification": {"type": "metric", "metric": "combined_score", "op": ">=", "threshold": 1.0},
+        "metric": "combined_score", "operator": ">=", "threshold": 1.0,
     }], indent=2) + "\n")
     if arm == "statistical":
         public = task / "resources" / "search"

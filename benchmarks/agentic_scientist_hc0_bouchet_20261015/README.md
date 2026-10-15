@@ -9,8 +9,11 @@ A separately frozen [short-temp condition](short_tmp_precall.json) now has a
 terminal [stock-arm observation](short_tmp_stock_observation.json): real managed
 Qwen authoring and 60,000 completed numerical replicates, but zero candidate
 reference-compliance successes. Its theoretical argument remains unassessed.
-The statistical arm's terminal result must be recorded separately; this stock
-record neither establishes that arm's outcome nor a full research comparison.
+The separate [statistical observation](short_tmp_statistical_observation.json)
+completed all 60,000 numerical checks, but read the exposed evaluator and ran
+prohibited extra diagnostics. Both host rubrics failed because our input format
+was unsupported. [Terminal analysis](short_tmp_analysis.md) preserves these
+outcomes without rescoring; neither arm establishes full research acceptance.
 This fresh condition does not modify or rescore
 `../agentic_scientist_hc0_20261015/`. It reuses the exposed HC0 topic rather than
 selecting a new family after failure. It is known-method reconstruction, not

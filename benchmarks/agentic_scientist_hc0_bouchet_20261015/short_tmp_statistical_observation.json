@@ -1,0 +1,59 @@
+{
+  "condition": "short_tmp_precall.json",
+  "scope": "Terminal statistical-arm development observation; numerical compliance is not scientific acceptance, a clean controlled contrast, or a complete research workflow.",
+  "job_id": "29684597",
+  "state": "COMPLETED",
+  "exit_code": "0:0",
+  "elapsed_seconds": 1265,
+  "max_rss_kib": 795084,
+  "model_returned": "Qwen3.8-Flash-Next",
+  "host": "Pi 0.85.1 via local-coding-agents/1.1; bouchet/ycrc-local-think",
+  "model_pin_limit": "Managed weights revision, quantization, backend and effective sampling remain unknown.",
+  "assistant_turns": 48,
+  "reported_usage": {
+    "input_tokens": 2680382,
+    "output_tokens": 64456,
+    "reasoning_tokens": 8029,
+    "total_tokens": 2744838,
+    "cache_read_tokens": 0,
+    "scope": "Sum of completed assistant message_end records only. Reasoning tokens are included in output, not added again. Reported cache zero does not establish backend caching or monetary cost."
+  },
+  "tool_calls": {"bash": 26, "edit": 7, "read": 11, "write": 7},
+  "official_evaluations": 1,
+  "numerical_result": {
+    "correct": true,
+    "combined_score": 1,
+    "study_complete": 1,
+    "scheduled_replicates": 60000,
+    "completed_replicates": 60000,
+    "candidate_compliant_replicates": 60000,
+    "conventional_compliant_replicates": 60000,
+    "reference_failure_replicates": 0,
+    "evaluator_elapsed_seconds": 80.9407890313305
+  },
+  "host_rubric": {
+    "overall_pass": false,
+    "evidence": "harness_evaluated_once exit=0; correct=True; combined_score=1; no metric threshold found",
+    "cause": "Our preparer nested metric/op/threshold in verification; pinned upstream consumes top-level metric/operator/threshold. This is an operator integration defect, not a mathematical rejection. The consumed rubric and result remain unchanged."
+  },
+  "observed_access_and_execution": {
+    "evaluator_read": "The author read the exposed results/ideas/hc0_reconstruction/evaluate.py through the native read tool. It was reachable in the author workspace; no evaluator blinding claim is justified.",
+    "extra_simulation": "diagnostics/hc0_vs_statsmodels.json contains 100 rows: 25 datasets in each of cells 0, 1, 4, 11 using the frozen evaluator seed/layout. The public task prohibited additional simulations. A further n=40 implementation comparison also ran. These are not official evidence.",
+    "report_fixture": "The author tested reporting source with synthetic fixtures. Those fixtures are not official study results and were not counted as such.",
+    "source_identity": "Official evaluation reports unchanged entrypoint and source tree. Frozen task/evaluator/seed/skill inputs retain their pre-call identities."
+  },
+  "theory_status": "UNASSESSED; numerical agreement does not establish the asymptotic argument or theory/code correspondence",
+  "research_scope": "Theory, method, study explanation and reporting source authored. Fixed simulation executed by evaluator. Final reporting source was not run on post-evaluation outputs; no application, independent scientific acceptance, six-phase campaign or source-owner evaluator feedback/revision loop.",
+  "archive": "runs/bouchet_v3_pi_shorttmp_20261015/statistical_observation.tar.gz",
+  "archive_sha256": "d791a52796787c88aeae4a9a63a0ae3d8c6a780302c1e4efba4dd1879a2d74ba",
+  "source_sha256": {
+    "src/program.py": "c2538be6b22c7a4276c1f3fd5588eb127d7bb30782c7ae5e2265359e234dc093",
+    "src/theory.md": "27ff2f9ad52cb5eacc82cf05d0c334fe8b8e8479630919332fd739c3f69e1b8d",
+    "src/study.md": "677cc4fda0239a2df0b13983247a7378969c14eb22ec8b6a0330ac7e2c561a61",
+    "src/report.py": "bd66f777798fdd1052dc23ea72d3639188b441d8e495ac68c9beed92e72822ab",
+    "src/diagnose_hc0.py": "ba969e154906d395b013263fdcc1eea128eabbe2cb17b5e82c82250aad52b226"
+  },
+  "raw_replicates_sha256": "f14c435799fdb03c66da88bc6de6f118085c440655c332e7a6449af455224073",
+  "evaluator_sha256": "141c75b45daa50420bfd1285b9a4122ebc85d7b5b5d7958eb4c04bb7f86e9891",
+  "limits": "One exposed family and one draw per arm, fixed stock-first order, unpinned shared service, exposed evaluator and nonconforming extra diagnostics. Separate weight transfer overlapped this arm. No causal efficacy/speed or mathematical correctness claim. No source edited, rerun, or outcome rescored after consumption."
+}

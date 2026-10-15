@@ -3,7 +3,9 @@
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -28,9 +30,8 @@ def test_fresh_arms_share_task_evaluator_and_unimplemented_seed(tmp_path):
         assert (stock / "task" / name).read_bytes() == (statistical / "task" / name).read_bytes()
     assert "NotImplementedError" in (stock / "task/program_0/src/program.py").read_text()
     rubric = json.loads((stock / "task/rubrics.json").read_text())[0]
-    assert rubric["verification"] == {
-        "type": "metric", "metric": "combined_score", "op": ">=", "threshold": 1.0,
-    }
+    assert rubric["metric"] == "combined_score"
+    assert rubric["operator"] == ">=" and rubric["threshold"] == 1.0
     assert not (stock / "task/resources").exists()
     assert (statistical / "task/resources/search/statistical-research/SKILL.md").read_bytes() == (
         ROOT / "skills/statistical-research/SKILL.md"
@@ -45,6 +46,40 @@ def test_fresh_arms_share_task_evaluator_and_unimplemented_seed(tmp_path):
             assert hashlib.sha256((arm / name).read_bytes()).hexdigest() == digest
     with pytest.raises(FileExistsError):
         prepare(stock, "stock")
+
+
+def test_prepared_rubric_is_consumed_by_the_real_upstream_checker(tmp_path):
+    upstream = ROOT / "third_party/ai-scientist-v3"
+    executable = Path(os.environ.get("AI_STATISTICIAN_V3_PYTHON", upstream / ".venv/bin/python"))
+    if not executable.is_file():
+        pytest.skip("Initialize the pinned upstream environment for rubric conformance")
+    arm = tmp_path / "stock"
+    load_preparer().prepare(arm, "stock")
+    script = r'''
+import json, sys
+from pathlib import Path
+from src.investigation.harness_eval import _rubric_status
+from src.investigation.rubric_checks import rubric_metric_check
+rubric = json.loads(Path(sys.argv[1]).read_text())[0]
+assert rubric_metric_check(rubric) == ("combined_score", ">=", 1.0)
+for metrics, correct, exit_code, expected in (
+    ({"combined_score": 1.0}, True, 0, True),
+    ({"combined_score": 0.0}, True, 0, False),
+    ({"combined_score": 1.0}, False, 0, False),
+    ({"combined_score": 1.0}, True, 1, False),
+    ({}, True, 0, False),
+):
+    passed, evidence = _rubric_status(
+        rubric=rubric, metrics=metrics, correct=correct,
+        exit_code=exit_code, missing_candidate_patterns=set(),
+    )
+    assert passed is expected, evidence
+'''
+    result = subprocess.run(
+        [str(executable), "-c", script, str(arm / "task/rubrics.json")],
+        cwd=upstream, capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_no_numerical_certificate_or_mandatory_diagnostic_stage():
