@@ -148,6 +148,16 @@ The probe reuses our actual API transport/retained loop, not a coding CLI or new
 controller. It tests native schema and raw tool feedback, not research capability.
 Use the same pinned deployment across future matched scientific arms.
 
+The [explicit native API extension](../integrations/agentic-scientist/README.md#native-api-research-attempt)
+now connects the actual upstream source-authoring attempt to our local transport,
+retained observations and model-owned file edits. Complete process tests use
+deterministic HTTP fixtures, including evaluator failure and denied evaluator
+reads; they make no model or scientific claim. The stock submodule stays pinned
+and unchanged. This is one stage, not the full S system: ideation/campaign,
+independent reviewer, specialist tools and explicit continuation still need
+integration. Do not launch more isolated one-shot scientific examples to stand
+in for the full evaluation-feedback-revision workflow.
+
 The pinned full upstream campaign also requires a validated incumbent, whereas
 this reconstruction starts without a solution. The observed single-attempt
 module avoids neither that issue nor the unfinished native drafting boundary.

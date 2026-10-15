@@ -18,6 +18,14 @@ rebuilt and requalified. The [source audit](ai_scientist_v3_evidence_review_2026
 limits novelty claims and separates self-review from scientific acceptance.
 The existing 40 checklist states do not change.
 
+The October 15 native API extension now exercises source authoring through the
+real upstream research-attempt/evaluator process using deterministic HTTP
+fixtures. It reuses local transport, retained observations and exact file edits,
+not a coding CLI or the old scheduler. Campaign continuation and specialist
+collaboration are still incomplete; this mechanism result does not complete a
+scientific or publication item. The [integration](../integrations/agentic-scientist/README.md#native-api-research-attempt)
+states its exact scope and unsupported paths.
+
 ## Execution Roadmap
 
 The checklist below is the single source of completion status. This map connects

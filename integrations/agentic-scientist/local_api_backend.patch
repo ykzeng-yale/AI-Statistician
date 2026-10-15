@@ -1,0 +1,233 @@
+Sakana AI Agentic Scientist local-api research-attempt boundary
+Upstream: https://github.com/SakanaAI/AI-Scientist-v3
+Base: 2b8aa39285c35aaca3b0e06dd121061ef8a2d854
+License: upstream Apache-2.0; retain its LICENSE and source attribution.
+
+Only native run.sh --harness-evaluated-attempt source authoring is supported.
+Campaign and full-pipeline orchestration remain unsupported for local-api.
+The operator supplies absolute API Python/entrypoint paths and a pinned model.
+The entrypoint consumes AI_STATISTICIAN_API_CONFIG and writes native receipts;
+these are not parsed as Headless usage or reported as zero-cost Headless calls.
+
+diff --git a/src/investigation/config.py b/src/investigation/config.py
+index 97758b0..c53e4c6 100644
+--- a/src/investigation/config.py
++++ b/src/investigation/config.py
+@@ -418,6 +418,16 @@ def _validate_versioning(cfg: VersioningConfig) -> None:
+ 
+ def validate(cfg: InvestigationConfig) -> None:
+     """Validate configuration values, raising ConfigValidationError on problems."""
++    if (
++        cfg.agent.name == "local-api"
++        or "local-api" in cfg.agent.pool
++        or "local-api" in cfg.agent.models
++    ):
++        raise ConfigValidationError(
++            "local-api supports only native src/scripts/run.sh "
++            "--harness-evaluated-attempt source authoring; "
++            "investigation campaign orchestration is not supported"
++        )
+     if cfg.agent.name not in VALID_AGENTS:
+         raise ConfigValidationError(
+             f"agent.name must be one of {VALID_AGENTS}, got {cfg.agent.name!r}"
+diff --git a/src/pipeline/config.py b/src/pipeline/config.py
+index 97403e8..c002f21 100644
+--- a/src/pipeline/config.py
++++ b/src/pipeline/config.py
+@@ -835,6 +835,12 @@ _PHASE_SECTION_USERS: dict[str, frozenset[str]] = {
+ 
+ def validate_pipeline_config(cfg: PipelineConfig) -> list[str]:
+     """Validate the config, returning a list of error messages (empty = valid)."""
++    if cfg.agent.name == "local-api":
++        return [
++            "local-api supports only native src/scripts/run.sh "
++            "--harness-evaluated-attempt source authoring; "
++            "full-pipeline orchestration is not supported"
++        ]
+     errors: list[str] = []
+     if cfg.execution.no_winner_policy not in {"best_available", "skip"}:
+         errors.append("execution.no_winner_policy must be best_available or skip")
+diff --git a/src/scripts/run.sh b/src/scripts/run.sh
+index 4997f78..daf905c 100755
+--- a/src/scripts/run.sh
++++ b/src/scripts/run.sh
+@@ -3,6 +3,11 @@
+ 
+ set -euo pipefail
+ 
++# local-api is a source-authoring extension to Sakana AI's Agentic Scientist
++# (Apache-2.0; see LICENSE). Use --agent local-api --harness-evaluated-attempt
++# --agent-model <name> with AI_STATISTICIAN_API_PYTHON and
++# AI_STATISTICIAN_API_ENTRYPOINT. AI_STATISTICIAN_API_CONFIG is passed unchanged.
++
+ # Execution time limits for CC
+ export BASH_DEFAULT_TIMEOUT_MS=600000    # 10 minutes
+ export BASH_MAX_TIMEOUT_MS=7200000       # 2 hours (upper limit)
+@@ -19,6 +24,8 @@ AGENT="claude"
+ AGENT_MODEL=""
+ AGENT_PROFILE=""
+ AGENT_REASONING_EFFORT=""
++AGENT_PROFILE_SET=0
++AGENT_REASONING_EFFORT_SET=0
+ TASK_DIR="examples/circpack"
+ RESULTS_DIR=""
+ GLOBAL_MEMORY_DIR=""
+@@ -95,10 +102,12 @@ while [[ $# -gt 0 ]]; do
+       ;;
+     --agent-profile|--profile)
+       AGENT_PROFILE="$2"
++      AGENT_PROFILE_SET=1
+       shift 2
+       ;;
+     --reasoning-effort)
+       AGENT_REASONING_EFFORT="$2"
++      AGENT_REASONING_EFFORT_SET=1
+       shift 2
+       ;;
+     --task-dir|-t)
+@@ -190,7 +199,7 @@ while [[ $# -gt 0 ]]; do
+       CONTAINER_ENV_FILE="$2"
+       shift 2
+       ;;
+-    claude|codex|cursor|opencode|gemini|pi)
++    claude|codex|cursor|opencode|gemini|pi|local-api)
+       AGENT="$1"
+       shift
+       ;;
+@@ -215,6 +224,43 @@ if [ -n "$AGENT_MODEL" ]; then
+   esac
+ fi
+ 
++# local-api supports only native, source-authoring research attempts. The
++# operator pins the deployment and supplies absolute paths that survive chdir.
++if [ "$AGENT" = "local-api" ]; then
++  if [ "$CONTAINERIZE" -ne 0 ]; then
++    echo "local-api does not support --containerize; use native execution" >&2
++    exit 1
++  fi
++  if [ "$HARNESS_EVALUATED_ATTEMPT" -ne 1 ]; then
++    echo "local-api requires --harness-evaluated-attempt (source authoring only)" >&2
++    exit 1
++  fi
++  if [ "$AGENT_PROFILE_SET" -eq 1 ]; then
++    echo "local-api does not support --agent-profile/--profile" >&2
++    exit 1
++  fi
++  if [ "$AGENT_REASONING_EFFORT_SET" -eq 1 ]; then
++    echo "local-api does not support --reasoning-effort; reasoning belongs to the pinned deployment" >&2
++    exit 1
++  fi
++  if [ -z "${AGENT_MODEL//[[:space:]]/}" ]; then
++    echo "local-api requires an explicit --agent-model/--model" >&2
++    exit 1
++  fi
++  if [[ "${AI_STATISTICIAN_API_PYTHON:-}" != /* ]] \
++    || [ ! -f "${AI_STATISTICIAN_API_PYTHON:-}" ] \
++    || [ ! -x "${AI_STATISTICIAN_API_PYTHON:-}" ]; then
++    echo "local-api requires AI_STATISTICIAN_API_PYTHON to be an absolute executable file" >&2
++    exit 1
++  fi
++  if [[ "${AI_STATISTICIAN_API_ENTRYPOINT:-}" != /* ]] \
++    || [ ! -f "${AI_STATISTICIAN_API_ENTRYPOINT:-}" ] \
++    || [ ! -r "${AI_STATISTICIAN_API_ENTRYPOINT:-}" ]; then
++    echo "local-api requires AI_STATISTICIAN_API_ENTRYPOINT to be an absolute readable file" >&2
++    exit 1
++  fi
++fi
++
+ if [ -z "$RESULTS_DIR" ]; then
+   TASK_NAME="$(basename "${TASK_DIR%/}")"
+   if [ -z "$TASK_NAME" ] || [ "$TASK_NAME" = "." ] || [ "$TASK_NAME" = "/" ]; then
+@@ -571,6 +617,9 @@ mkdir -p "$EXPERIMENT_DIR/program_0"
+ 
+ # Stage task artifacts into isolated experiment workspace.
+ (cd "$REPO_ROOT" && "$PYTHON_BIN" -m src.investigation.program_clone --from "$SEED_PROGRAM_DIR" --to "$EXPERIMENT_DIR/program_0")
++if [ "$AGENT" = "local-api" ]; then
++  (cd "$REPO_ROOT" && "$PYTHON_BIN" -m src.investigation.program_clone --from "$EXPERIMENT_DIR/program_0" --to "$EXPERIMENT_DIR/program_1")
++fi
+ SEARCH_EVALUATOR_SOURCE_DIR="$TASK_DIR"
+ if [ -f "$TASK_SOURCE_DIR/task_contract.json" ]; then
+   SEARCH_EVALUATOR_SOURCE_DIR="$TASK_SOURCE_DIR"
+@@ -830,6 +879,7 @@ case "$AGENT" in
+   opencode) AGENT_CONFIG_DIR=".opencode" ;;
+   gemini) AGENT_CONFIG_DIR=".gemini" ;;
+   pi) AGENT_CONFIG_DIR=".pi/agent" ;;
++  local-api) AGENT_CONFIG_DIR=".local-api" ;;
+   *)
+     echo "Unsupported agent: $AGENT" >&2
+     exit 1
+@@ -1220,9 +1270,13 @@ cleanup_run_processes() {
+   cleanup_contracted_container_env || true
+ 
+   if [ "${INTERRUPTED:-0}" -eq 1 ] && [ -f "${LOG_FILE:-}" ]; then
+-    record_headless_cost_log \
+-      "$PYTHON_BIN" "$LOG_FILE" attempt \
+-      "attempt:${ATTEMPT_ID}:${TIMESTAMP}" interrupted
++    if [ "$AGENT" = "local-api" ]; then
++      echo "[run.sh] local-api: skipping Headless cost parsing; native API receipts are not included in Headless totals." >&2
++    else
++      record_headless_cost_log \
++        "$PYTHON_BIN" "$LOG_FILE" attempt \
++        "attempt:${ATTEMPT_ID}:${TIMESTAMP}" interrupted
++    fi
+   fi
+ 
+   # Some agent tool executions may daemonize evaluate workers outside the direct
+@@ -1324,19 +1378,25 @@ TEE_PID=$!
+     exec {AGENTIC_TASK_FAILURE_FD}>&-
+     unset AGENTIC_TASK_FAILURE_FD
+   fi
+-  AGENT_PROMPT_FILE="prompt.md" \
+-  run_agent_prompt \
+-    "$AGENT" \
+-    "$PROMPT" \
+-    "$AGENT_MODEL" \
+-    "$AGENT_PROFILE" \
+-    "$EXPERIMENT_DIR" \
+-    "$CONTAINERIZE" \
+-    "$CONTAINER_IMAGE" \
+-    "$CONTAINER_NETWORK" \
+-    "$CONTAINER_HOME_DIR" \
+-    "$CONTAINER_ENV_FILE" \
+-    "$RESULTS_DIR"
++  if [ "$AGENT" = "local-api" ]; then
++    cd "$EXPERIMENT_DIR"
++    exec "$AI_STATISTICIAN_API_PYTHON" "$AI_STATISTICIAN_API_ENTRYPOINT" \
++      --prompt-file prompt.md --model "$AGENT_MODEL"
++  else
++    AGENT_PROMPT_FILE="prompt.md" \
++    run_agent_prompt \
++      "$AGENT" \
++      "$PROMPT" \
++      "$AGENT_MODEL" \
++      "$AGENT_PROFILE" \
++      "$EXPERIMENT_DIR" \
++      "$CONTAINERIZE" \
++      "$CONTAINER_IMAGE" \
++      "$CONTAINER_NETWORK" \
++      "$CONTAINER_HOME_DIR" \
++      "$CONTAINER_ENV_FILE" \
++      "$RESULTS_DIR"
++  fi
+ ) > "$LOG_PIPE" 2>&1 &
+ AGENT_PID=$!
+ 
+@@ -1371,10 +1431,14 @@ if [ "$TEE_EXIT_CODE" -ne 0 ]; then
+       --attempt-id "$ATTEMPT_ID" --idea-id "$IDEA_ID"
+   fi
+ fi
+-record_headless_cost_log \
+-  "$PYTHON_BIN" "$LOG_FILE" attempt \
+-  "attempt:${ATTEMPT_ID}:${TIMESTAMP}" \
+-  "$(headless_cost_status "$AGENT_EXIT_CODE" "$INTERRUPTED")"
++if [ "$AGENT" = "local-api" ]; then
++  echo "[run.sh] local-api: skipping Headless cost parsing; native API receipts are not included in Headless totals." >&2
++else
++  record_headless_cost_log \
++    "$PYTHON_BIN" "$LOG_FILE" attempt \
++    "attempt:${ATTEMPT_ID}:${TIMESTAMP}" \
++    "$(headless_cost_status "$AGENT_EXIT_CODE" "$INTERRUPTED")"
++fi
+ 
+ # Reusable sessions belong to the investigation CLI, or to a direct caller's teardown lifecycle.
+ cleanup_search_only_task_source

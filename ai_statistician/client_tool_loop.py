@@ -1023,6 +1023,7 @@ def run_bounded_client_tool_loop(
     max_no_progress_turns: int,
     session_dir: Path | None = None,
     session_id: str = "",
+    observe_progress: Callable[[Mapping[str, Any]], None] | None = None,
 ) -> ClientToolLoopResult:
     """Run one retained model/tool session under explicit caller-owned bounds.
 
@@ -1083,9 +1084,20 @@ def run_bounded_client_tool_loop(
             observation_refs=observation_refs,
         )
 
+    def notify_progress(phase: str, pending_results=()) -> None:
+        if observe_progress is not None:
+            transcript = messages + ([{"role": "user", "content": pending_results}] if pending_results else [])
+            observe_progress(deepcopy({
+                "phase": phase, "messages": transcript, "history": history,
+                "observation_refs": observation_refs,
+                "provider_usage": _provider_usage_totals(history),
+                "final_response_metadata": dict(last_response.metadata) if last_response else {},
+            }))
+
     for turn_index in range(max_turns):
         turn_tools = request.tools
         turn_allowed_tools = {tool.name for tool in turn_tools}
+        notify_progress("model_in_flight")
         with agent_runtime_substage(
             "client_tool_model_turn",
             metadata={
@@ -1161,6 +1173,7 @@ def run_bounded_client_tool_loop(
             "response_metadata": _compact_tool_response_metadata(response.metadata),
         }
         history.append(turn_row)
+        notify_progress("response_received")
 
         if not calls:
             reason = (
@@ -1436,8 +1449,10 @@ def run_bounded_client_tool_loop(
                         tool_calls=total_calls,
                     )
                 terminal_payload = deepcopy(dict(execution.terminal_payload))
+            notify_progress("tool_result", tool_result_blocks)
 
         messages.append({"role": "user", "content": tool_result_blocks})
+        notify_progress("tool_round_complete")
         if terminal_payload is not None:
             return ClientToolLoopResult(
                 terminal_payload=terminal_payload,

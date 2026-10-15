@@ -37,6 +37,13 @@ are fixed, with a real-upstream conformance test. See the
 [terminal analysis](../../benchmarks/agentic_scientist_hc0_bouchet_20261015/short_tmp_analysis.md).
 These module observations do not establish a full campaign, independent
 mathematical acceptance, statistical efficacy or Paper S.
+
+An explicit [native API extension](local_api_backend.patch) now connects the
+upstream research-attempt process to our existing local API transport and retained
+tool loop. It is tested with deterministic HTTP responses through the complete
+`run.sh -> author -> host evaluator` process, including execution failure.
+This is mechanism evidence, not live model research or a completed S system.
+
 The full campaign's cold-start issue is distinct: qualified runtime activation can
 admit a finite-scored **incorrect** baseline, so "validated incumbent" does not
 universally mean a solved task. Native pre-authored reconstruction skips that
@@ -85,6 +92,77 @@ final evaluation, post-hoc analysis and paper. It creates no research outcome.
 The conformance test blocks subprocess launches and network sockets inside that
 dry-run. No new cloud model, Docker image or coding CLI was installed or run by
 the preview. The Python environment was installed from upstream's own lock file.
+
+## Native API Research Attempt
+
+The canonical submodule stays unmodified for the stock comparator. Apply
+`local_api_backend.patch` only to a separate checkout of the exact pinned commit.
+It supports native `run.sh --agent local-api --harness-evaluated-attempt`;
+campaign, ideation, drafting and full-pipeline API use are explicitly rejected
+until those interfaces are integrated. It never routes through Headless,
+OpenCode, a cloud provider or the legacy `AgentRuntime` graph.
+
+Set these absolute operator-owned paths before launching the patched runner:
+
+```sh
+export AI_STATISTICIAN_API_PYTHON=/absolute/path/to/product-python
+export AI_STATISTICIAN_API_ENTRYPOINT=/absolute/path/to/AI-Statistician/scripts/run_agentic_api.py
+export AI_STATISTICIAN_API_CONFIG=/absolute/path/to/frozen-api-config.json
+```
+
+The JSON configuration contains only `model`, loopback `base_url`, `max_tokens`,
+`temperature`, `timeout_seconds`, `max_turns` and `deployment_ref` with `path`
+and `sha256`. Freeze actual values and the deployment receipt before scientific
+calls. The command's `--agent-model` must equal `model`. Runtime/template/sampling
+not represented by these client fields belong in the pinned deployment receipt;
+an operator declaration is not automatic verification of server internals.
+No API key, model fallback or per-role model substitution is supported here.
+
+The author uses generic list/read/search/write/exact-edit/remove/history/finish
+tools. Substantive mathematics remains in Markdown/LaTeX and programs in source
+files. No fixed equation count, statistical family, grammar repair or proof tactic
+is encoded. The source-only execution policy comes from the upstream
+harness-evaluated stage, not a claim that all future research must lack execution
+tools. Host execution and independent review remain separate authorities.
+
+The runner reuses upstream `program_clone` to copy the seed into the candidate,
+preserving binary assets and upstream copy/exclusion rules. It does not copy
+prior evaluator results as candidate evidence. The file view grants read-only
+access to the staged seed, public task/idea/rubric,
+selected skills and `resources/search`. Only `program_1/src`, its
+`program_spec.toml`, and attempt-local `memory.md` are writable. `src` is the
+pinned upstream version-1 program ABI. The current evaluator, its outputs,
+unrelated directories and environment variables are not author tools. Linked
+paths are rejected; this is an application file boundary, not an OS sandbox for
+arbitrary shell execution. There is no shell tool in this source-only participant.
+
+File changes require the current hash; exact edits reuse the existing helper.
+Tool errors return to the same source-owning model, without a repair agent.
+`finish(candidate)` hands source to the existing evaluator and does **not**
+accept the science. `finish(gap)` exits incomplete without running the evaluator.
+Completed responses and tool rounds atomically update an incomplete transcript,
+returned usage and current file hashes. SIGTERM records interruption; SIGKILL
+leaves only the last persisted prefix, not the in-flight response or a resumable
+checkpoint. Exhausted/error sessions retain their current-source identity,
+separately from initial authorization. An existing session directory is refused
+rather than silently resumed or replaced. Explicit resume and upstream
+continuation remain migration work, not a claimed capability. The existing local
+transport can also lose last-response metadata on malformed tool JSON; this
+extension does not claim to have fixed that separate defect.
+
+Per-attempt API evidence is under `.local-api/session`: deployment/input
+references, exact source hashes, transcript, observations and actual returned
+usage. These records are not parsed as Headless cost or reported as zero usage.
+The current file participant does not yet attach the independent reviewer,
+source-discovery execution, Python/R exploratory tools or Lean/RAG specialist
+tools to the new controller. Those validated assets remain intact. This extension
+removes one CLI dependency; it is not a substitute for their integration or the
+full source-owner evaluation/revision campaign.
+
+This migration adds a small participant alongside the retained legacy code. The
+package source ceiling increases explicitly from 150000 to 150500 lines; the
+legacy runtime/CLI limits remain unchanged. This is temporary migration overlap,
+not a reason to expand the old controller or hide code outside its measured tree.
 
 ## What Changes
 
