@@ -48,10 +48,11 @@ the entire `docs/` directory as one prompt.
 
 ## Model Policy
 
-- Future model tests and evaluations use the existing local Qwen deployment,
-  with exact weights, runtime, chat template and sampling configuration recorded.
-  The observed baseline is `Qwen3-4B-Instruct-2507` Q4_K_M; confirm availability
-  before calls. Deterministic unit tests do not call a model.
+- Future model tests and evaluations use open-weight Qwen on the authorized Macs
+  or Bouchet. Larger models and long runs are authorized; the observed
+  `Qwen3-4B-Instruct-2507` Q4_K_M baseline is not a capacity ceiling.
+  Freeze and verify weights, runtime, template, sampling and resource configuration
+  before each new condition. Deterministic unit tests do not call a model.
 - Do not call Anthropic for future testing. Legacy Haiku fixtures and consumed
   evaluations remain immutable. Do not reinterpret their scores as Qwen results.
 - Official publication experiments start fresh with open-weight models. Historical

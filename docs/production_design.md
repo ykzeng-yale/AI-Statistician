@@ -11,7 +11,7 @@ research question or paper, it should be able to:
 2. identify the estimand, assumptions, procedure, and theorem targets;
 3. develop a reviewable theory argument with equation and lemma lineage;
 4. implement and test scientific Python or R code;
-5. run exploratory and then frozen confirmatory simulations;
+5. run complete frozen confirmatory simulations, with exploratory work optional;
 6. when task intent requests it, formalize the exact target in Lean; and
 7. grow source-identified reusable research and proof artifacts, measuring cross-task reuse.
 

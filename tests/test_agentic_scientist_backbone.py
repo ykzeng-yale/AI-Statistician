@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 
 import pytest
@@ -148,3 +149,112 @@ print(json.dumps({"phases": list(commands), "native_final_adapter_complete": Fal
     assert json.loads(result.stdout)["model_or_evaluator_calls"] == 0
     assert not list((task.parent / "runs").rglob("metrics.json"))
     assert (task / "resources/search/research_brief.md").read_bytes() == brief.read_bytes()
+
+
+@pytest.mark.parametrize("language", ["python", "r"])
+@pytest.mark.parametrize("failure", [False, True])
+def test_real_native_handoff_executes_whole_project_without_certifying_theory(tmp_path, language, failure):
+    """Exercise the existing executor with opaque files, not a statistical answer."""
+    python = Path(os.environ.get("AI_STATISTICIAN_V3_PYTHON", UPSTREAM / ".venv/bin/python"))
+    if not python.is_file():
+        pytest.skip("Pinned upstream environment required for native execution conformance")
+    runtime = str(python) if language == "python" else shutil.which("Rscript")
+    if not runtime:
+        pytest.skip("Native Rscript required for R execution conformance")
+    assert subprocess.check_output(
+        ["git", "-C", str(UPSTREAM), "rev-parse", "HEAD"], text=True).strip() == PIN
+    source = tmp_path / "program_1/src"
+    source.mkdir(parents=True)
+    extension = "py" if language == "python" else "R"
+    (source.parent / "program_spec.toml").write_text(
+        f'schema_version = 1\ncode_root = "src"\n[entrypoint]\n'
+        f'path = "program.{extension}"\nlanguage = "{language}"\ntype = "script"\n'
+        '[copy]\nexclude = ["**/__pycache__/**"]\ninclude = []\n'
+        '[integration]\nkind = "generic"\nnotes = "opaque execution fixture"\n')
+    (source / "theory.md").write_text("# Opaque argument\nNot mathematically assessed.\n")
+    (source / "protocol.txt").write_text("17\n")
+    if language == "python":
+        (source / "study.py").write_text(
+            "import csv\nfrom pathlib import Path\n"
+            "def run(destination):\n"
+            "    count = int(Path('protocol.txt').read_text())\n"
+            "    with open(destination, 'w') as output:\n"
+            "        writer = csv.writer(output)\n"
+            "        writer.writerow(['replication', 'marker'])\n"
+            "        writer.writerows((i, 'opaque') for i in range(1, count + 1))\n"
+            "    print('opaque study completed', flush=True)\n")
+        (source / "program.py").write_text(
+            "import sys\nfrom study import run\nrun(sys.argv[1])\n"
+            + ("raise RuntimeError('opaque deliberate failure')\n" if failure else ""))
+    else:
+        (source / "study.R").write_text(
+            "run <- function(destination) {\n"
+            "  count <- scan('protocol.txt', quiet=TRUE)\n"
+            "  write.csv(data.frame(replication=seq_len(count), marker='opaque'),\n"
+            "            destination, row.names=FALSE)\n"
+            "  cat('opaque study completed\\n')\n}\n")
+        (source / "program.R").write_text(
+            "source('study.R')\nrun(commandArgs(trailingOnly=TRUE)[1])\n"
+            + ("stop('opaque deliberate failure')\n" if failure else ""))
+    original = {p.relative_to(source): p.read_bytes() for p in source.rglob("*") if p.is_file()}
+    evaluator = tmp_path / "evaluate.py"
+    evaluator.write_text(
+        "import argparse, csv, json, subprocess\nfrom pathlib import Path\n"
+        "parser = argparse.ArgumentParser()\n"
+        "parser.add_argument('--program_path')\nparser.add_argument('--results_dir')\n"
+        "args = parser.parse_args()\nsource = Path(args.program_path)\n"
+        "output = Path(args.results_dir) / 'study_outputs'\noutput.mkdir()\n"
+        f"command = {[runtime, *(['--vanilla'] if language == 'r' else [])]!r}\n"
+        "result = subprocess.run(command + [str(source), str(output / 'replications.csv')],\n"
+        "                        cwd=source.parent, check=False)\n"
+        "if result.returncode:\n    raise SystemExit(result.returncode)\n"
+        "with (output / 'replications.csv').open() as stream:\n"
+        "    rows = list(csv.DictReader(stream))\n"
+        "correct = len(rows) == 17 and all(row['marker'] == 'opaque' for row in rows)\n"
+        "(Path(args.results_dir) / 'metrics.json').write_text(json.dumps(\n"
+        "    {'combined_score': int(correct), 'completed_records': len(rows)}))\n"
+        "(Path(args.results_dir) / 'correct.json').write_text(json.dumps(\n"
+        "    {'correct': correct, 'scope': 'opaque execution fixture only'}))\n")
+    (tmp_path / "rubrics.json").write_text(json.dumps([
+        {"id": "executed", "type": "metric", "description": "completed_records >= 17",
+         "verification": {"type": "metric", "metric": "completed_records", "op": ">=", "threshold": 17}},
+        {"id": "argument", "type": "scientific_review", "description": "Assess the actual argument"},
+    ]))
+    before_evaluator = evaluator.read_bytes()
+    home = tmp_path / "home"
+    home.mkdir()
+    environment = {"HOME": str(home), "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                   "LANG": "en_US.UTF-8"}
+    command = [str(python), "-m", "src.investigation.harness_eval",
+        "--experiment-dir", str(tmp_path), "--attempt-id", "opaque_attempt",
+        "--idea-id", "opaque_idea", "--rubrics-file", str(tmp_path / "rubrics.json"),
+        "--python-bin", str(python), "--global-memory-md", str(tmp_path / "memory.md"),
+        "--global-memory-jsonl", str(tmp_path / "memory.jsonl"), "--timeout-seconds", "30"]
+    result = subprocess.run(command, cwd=UPSTREAM, env=environment,
+                            capture_output=True, text=True, timeout=60)
+    candidate = source.parent
+    assert (candidate / "evaluation_manifest.json").is_file(), result.stdout + result.stderr
+    manifest = json.loads((candidate / "evaluation_manifest.json").read_text())
+    status = json.loads((candidate / "rubric_status.json").read_text())
+    assert manifest["attempt_id"] == "opaque_attempt"
+    assert status["overall_pass"] is False  # Numeric execution cannot supply mathematical review.
+    assert status["rubrics"][1]["pass"] is False
+    assert "opaque study completed" in (candidate / "harness_evaluate_stdout.log").read_text()
+    assert (candidate / "study_outputs/replications.csv").is_file()
+    if failure:
+        assert result.returncode != 0 and manifest["exit_code"] != 0
+        assert "opaque deliberate failure" in (candidate / "harness_evaluate_stderr.log").read_text()
+        assert all(row["assessment"] == "not_assessed" for row in status["rubrics"])
+        assert not (candidate / "metrics.json").exists()
+    else:
+        assert result.returncode == manifest["exit_code"] == 0, result.stderr
+        assert status["rubrics"][0]["pass"] is True
+        assert status["rubrics"][1]["assessment"] == "failed"
+        assert json.loads((candidate / "metrics.json").read_text())["completed_records"] == 17
+    assert evaluator.read_bytes() == before_evaluator
+    assert all((source / path).read_bytes() == data for path, data in original.items())
+    preserved = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    refused = subprocess.run(command, cwd=UPSTREAM, env=environment,
+                             capture_output=True, text=True, timeout=30)
+    assert refused.returncode != 0 and "agent-created evaluator artifact is forbidden" in refused.stderr
+    assert all((tmp_path / path).read_bytes() == data for path, data in preserved.items())

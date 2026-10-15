@@ -17,6 +17,15 @@ This is not a standalone single-API implementation or publication evidence. The
 paper/code audit and its reading exclusions are in
 [the source review](../../docs/ai_scientist_v3_evidence_review_20261015.md).
 
+The pinned upstream native evaluator now also executes real multi-file Python
+and R fixtures, retaining outputs and raw errors and refusing a second evaluation
+of the consumed attempt. This verifies project handoff without a new executor;
+the opaque fixtures are not statistical experiments or model-generated research.
+Upstream metric/source rubrics do not assess mathematical arguments. An unsupported
+review rubric receives `assessment=failed` with evidence saying it cannot be
+verified; this is not a finding that the mathematics is false. A separate exact-file
+scientific assessment is still needed. The native drafting/final gap below remains.
+
 ## Prepare And Preview
 
 From this repository root:
@@ -139,6 +148,14 @@ precedence, effective requests and exact weights/runtime/template/decoding must
 be observed before a live scientific condition. Do not infer a working backend
 from a model name. The latest observation's owned Qwen server is closed.
 
+The 4B preset is a recorded development configuration, not a model-size limit.
+The user authorizes larger open-weight Qwen models and long runs on Bouchet.
+Use explicit upstream model/config overrides for a prospectively fixed condition;
+do not change consumed results or silently substitute a shared service's latest
+alias. Prefer existing cluster runtimes, and qualify the actual scientific workload
+before committing a long allocation. Cluster availability is not a completed
+full-system deployment. The authorized resource policy is in the execution goal.
+
 Upstream pins Headless at `93cd9b06b85f848af1308c41e018991b33907c5e`
 and documents OpenCode `1.18.29`. Both executed in the separate native observation,
 with fresh HOME, pinned local model and recorded logs. Headless's build summaries
@@ -199,12 +216,13 @@ and incremental effects rather than rename upstream orchestration.
   tests/test_agentic_scientist_backbone.py tests/test_portable_skill.py
 ```
 
-With the pinned upstream environment available: 22 passed, 5 existing opt-in host
-checks skipped. Without it, the real-upstream conformance check explicitly skips;
-the preparer remains dependency-free. The failed native-full preview and the
-resolved real temporary-root requirement are development checks, not model draws.
-Those checks call no model or evaluator. The later developmental native runs are
-recorded separately and do not change the checks' scope. Full regression scope is
+With the pinned upstream environment and native Rscript available: 26 passed,
+5 existing opt-in host checks skipped. Without the upstream environment the real
+conformance checks explicitly skip; R checks also require Rscript. The preparer
+remains dependency-free. Four tests invoke the actual upstream evaluator on opaque
+Python/R success/failure fixtures; the remaining preparation/config/preview checks
+do not execute it. No check calls a model or establishes scientific capability.
+The separate live native observation remains unchanged. Full regression scope is
 recorded in the project status after completion.
 
 Upstream code remains unmodified under its own Apache-2.0 LICENSE in the submodule.

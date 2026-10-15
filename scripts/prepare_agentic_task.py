@@ -24,11 +24,13 @@ reproduce relevant baselines and retain discrepancies. Source-assisted
 reconstruction is not blind rediscovery or novelty. Do not use hidden judge material.
 
 Keep durable Markdown/LaTeX theory with explicit estimands, definitions,
-assumptions, justified derivations and conditions of invoked results. Use Python/R
-exploratory work to challenge claims. Freeze confirmatory designs, methods,
-comparators, metrics and Monte Carlo precision/stopping before outcomes; keep
-exploratory and frozen confirmation results distinct, with failures and uncertainty.
-Choose repetitions for the scientific question, not a universal fixed count.
+assumptions, justified derivations and conditions of invoked results. Deliver the
+complete Python/R method and simulation project for this brief. Follow the host's
+execution contract; exploratory work is optional, not an additional required
+stage. Freeze confirmatory designs, methods, comparators, metrics and Monte Carlo
+precision/stopping before outcomes; label any exploratory results separately,
+with failures and uncertainty. Choose repetitions for the scientific question,
+not a universal fixed count. Planned work is not executed evidence.
 
 Lean is optional unless task intent explicitly requires formal proof. For proof
 evidence, verify exact target identity, source correspondence and an axiom-clean

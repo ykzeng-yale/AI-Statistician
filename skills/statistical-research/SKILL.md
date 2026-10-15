@@ -26,10 +26,12 @@ Choose useful derivation length and local edits yourself. JSON can identify
 artifacts but is not the mathematical research medium. Verify the conditions of
 invoked results; an expected or published answer is a claim to investigate.
 
-Prototype when the estimand and computational interface are sufficiently clear.
-Use exploratory Python/R to challenge claims and inform the next derivation.
-Read raw errors/results and author your own revisions in the same workspace;
-do not introduce issue-specific correction scripts or statistical answer rules.
+Deliver the complete method implementation and simulation project for the stated
+scope. Follow the host's execution contract, including evaluator-owned handoff
+when configured. Exploratory Python/R is optional, not a required extra stage.
+When execution or review supplies findings, read the actual observations and
+author your own revisions; do not introduce issue-specific correction scripts or
+statistical answer rules. Planned experiments are not executed results.
 
 Seek independent mathematical and exact-code review of stable claims when the
 host offers an authorized independent session or an external referee. Keep the

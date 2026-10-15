@@ -100,8 +100,13 @@ def test_goal_and_rubrics_keep_scientific_evidence_boundaries(tmp_path):
         "Lean is optional unless task intent explicitly requires formal proof",
         "exact target identity", "axiom-clean", "independent review", "unreviewed",
         "report", "honest gaps",
+        "complete Python/R method and simulation project", "host's\nexecution contract",
+        "exploratory work is optional", "Planned work is not executed evidence",
     ):
         assert clause in parsed["Goal"]
+    skill = (destination / "resources/search/statistical-research/SKILL.md").read_text()
+    assert "Exploratory Python/R is optional" in skill
+    assert "evaluator-owned handoff" in skill
     assert "Native evaluator/JSON scoring and self-rubrics are not mathematical proof" in parsed["Rubrics"]
     assert "consumed evaluations" in parsed["Constraints"]
 

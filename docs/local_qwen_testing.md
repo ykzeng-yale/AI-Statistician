@@ -5,6 +5,63 @@ The application defaults to `local`: standard loopback Chat Completions/native
 function calling, with the existing retained loop executing tools. No Claude Code
 dependency, Qwen grammar parser, content repair or cloud fallback is introduced.
 
+On 2026-10-15 the operator also authorized larger open-weight Qwen deployments
+and long complete-system runs on Bouchet. The 4B records below remain historical
+development conditions, not a limit on future model capacity. Freeze and verify
+each new deployment before scientific calls; do not silently change an active run.
+
+## Bouchet Availability, 2026-10-15
+
+Verified through BatchMode SSH, installed module metadata, and an actual compute
+allocation, not inferred from a model name. Standard `day` job **29681055** ran
+the official `local-coding-agents/1.1` launcher under `pi_fl426`: two CPUs, 4 GiB,
+12 seconds, `COMPLETED`, exit `0:0`, no GPUs and no inference. Pi **0.85.1** lists
+`bouchet/ycrc-local` and `bouchet/ycrc-local-think`; both declare 262000 context
+tokens and 16384 output tokens. The second invocation confirms the extended-mode
+alias selected by `YCRC_THINKING=1`. The raw record is
+`runs/bouchet_model_inventory_20261015/inspection-29681055.log`.
+
+[YCRC documents](https://docs.ycrc.yale.edu/ai/local-coding-agents/) these as modes
+of its hosted Qwen3.8-Flash-Next, shared by Pi, Codex, Copilot and Claude interfaces.
+Four interfaces are not four models, and Claude here is not Anthropic inference.
+The CLI lists `thinking=no` for both aliases; alias selection alone does not prove
+effective backend reasoning settings. Weight revision, quantization, server
+runtime, request sampling, throughput and inference health are not verified by
+this inventory. Noninteractive launches warn about `/dev/tty` and unavailable
+GitHub SSH identity but complete; no credentials or launcher controls were changed.
+
+No second managed model was found in the inspected configuration. Ollama 0.22.0,
+PyTorch 2.9.1 and Transformers 4.55.2 modules exist, but are not model deployments
+or proof of compatibility with current architectures. Bouchet has no `llms`
+module or `/apps/large_language_models` at the checked paths; that offline cache
+is documented for [Hopper](https://docs.ycrc.yale.edu/clusters/hopper/#llm-models),
+not established for this account on Bouchet. No new weights were downloaded.
+
+The source-verified shortlist below is a deployment recommendation, not a model
+ranking, scientific performance result or claim that Yale already hosts every row:
+
+| Candidate | Actual availability and intended use |
+| --- | --- |
+| [Qwen3.8-Flash-Next](https://huggingface.co/Qwen/Qwen3.8-Flash-Next) | YCRC-documented managed service and observed launcher aliases; first portable-host development route. Shared aliases can change and do not freeze an official experiment. |
+| [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Public dense 27B weights, controllable reasoning and 262144 native context; preferred prospective task-owned single-API deployment. Not installed or called here. |
+| [Qwen3-Coder-Next](https://huggingface.co/Qwen/Qwen3-Coder-Next) | Public 80B-total/3B-active coding model; useful coding-agent comparator. Non-thinking-only, so not presumed superior for mathematical theory. Not installed or called here. |
+| [DeepSeek-V4-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) | Public 284B-total/13B-active model; possible later cross-family comparison, not an observed Yale service or selected Qwen-only study condition. No deployment or calls. |
+
+For Paper H, use the same actual managed host/model condition for bare and
+statistical-skill arms, recording effective access and any service changes.
+Sakana's pinned host supports Pi; integration with Yale's wrapper is still
+unverified. For Paper S, a CLI launch is not the required single-API system:
+verify a supported direct API and exact deployment or use a task-owned pinned
+Qwen service. Do not extract credentials or bypass managed-client restrictions.
+Match the model across each harness contrast rather than confound model upgrades
+with architectural effects. Preserve the old 4B outcomes separately.
+
+[Clarity/Portkey](https://docs.ycrc.yale.edu/ai/clarity/) provide a separate route
+to commercial models, not local Bouchet weights; they are not selected for the
+open-weight scientific studies. Model-card scores do not establish performance
+on statistical derivations, simulations or Lean. Freeze a complete research task
+and assess those outputs directly, without a new succession of toy-task gates.
+
 ## Transport Conformance
 
 Use existing compatible llama.cpp/model files at operator-selected paths; do not

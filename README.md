@@ -72,9 +72,11 @@ Lean identity and axiom check can become source-theorem proof evidence.
 
 ## Model Policy
 
-Local inference is now the default. Future model tests use the existing
-`Qwen3-4B-Instruct-2507` deployment through a local OpenAI-compatible endpoint;
-no Anthropic API calls or automatic cloud fallback are used for new tests.
+Self-hosted open-weight Qwen is the testing backend, on the authorized Macs or
+Bouchet. Larger models and long complete-system runs are authorized. The existing
+`Qwen3-4B-Instruct-2507` endpoint is a development baseline, not a capacity limit.
+Pin each new model/runtime/resource condition before calls; no Anthropic API
+calls or automatic cloud fallback are used for new scientific tests.
 Historical Haiku evaluations and qualifications remain archived and unchanged;
 they are not official publication results or baselines. New `--research-eval`
 and capability runs bind every live role to local Qwen. Hidden-gold schema 5 and

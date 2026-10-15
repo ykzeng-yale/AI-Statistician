@@ -115,7 +115,10 @@ but skipped evaluation and claimed unsupported completion. No candidate was
 evaluated or accepted. This is not an official H/S comparison or complete v3 E2E.
 No generated output was repaired or rerun. Our six-case implementation scorer
 also cannot judge the full study; it is not a sufficient scientific comparator.
-Next qualify complete-study execution and separate mathematical assessment, then
+The existing native evaluator now has real multi-file Python/R execution checks,
+including raw failure preservation and consumed-attempt refusal. These opaque
+fixtures establish the handoff, not a full statistical study or theory review.
+Next qualify the scientific evaluator and separate mathematical assessment, then
 run a prospectively matched statistical-profile condition with captured effective
 model requests. Reuse upstream's existing harness-owned evaluation. Do not add
 diagnostic gates or another controller to force a successful example.
@@ -233,14 +236,29 @@ no publication-readiness percentage.
 
 ## Operating Boundaries
 
-Use the existing local Qwen3-4B-Instruct-2507 Q4_K_M, GGUF SHA-256
+Use open-weight Qwen on the authorized Macs or Bouchet. The historical local
+Qwen3-4B-Instruct-2507 Q4_K_M baseline has GGUF SHA-256
 3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597.
 Confirm availability and record exact runtime, template, decoding, context,
-hardware and randomness. This small quantized configuration is a development
-condition, not the architecture's capacity ceiling. Changing it requires a
-separately authorized prospective condition. No Anthropic scientific tests,
+hardware and randomness. The October 15 instruction explicitly authorizes larger
+Qwen models and long complete-system runs on Bouchet; no repeated permission
+request is needed. Freeze each new model/resource condition before calls, keep
+its results separate from the 4B baseline, and do not silently change an active
+condition. Allocate enough context, output and wall time for the stated scientific
+work; measure utilization and stopping reasons instead of adding small-task gates.
+No Anthropic scientific tests,
 Opus, automatic model escalation or cloud fallback. Claude Code host
 compatibility remains separate from scientific comparisons.
+
+Bouchet SSH, both authorized PI accounts, group storage quota and standard GPU
+partitions were checked on October 15. Its installed `local-coding-agents/1.1`
+module offers a managed local Qwen coding-host route according to
+[YCRC](https://docs.ycrc.yale.edu/ai/local-coding-agents/). The service can update
+its model; a shared alias alone is not an official experiment pin. Verify effective
+weights/configuration or use a pinned task-owned deployment for publication runs.
+No GPU allocation, remote inference or model download has occurred in this
+handoff-verification step. Use only permitted low-risk/public or synthetic data
+on Bouchet; real EHR access requires the appropriate approved environment.
 
 Use the upstream backbone as the new outer workflow; do not call the legacy graph
 inside it. Reuse suitable source tools/retained components rather than a second
