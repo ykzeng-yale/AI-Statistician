@@ -4,7 +4,7 @@
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "Focus the active two-publication programme on complete statistical and biostatistical methods research. The immediate scientific milestone is one prospectively declared, source-grounded known-method investigation: one estimand through reviewed Markdown/LaTeX arguments, Python/R implementation, fair method-comparison simulation with Monte Carlo uncertainty, a justified application and complete main/appendix material. Subsequent unrelated-family and controlled-extension evidence has separate scope. EHR is an application setting, not a hardcoded product pipeline. Preserve matched H/S comparisons, local-Qwen-only testing, optional Lean, independent authority, consumed outcomes and the existing 40-item checklist.",
-  "execution_status": "Meta's public announcement and companion report describe human-led health research with an internal scaffold, not a verified installable open-source biostat harness. Their data-meaning, traceable-review and manuscript-consistency lessons refine the current execution goal; no Meta code or efficacy claim is adopted. The canonical Theory workspace now uses one claim index plus applicable executable/formal references, without duplicate mandatory problem/simulation claim lists. Exact mathematical files, intent, estimator ABI, dependencies and independent review remain bound; historical structured validation is preserved. Question-derived placeholder goals now carry honest question provenance. Production root modules are reduced by 22 lines. Full deterministic regression: 2354 passed, 74 skipped, one existing xfail; compileall and diff checks passed. All 40 checklist states and consumed scientific records are unchanged. No model call, new scientific success, official comparison, automatic model change or proof credit. The action-schema prototype stays experimental. The older typed-metric path can still omit document mathematics during compaction and must not be relied on for document-backed judgments without source-access qualification. The next scientific work uses actual retained research workspaces, not further artificial transport tuning.",
+  "execution_status": "Public browser checks confirm Boone Calhoun and Ben Tang contributed to Meta's announced health-research harness, but no complete reusable study bundle was obtained. Muse Code's general client and an unofficial container-skill mirror are separate resources; neither was installed or adopted. The owner's local derivation, writing, revision and review practices are selectively adapted into the existing TheoryDeveloper/referee/Critic reasoning prompt and the portable skill's workspace reference. Prompt growth is 75 characters, not another runtime layer. Preflight protocol 51 records the future instruction change; consumed outcomes are untouched. The portable guidance covers justified arguments, applicable theorem conditions, meaningful applications and synchronized main/appendix revisions, with ordinary exploratory reruns distinguished from consumed benchmarks. Full regression: 2355 passed, 74 skipped, one existing xfail. All 40 checklist states and protected history remain unchanged. No model call, new scientific acceptance or official comparison. Actual uptake, mathematical improvement and standalone complete-manuscript authoring remain unqualified; the next deliverable remains a prospectively declared complete methods investigation.",
   "historical_evidence_scope": "Haiku capability_facts and latest_independent_qualification below are archived development facts only, not official publication results, model baselines or gates on the new studies. Do not continue following their scores or resume consumed draws. Keep useful regression mechanisms and source-faithful, independently verified mathematical artifacts without attributing them to autonomous research success.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Prepare AI-Statistician and EmpericalProcessLEAN for two distinct, legitimate arXiv-first publications: (1) a portable statistical-research harness usable by researchers with Codex, Claude Code and an open-source coding agent, supporting reviewable theory, Python/R simulation and intent-selected Lean; (2) a complete multi-agent AI-Statistician driven through a single LLM API. Systematically audit both repositories and current primary literature/code, establish defensible contributions and scientific baselines, consolidate reusable architecture and the Statlib-aligned Lean foundation, implement reproducible installation and evaluation protocols, run prospectively frozen independent experiments without reusing consumed evaluations, and produce evidence-backed manuscripts and public release artifacts. Completion requires working, tested releases and reproducible comparative evidence for each paper; documentation, tests, model agreement and preliminary proofs alone do not count as publication readiness.",
@@ -31,7 +31,7 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "cb74034b6bf49fb603e104b4bdc5127f8a5b8f64",
+  "validated_code_head": "500d692c25c664be49ec7f2e90ded30a538e6181",
   "open_weight_system_development": {
     "study_id": "fixed_k_l2_20261002",
     "record": "benchmarks/publication_development/fixed_k_l2_20261002/observed_results.json",
@@ -47,8 +47,8 @@
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "73202e543fb6f21d733d589e94a2cffb62ea0ec5",
-    "working_tree_before_current_change": "Resumed the worker's pending Theory handoff simplification with main/canonical aligned at 73202e54. Completed consumer/fixture verification and full regression, refined the scientific milestone and source note, and preserved unrelated work and consumed records. Direct atomic main/canonical delivery, no PR or force."
+    "remote_before_current_change": "5c241cf562e17598db8873a57e54ae2aad35292f",
+    "working_tree_before_current_change": "Started clean with main/canonical aligned at 5c241cf5. Investigated public contributor leads and existing local skills; changed shared reasoning instructions and portable guidance, not benchmark answers, source patches or execution policy. Preserved private networking data, personal skill originals and consumed records. Direct atomic main/canonical delivery, no PR or force."
   },
   "publication_development": {
     "study_id": "kimi_type_ms_20261001",
@@ -257,7 +257,7 @@
   },
   "current_structure": {
     "research_agent_runtime_lines": 24531,
-    "theory_workspace_lines": 4601,
+    "theory_workspace_lines": 4599,
     "scientific_code_workspace_lines": 3615,
     "research_architect_lines": 3742,
     "client_tool_loop_lines": 1581,
@@ -266,15 +266,15 @@
     "formalizer_llm_lines": 1841,
     "lean_candidate_revision_tool_loop_lines": 2892,
     "cli_lines": 7010,
-    "production_design_lines": 398,
+    "production_design_lines": 399,
     "codex_adoption_lines": 246
   },
   "latest_validated_change": {
-    "code_commit": "cb74034b6bf49fb603e104b4bdc5127f8a5b8f64",
+    "code_commit": "500d692c25c664be49ec7f2e90ded30a538e6181",
     "lean_commit": "db6c7718349f3c14a7e37905f3529675f1ebaa52",
-    "summary": "Remove redundant mandatory problem/simulation handoff lists from fresh file-authoritative Theory workspaces. Preserve the claim index, exact documents, intent-selected executable/formal references, legacy validation and same-owner authoring. Correct question-fallback goal provenance. Refine the goal toward complete methods research without another scheduler, repair layer, statistical rule or Meta code dependency.",
-    "verification": "Full default suite: 2354 passed, 74 skipped, one existing xfail in 828.06 seconds, exit zero. JUnit runs/compact_theory_handoff_20261015/full_suite_final.junit.xml, SHA-256 5667bfd08d2e1d37b0c388e822bdd39ca4e2e770e1e61492b581b5ec924da8e3. Focused production preparation: 97 passed; draw CLI: 119 passed. The initial full run's 44 obsolete fixture failures remain in full_suite.junit.xml; fixtures now use the canonical claim index and preserve meaningful unknown-document and immutable-selection checks. Compileall and diff checks passed. Zero model calls. The active Lean submodule remains db6c7718; protected historical records and all 40 checklist states are unchanged.",
-    "capability_effect": "Deterministic interface and evidence correctness only. No complete independently accepted methods investigation, comparative efficacy, autonomous discovery or exact theorem closure is established. The server-schema toy failure remains consumed and its adapter experimental. Mathematical assessment, source qualification and actual matched scientific conditions remain unfinished. The two-publication goal stays active."
+    "summary": "Adapt existing local derivation and manuscript practices without adding a scheduler, agent, tool, validator, repair taxonomy or external runtime. The already shared reasoning prompt makes justified transitions, invoked-result conditions and numerical-evidence limits explicit. The portable skill remains one entry and two relative references; its guidance connects theory, review, application and manuscript revisions. Meta access and local-source provenance are documented with bounded inspection claims.",
+    "verification": "Full default suite: 2355 passed, 74 skipped, one existing xfail in 1037.94 seconds, exit zero. JUnit runs/scientific_guidance_reuse_20261015/full_suite.junit.xml, SHA-256 ab57249d1ba3cd24e5071473c0560fc31b99363cf3539098895c96a61d812379. Focused prompt/role/skill/core checks: 222 passed, five opt-in skips. After clarifying exploratory-rerun versus benchmark immutability in the portable reference, its exact final distribution checks passed three tests with five opt-in skips. Compileall and diff checks passed. The optional skill-creator validator could not run because PyYAML was absent; frontmatter is unchanged and no dependency was installed. Zero model calls. Lean pin, protected historical records and all 40 checklist states are unchanged.",
+    "capability_effect": "Prompt and guidance availability only, not demonstrated model uptake, mathematical correctness, complete paper generation or comparative efficacy. No Meta health harness code was obtained or claimed integrated; the local personal skills are not implicit API context. The shared future preflight protocol is 51, with all consumed protocols/results preserved. No new statistical result, proof credit or official study. The two-publication goal stays active."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-analytic-gaussian-20260911-v1",
