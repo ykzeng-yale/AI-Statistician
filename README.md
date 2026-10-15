@@ -4,7 +4,9 @@
 [Sakana AI's Agentic Scientist](https://github.com/SakanaAI/AI-Scientist-v3), pinned
 in `third_party/ai-scientist-v3`. The [statistical integration](integrations/agentic-scientist/README.md)
 provides source installation, task preparation, statistical prompts and a verified
-upstream dry-run. It does not nest the old runtime inside that pipeline. Native
+upstream dry-run. An explicit extension now exercises native direct-API ideation,
+source authoring and evaluator-feedback revision in deterministic process tests.
+It does not nest the old runtime inside that pipeline. Native
 final verification, the single-API specialist path and live statistical capability
 are not yet migrated or demonstrated. The outer coordinator described below is
 the legacy baseline, not a completed v3 port. Its validated statistical workspaces,

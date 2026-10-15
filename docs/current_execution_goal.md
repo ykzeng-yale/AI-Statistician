@@ -150,19 +150,21 @@ Use the same pinned deployment across future matched scientific arms.
 
 The [explicit native API extension](../integrations/agentic-scientist/README.md#native-api-research-attempt)
 now connects the actual upstream source-authoring attempt to our local transport,
-retained observations and model-owned file edits. Complete process tests use
-deterministic HTTP fixtures, including evaluator failure and denied evaluator
-reads; they make no model or scientific claim. The stock submodule stays pinned
-and unchanged. This is one stage, not the full S system: ideation/campaign,
-independent reviewer, specialist tools and explicit continuation still need
-integration. Do not launch more isolated one-shot scientific examples to stand
-in for the full evaluation-feedback-revision workflow.
+retained observations and model-owned file edits. It also supports native
+ideation and a serial campaign with fixed operator requirements. Complete
+process tests use deterministic HTTP fixtures: an unsolved starter, a failed
+candidate, raw feedback read by the next source owner and an evaluated revision.
+They make no model or scientific claim. The stock submodule stays pinned and
+unchanged. This is not the full S system: independent review, specialist tools,
+interrupted-session continuation and final pipeline integration remain unfinished.
+Do not launch more isolated one-shot scientific examples to stand in for them.
 
-The pinned full upstream campaign also requires a validated incumbent, whereas
-this reconstruction starts without a solution. The observed single-attempt
-module avoids neither that issue nor the unfinished native drafting boundary.
-Resolve cold-start/completion semantics in upstream's existing interfaces for
-the full migration; do not supply a reference answer or fabricated baseline.
+The explicit fixed-requirement extension resolves the reconstruction cold start
+without a reference answer or fabricated baseline. It keeps original criteria
+instead of replacing them with incumbent-score improvement. Native receipts bind
+source and evaluation evidence; new cycles never rerun consumed candidates.
+The original optimization behavior remains separate. Computational completion
+still cannot certify a mathematical argument or replace independent assessment.
 
 **Adopt v3 as the main backbone, without stacking controllers.** The latest user
 request replaces the prior implementation direction. Use the pinned upstream

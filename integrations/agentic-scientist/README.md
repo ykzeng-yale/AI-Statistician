@@ -38,21 +38,25 @@ are fixed, with a real-upstream conformance test. See the
 These module observations do not establish a full campaign, independent
 mathematical acceptance, statistical efficacy or Paper S.
 
-An explicit [native API extension](local_api_backend.patch) now connects the
-upstream research-attempt process to our existing local API transport and retained
-tool loop. It is tested with deterministic HTTP responses through the complete
-`run.sh -> author -> host evaluator` process, including execution failure.
-This is mechanism evidence, not live model research or a completed S system.
+An explicit [native API extension](local_api_backend.patch) connects upstream
+ideation and source authoring to our existing local API transport and retained
+tool loop. A separate [fixed-requirement extension](native_campaign_semantics.patch)
+uses upstream campaign/state/evaluator interfaces for unsolved reconstruction.
+The complete native CLI test starts without a scored baseline, evaluates a failed
+candidate, returns its raw error to the next author and evaluates that revision.
+The author cannot weaken the fixed task criteria. These deterministic HTTP
+fixtures are mechanism evidence, not live model research or a completed S system.
 
-The full campaign's cold-start issue is distinct: qualified runtime activation can
-admit a finite-scored **incorrect** baseline, so "validated incumbent" does not
-universally mean a solved task. Native pre-authored reconstruction skips that
-activation and cannot currently reconcile its unscored starter. Upstream already
-has null bootstrap state and first-correct-candidate promotion, but startup,
-resume provenance and score-improvement stopping must agree before using them.
-Do not remove only the startup check, invent a baseline score, or treat binary
-computational compliance as mathematical task completion. This belongs in the
-existing campaign interfaces, separately from native drafting/final verification.
+The stock optimization path still uses its original incumbent semantics.
+Qualified runtime activation can admit a finite-scored **incorrect** baseline,
+so "validated incumbent" does not universally mean a solved task. The explicit
+fixed-requirement path instead permits an unscored starter and stops at the
+operator's requirements plus evaluator correctness, never an invented score.
+Native receipts and resume checks bind source, task, criteria and prior consumed
+evidence. Pre-evaluation inputs and the program-spec source tree stay immutable;
+new evaluator-produced CSVs, plots and other results receive separate hashes,
+without filename-specific exemptions. Computational compliance is not mathematical
+task completion.
 
 ## Prepare And Preview
 
@@ -96,10 +100,12 @@ the preview. The Python environment was installed from upstream's own lock file.
 ## Native API Research Attempt
 
 The canonical submodule stays unmodified for the stock comparator. Apply
-`local_api_backend.patch` only to a separate checkout of the exact pinned commit.
-It supports native `run.sh --agent local-api --harness-evaluated-attempt`;
-campaign, ideation, drafting and full-pipeline API use are explicitly rejected
-until those interfaces are integrated. It never routes through Headless,
+`local_api_backend.patch` and then `native_campaign_semantics.patch` only to a
+separate checkout of the exact pinned commit. The first supports native
+`run.sh --agent local-api --harness-evaluated-attempt` and ideation through the
+investigation CLI. The second supports pre-authored fixed-requirement tasks.
+Drafting, paper generation, parallel workers and the full pipeline are not yet
+integrated with this API participant. It never routes through Headless,
 OpenCode, a cloud provider or the legacy `AgentRuntime` graph.
 
 Set these absolute operator-owned paths before launching the patched runner:
@@ -118,6 +124,17 @@ not represented by these client fields belong in the pinned deployment receipt;
 an operator declaration is not automatic verification of server internals.
 No API key, model fallback or per-role model substitution is supported here.
 
+For a fixed-requirement investigation, the operator supplies a nonempty
+`task_dir/target_rubrics.json` in upstream's rubric-list format, preserving explicit
+metric/operator/threshold fields. It is not a model-authored evaluation contract.
+Use the patched checkout's existing `python -m src.investigation.cli` with
+`agent.name=local-api`, the exact `agent.model`, task/results paths,
+`execution.harness_evaluated_attempts=true`, `container.enabled=false` and
+`paper.enabled=false`. Select cycle and wall-time budgets for the workload.
+Absence of the task rubric file selects stock optimization semantics, not an
+implicit reconstruction fallback. Unknown mathematical-review rubrics remain
+unassessed failures; a string match cannot establish a proof.
+
 The author uses generic list/read/search/write/exact-edit/remove/history/finish
 tools. Substantive mathematics remains in Markdown/LaTeX and programs in source
 files. No fixed equation count, statistical family, grammar repair or proof tactic
@@ -135,6 +152,12 @@ pinned upstream version-1 program ABI. The current evaluator, its outputs,
 unrelated directories and environment variables are not author tools. Linked
 paths are rejected; this is an application file boundary, not an OS sandbox for
 arbitrary shell execution. There is no shell tool in this source-only participant.
+The idea stage writes only its idea/rubric proposals; the host keeps the frozen
+task criteria and owns global memory bookkeeping. Both stages can read selected
+prior source, public status and raw execution logs through `history/` file
+references. Prior evaluator source is not granted. A new stage has a new model
+conversation; file-backed history is not a claim of uninterrupted context.
+Native generated-code execution itself is not OS-isolated by these file grants.
 
 File changes require the current hash; exact edits reuse the existing helper.
 Tool errors return to the same source-owning model, without a repair agent.
@@ -145,8 +168,12 @@ returned usage and current file hashes. SIGTERM records interruption; SIGKILL
 leaves only the last persisted prefix, not the in-flight response or a resumable
 checkpoint. Exhausted/error sessions retain their current-source identity,
 separately from initial authorization. An existing session directory is refused
-rather than silently resumed or replaced. Explicit resume and upstream
-continuation remain migration work, not a claimed capability. The existing local
+rather than silently resumed or replaced. Explicit author-session resume remains
+migration work. At a completed cycle boundary, the fixed campaign can validate
+existing state and start a new cycle without rerunning a consumed evaluation;
+this is not permission to resume a terminated scientific study. Partial or stale
+evidence is rejected, not repaired. Native evaluation timeout recovery remains
+unfinished. The existing local
 transport can also lose last-response metadata on malformed tool JSON; this
 extension does not claim to have fixed that separate defect.
 
@@ -157,7 +184,8 @@ The current file participant does not yet attach the independent reviewer,
 source-discovery execution, Python/R exploratory tools or Lean/RAG specialist
 tools to the new controller. Those validated assets remain intact. This extension
 removes one CLI dependency; it is not a substitute for their integration or the
-full source-owner evaluation/revision campaign.
+full independently assessed research workflow. The tested source-owner revision
+cycle supplies a necessary handoff, not mathematical acceptance.
 
 This migration adds a small participant alongside the retained legacy code. The
 package source ceiling increases explicitly from 150000 to 150500 lines; the
@@ -205,8 +233,9 @@ not a reason to expand the old controller or hide code outside its measured tree
 
 Only the outer coordinator is being replaced. The existing scientific components
 remain the implementation assets, not deprecated experiments to re-create in v3.
-Their previous evidence keeps its original scope. This migration has not changed
-any `ai_statistician/` source or any EmpericalProcessLEAN proof.
+Their previous evidence keeps its original scope. This migration reuses the
+retained loop and adds a file participant; it does not change existing scientific
+workspaces or any EmpericalProcessLEAN proof.
 
 | Retained asset | Reuse at the new boundary |
 | --- | --- |
@@ -323,6 +352,17 @@ Python/R success/failure fixtures; the remaining preparation/config/preview chec
 do not execute it. No check calls a model or establishes scientific capability.
 The separate live native observation remains unchanged. Full regression scope is
 recorded in the project status after completion.
+
+Native API campaign checks additionally run `test_agentic_api_campaign.py`,
+`test_agentic_api_backend_patch.py`, `test_agentic_api_workspace.py` and
+`test_agentic_native_campaign_semantics.py`. They require the pinned upstream
+Python environment; shell process checks require Bash 4+ (`AI_STATISTICIAN_V3_BASH`).
+On macOS use a canonical temporary path such as `/private/tmp`, not its `/tmp`
+symlink. The broader upstream comparison currently has two identical failures
+in stock and patched checkouts: the coding-host timeout fixture and native
+publication-recovery descriptor path. These are not claimed as passing checks
+or addressed by disabling upstream safeguards. The exact records live under
+`runs/agentic_api_campaign_20261015/` and in the measured status.
 
 Upstream code remains unmodified under its own Apache-2.0 LICENSE in the submodule.
 Cite Lange et al., [The Agentic Scientist](https://arxiv.org/abs/2610.18933v1), and

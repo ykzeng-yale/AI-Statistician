@@ -253,6 +253,28 @@ def test_native_stage_excludes_evaluator_and_only_grants_current_source(tmp_path
     assert invoke(stage, "write_file", path="program_1/src/algorithm.R", content="# Model authored R\n", expected_sha256=None).state_changed
 
 
+def test_idea_receives_prior_source_feedback_without_evaluator_access(tmp_path):
+    source, results = tmp_path / "task", tmp_path / "results"
+    (source / "program_0/src").mkdir(parents=True)
+    (source / "program_0/program_spec.toml").write_text('schema_version=1\ncode_root="src"\n')
+    (source / "task.md").write_text("Opaque task")
+    (source / "target_rubrics.json").write_text("[]")
+    prior = results / "ideas/01_prior"
+    (prior / "program_1/src").mkdir(parents=True)
+    (prior / "program_1/src/program.py").write_text("# prior author source")
+    (prior / "program_1/harness_evaluate_stderr.log").write_text("opaque raw execution failure")
+    (prior / "evaluate.py").write_text("private evaluator")
+    (results / "attempts_history.jsonl").write_text('{"attempt_status":"fail"}\n')
+    idea = stage_workspace(results / "_idea_generation/next", source, stage="idea", results=results)
+    assert invoke(idea, "read_file", path="history/ideas/01_prior/program_1/harness_evaluate_stderr.log").content["content"] == "opaque raw execution failure"
+    assert invoke(idea, "read_file", path="history/ideas/01_prior/evaluate.py").is_error
+    assert invoke(idea, "write_file", path="task_requirements.json", content="weaker", expected_sha256=sha("[]")).is_error
+    assert invoke(idea, "write_file", path="idea_bundle.json", content="{}", expected_sha256=None).state_changed
+    assert invoke(idea, "write_file", path="memory.md", content="unscoped notes", expected_sha256=None).is_error
+    (source / "program_0/src/aliased").symlink_to(prior, target_is_directory=True)
+    assert invoke(idea, "read_file", path="program_0/src/aliased/evaluate.py").is_error
+
+
 def test_api_config_binds_deployment_and_cannot_switch_model(tmp_path):
     receipt = tmp_path / "deployment.json"
     receipt.write_text('{"revision":"opaque"}')

@@ -153,7 +153,8 @@ def test_patch_scope_license_and_unchanged_research_handoff(upstream_copy, patch
         for path in upstream_copy.rglob("*")
         if path.is_file() and path.read_bytes() != (patched / path.relative_to(upstream_copy)).read_bytes()
     }
-    assert changed == {RUN, "src/investigation/config.py", "src/pipeline/config.py"}
+    assert changed == {RUN, "src/investigation/config.py", "src/pipeline/config.py",
+                       "src/scripts/idea.sh", "src/scripts/lib/container_agent.sh"}
     assert (patched / "LICENSE").read_bytes() == (upstream_copy / "LICENSE").read_bytes()
     assert PIN in PATCH.read_text() and "Apache-2.0" in PATCH.read_text()
     old, new = (upstream_copy / RUN).read_text(), (patched / RUN).read_text()
@@ -168,9 +169,14 @@ def test_patch_scope_license_and_unchanged_research_handoff(upstream_copy, patch
              'fi\n')
     assert new.count(clone) == 1
     assert _between(old, 'mkdir -p "$RESULTS_DIR"', 'case "$AGENT" in\n  claude)') == _between(
-        new.replace(clone, ""), 'mkdir -p "$RESULTS_DIR"', 'case "$AGENT" in\n  claude)',
+        new.replace(clone, "").replace('export AI_STATISTICIAN_CAMPAIGN_RESULTS="$RESULTS_DIR"\n', ""),
+        'mkdir -p "$RESULTS_DIR"', 'case "$AGENT" in\n  claude)',
     )
     assert 'local-api) AGENT_CONFIG_DIR=".local-api" ;;' in new
+    idea = (patched / "src/scripts/idea.sh").read_text()
+    assert '\nexport TASK_SOURCE_DIR\n' in idea
+    assert 'export TASK_SOURCE_DIR=' not in idea
+    assert 'TASK_SOURCE_DIR="$IDEA_TASK_SOURCE_SHADOW"' in idea
     result = _run(["bash", "-n", str(patched / RUN)], cwd=patched)
     assert result.returncode == 0, result.stderr
 
@@ -284,7 +290,7 @@ def test_interrupted_cleanup_skips_only_local_api_cost_parser(patched, fixture_e
         assert "interrupted" in Path(env["COST_CALLS"]).read_text()
 
 
-def test_configuration_rejects_campaign_and_full_pipeline_local_api(patched, tmp_path):
+def test_configuration_accepts_native_campaign_but_not_unintegrated_modes(patched, tmp_path):
     python = Path(os.environ.get("AI_STATISTICIAN_V3_PYTHON", UPSTREAM / ".venv/bin/python"))
     if not python.is_file():
         pytest.skip("Pinned upstream Python environment required for config validation")
@@ -301,22 +307,52 @@ def forbidden(*args, **kwargs):
 socket.socket = forbidden
 socket.create_connection = forbidden
 subprocess.Popen = forbidden
-assert VALID_AGENTS == ("claude", "codex", "cursor", "opencode", "gemini", "pi")
-for selection in ("name", "pool", "models"):
-    cfg = InvestigationConfig()
-    if selection == "name":
-        cfg.agent.name = "local-api"
+assert VALID_AGENTS == ("claude", "codex", "cursor", "opencode", "gemini", "pi", "local-api")
+valid = InvestigationConfig()
+valid.agent.name = "local-api"
+valid.agent.model = "pinned"
+valid.container.enabled = False
+valid.execution.harness_evaluated_attempts = True
+validate(valid)
+import copy
+for selection in ("model", "pool", "models", "container", "harness", "paper", "draft", "workers", "reasoning"):
+    cfg = copy.deepcopy(valid)
+    if selection == "model":
+        cfg.agent.model = None
     elif selection == "pool":
+        cfg.agent.pool = ["codex", "local-api"]
+    elif selection == "models":
+        cfg.agent.models = {"local-api": "different"}
+    elif selection == "container":
+        cfg.container.enabled = True
+    elif selection == "harness":
+        cfg.execution.harness_evaluated_attempts = False
+    elif selection == "paper":
+        cfg.paper.enabled = True
+    elif selection == "draft":
+        cfg.execution.draft_task_if_missing = True
+    elif selection == "workers":
+        cfg.execution.workers = 2
+    else:
+        cfg.agent.reasoning_effort = "high"
+    try:
+        validate(cfg)
+    except ConfigValidationError as exc:
+        assert "local-api supports a native, single-model" in exc.message
+    else:
+        raise AssertionError("unsupported local-api mode accepted: " + selection)
+for selection in ("pool", "models"):
+    cfg = InvestigationConfig()
+    if selection == "pool":
         cfg.agent.pool = ["codex", "local-api"]
     else:
         cfg.agent.models = {"local-api": "pinned"}
     try:
         validate(cfg)
     except ConfigValidationError as exc:
-        assert "investigation campaign orchestration is not supported" in exc.message
-        assert "--harness-evaluated-attempt source authoring" in exc.message
+        assert "local-api supports a native, single-model" in exc.message
     else:
-        raise AssertionError("local-api must not enter unsupported ideation/campaign stages")
+        raise AssertionError("local-api must not enter a mixed-host pool")
 for phases in ("all", "investigation", "paper"):
     cfg = load_pipeline_config(["agent.name=local-api", "execution.phases=" + phases])
     errors = validate_pipeline_config(cfg)

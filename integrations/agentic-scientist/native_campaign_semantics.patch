@@ -1,0 +1,621 @@
+AI Statistician scoped native fixed-requirement campaign extension.
+Upstream: Sakana AI / AI-Scientist-v3, Apache-2.0; retain upstream LICENSE.
+Base commit: 2b8aa39285c35aaca3b0e06dd121061ef8a2d854
+Local modifications: fixed criteria, native receipts, strict resume and completion.
+Native execution integrity is not an OS security boundary or scientific proof.
+Apply only to a disposable exact upstream copy; do not edit the canonical submodule.
+
+diff --git a/src/investigation/main_entry.py b/src/investigation/main_entry.py
+--- a/src/investigation/main_entry.py
++++ b/src/investigation/main_entry.py
+@@ -30,11 +30,14 @@
+     utc_now,
+ )
+ from .harness_incumbent import (
++    fixed_campaign_identity,
++    validate_fixed_campaign_resume,
+     reconcile_harness_incumbent,
+     runtime_baseline_correct,
+     runtime_baseline_score,
+     seed_matches_validated_baseline,
+ )
++from .idea_generation import load_fixed_target_rubrics
+ from .preparation_progress import preparation_progress
+ from .program_clone import clone_program_dir
+ from .program_spec import ProgramSpecError, entrypoint_relpath_from_spec
+@@ -439,6 +442,23 @@
+             path=container_env_file,
+             hint="set container.env_file to an existing file",
+         )
++        return 2
++
++    try:
++        fixed_target_rubrics = load_fixed_target_rubrics(task_dir)
++        if fixed_target_rubrics is not None and (
++            not cfg.execution.harness_evaluated_attempts or containerize
++            or cfg.execution.workers != 1 or cfg.execution.prune_every_n_cycles
++            or cfg.execution.draft_task_if_missing or cfg.paths.seed_program
++        ):
++            raise ValueError("fixed requirements currently require native serial pre-authored harness campaigns")
++        fixed_identity = validate_fixed_campaign_resume(
++            task_dir=task_dir, results_dir=results_dir,
++            seed_program_dir=task_dir / "program_0",
++            target_rubrics=fixed_target_rubrics, resume=cfg.execution.resume,
++        )
++    except (OSError, ValueError) as exc:
++        log_event_fn("config_error", reason="invalid_fixed_campaign", error=str(exc))
+         return 2
+ 
+     task_setup_args: dict[str, object] = {
+@@ -971,6 +991,11 @@
+         )
+         return 0
+ 
++    if fixed_identity is not None and fixed_campaign_identity(
++        task_dir, seed_program_dir, fixed_target_rubrics,
++    ) != fixed_identity:
++        log_event_fn("config_error", reason="fixed_task_changed_during_setup")
++        return 2
+     results_dir.mkdir(parents=True, exist_ok=True)
+     seed_is_validated_baseline = seed_matches_validated_baseline(
+         seed_program_dir, task_seed_program_dir
+@@ -996,7 +1021,11 @@
+ 
+     outer_state = state_store.load_or_init_outer_state(results_dir, seed_program_dir, cfg.execution.resume)
+     best_manifest = state_store.load_or_init_best_manifest(results_dir, seed_program_dir, cfg.execution.resume)
+-    if cfg.execution.harness_evaluated_attempts:
++    if fixed_identity is not None:
++        outer_state["fixed_requirements"] = fixed_identity
++        outer_state.setdefault("task_complete", False)
++        state_store.save_outer_state(results_dir, outer_state)
++    elif cfg.execution.harness_evaluated_attempts:
+         baseline_score = (
+             runtime_baseline_score(task_dir) if should_prepare_task_runtime else None
+         )
+@@ -1136,4 +1165,5 @@
+         read_json_fn=read_json,
+         utc_now_fn=utc_now,
+         checkpoint_fn=checkpoint_fn,
+-    )
++        fixed_target_rubrics=fixed_target_rubrics,
++    )
+diff --git a/src/investigation/harness_incumbent.py b/src/investigation/harness_incumbent.py
+--- a/src/investigation/harness_incumbent.py
++++ b/src/investigation/harness_incumbent.py
+@@ -12,10 +12,243 @@
+ from typing import Any
+ 
+ from .files import read_json, resolve_path
++from .evaluator_tree import evaluator_tree_digest
+ from .program_clone import _NONOVERRIDABLE_EXCLUDES
+-from .program_spec import entrypoint_relpath_from_spec
++from .program_spec import entrypoint_relpath_from_spec, load_program_spec
+ 
+ _MAX_ARTIFACT_BYTES = 1024 * 1024
++
++
++def _json_digest(value: object) -> str:
++    return hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
++
++
++def _file_digest(path: Path) -> str:
++    if path.is_symlink() or not path.is_file():
++        raise ValueError(f"evidence must be a regular file: {path}")
++    digest = hashlib.sha256()
++    with path.open("rb") as stream:
++        while chunk := stream.read(1024 * 1024):
++            digest.update(chunk)
++    return digest.hexdigest()
++
++
++def native_source_identity(
++    program_dir: Path, *, expected: dict[str, str] | None = None,
++) -> dict[str, str]:
++    if program_dir.is_symlink() or not program_dir.is_dir():
++        raise ValueError("native candidate must be a real directory")
++    records = _program_source_records(program_dir)
++    if not records:
++        raise ValueError("native candidate source is empty or indirect")
++    spec = load_program_spec(program_dir)
++    assert spec is not None
++    if expected is not None:
++        # v1 puts source under src and results at program root. Preserve every
++        # pre-evaluation input, but do not misclassify new result files as source.
++        records = {name: digest for name, digest in records.items()
++                   if name in expected or name == "program_spec.toml"
++                   or name.startswith(spec.code_root + "/")}
++    return records
++
++
++def native_evidence_identity(
++    program_dir: Path, *, source_records: dict[str, str] | None = None,
++) -> dict[str, str]:
++    names = {
++        "metrics.json", "correct.json", "rubric_status.json",
++        "harness_evaluate_stdout.log", "harness_evaluate_stderr.log",
++        "evaluation_evidence.json", "stdout.log", "stderr.log",
++    }
++    if source_records is not None:
++        names.update(
++            path.relative_to(program_dir).as_posix() for path in program_dir.rglob("*")
++            if (path.is_file() or path.is_symlink())
++            and "__pycache__" not in path.relative_to(program_dir).parts
++        )
++        names.difference_update(source_records)
++        names.discard("evaluation_manifest.json")
++    return {
++        name: _file_digest(program_dir / name)
++        for name in names
++        if (program_dir / name).exists() or (program_dir / name).is_symlink()
++    }
++
++
++@dataclass(frozen=True)
++class NativeEvaluation:
++    score: float | None
++    correct: bool | None
++    status: dict[str, Any]
++    manifest_sha256: str
++    complete: bool
++
++
++def read_native_evaluation(
++    program_dir: Path,
++    target_rubrics: list[dict[str, Any]],
++    *,
++    attempt_id: str,
++    idea_id: str,
++) -> NativeEvaluation:
++    """Read a completed native receipt, never infer acceptance from loose JSON."""
++    from src.orchestrator.rubrics import validate_rubric_status
++
++    manifest_path = program_dir / "evaluation_manifest.json"
++    manifest = _read_harness_json(manifest_path)
++    entrypoint = entrypoint_relpath_from_spec(program_dir)
++    command = manifest.get("command") if manifest else None
++    if not manifest or not (
++        manifest.get("producer") == "harness_eval"
++        and manifest.get("native_receipt_version") == 1
++        and manifest.get("execution_boundary") == "native"
++        and manifest.get("program_dir") == str(program_dir.resolve())
++        and manifest.get("program_id") == program_dir.name == "program_1"
++        and manifest.get("attempt_id") == attempt_id
++        and manifest.get("idea_id") == idea_id
++        and manifest.get("completed") is True
++        and type(manifest.get("exit_code")) is int
++        and isinstance(manifest.get("started_at"), str)
++        and isinstance(manifest.get("finished_at"), str)
++        and isinstance(command, list) and len(command) == 6
++        and command[1:] == [str(program_dir.parent / "evaluate.py"), "--program_path",
++                              str(program_dir / entrypoint), "--results_dir", str(program_dir)]
++        and isinstance(manifest.get("source_records"), dict)
++        and manifest["source_records"] == native_source_identity(program_dir, expected=manifest["source_records"])
++        and manifest.get("evaluator_sha256") == _file_digest(program_dir.parent / "evaluate.py")
++        and manifest.get("rubrics_sha256") == _json_digest(target_rubrics)
++        and manifest.get("evidence_records") == native_evidence_identity(program_dir, source_records=manifest["source_records"])
++    ):
++        raise ValueError(f"missing, malformed or stale native evaluation: {program_dir}")
++    status = _read_harness_json(program_dir / "rubric_status.json")
++    if status != _read_harness_json(program_dir.parent / "rubric_status.json"):
++        raise ValueError("native root and candidate rubric status disagree")
++    validation = validate_rubric_status(
++        status, {item["id"] for item in target_rubrics},
++        expected_attempt_id=attempt_id, expected_idea_id=idea_id,
++    )
++    if not validation.valid or status is None:
++        raise ValueError(f"invalid native rubric status: {validation.error}")
++    metrics = _read_harness_json(program_dir / "metrics.json")
++    correctness = _read_harness_json(program_dir / "correct.json")
++    score = _finite_score(metrics.get("combined_score")) if metrics else None
++    correct = correctness.get("correct") if correctness else None
++    if manifest["exit_code"] == 0 and (score is None or not isinstance(correct, bool)):
++        raise ValueError("completed native evaluation requires finite score and boolean correctness")
++    if validation.overall_pass and (manifest["exit_code"] != 0 or correct is not True):
++        raise ValueError("native acceptance requires evaluator correctness")
++    return NativeEvaluation(
++        score, correct if isinstance(correct, bool) else None, status,
++        _file_digest(manifest_path),
++        manifest["exit_code"] == 0 and correct is True and validation.overall_pass,
++    )
++
++
++def fixed_campaign_identity(
++    task_dir: Path, seed_program_dir: Path, target_rubrics: list[dict[str, Any]],
++) -> dict[str, Any]:
++    return {
++        "task_dir": str(task_dir.resolve()),
++        "task_sha256": evaluator_tree_digest(task_dir),
++        "seed_dir": str(seed_program_dir.resolve()),
++        "seed_sources": native_source_identity(seed_program_dir),
++        "rubrics_sha256": _json_digest(target_rubrics),
++    }
++
++
++def validate_fixed_campaign_resume(
++    *, task_dir: Path, results_dir: Path, seed_program_dir: Path,
++    target_rubrics: list[dict[str, Any]] | None, resume: bool,
++) -> dict[str, Any] | None:
++    """Validate existing state before the permissive upstream initializers can reset it."""
++    from src.orchestrator import state as state_store
++
++    state_path = results_dir / state_store.OUTER_STATE_FILE
++    best_path = results_dir / state_store.BEST_MANIFEST_FILE
++    old_state = _read_harness_json(state_path)
++    if target_rubrics is None:
++        if old_state and "fixed_requirements" in old_state:
++            raise ValueError("fixed campaign requirements were removed")
++        return None
++    identity = fixed_campaign_identity(task_dir, seed_program_dir, target_rubrics)
++    paths = [state_path, best_path]
++    existing = any(path.exists() or path.is_symlink() for path in paths)
++    if not existing:
++        if results_dir.exists() and any(path.name != "events.jsonl" for path in results_dir.iterdir()):
++            raise ValueError("fixed campaign requires an empty fresh results directory")
++        if native_evidence_identity(seed_program_dir) or (seed_program_dir / "evaluation_manifest.json").exists():
++            raise ValueError("fixed cold start requires an unevaluated seed, not loose evidence")
++        return identity
++    best = _read_harness_json(best_path)
++    if not resume or old_state is None or best is None:
++        raise ValueError("fixed campaign state exists: valid state and explicit resume are required")
++    if old_state.get("fixed_requirements") != identity:
++        raise ValueError("fixed campaign task, source or criteria identity changed")
++    if type(old_state.get("current_cycle")) is not int or old_state["current_cycle"] < 0:
++        raise ValueError("invalid fixed campaign cycle state")
++    history_path = state_store.attempts_history_path(results_dir)
++    if history_path.is_symlink() or not history_path.is_file():
++        raise ValueError("fixed campaign attempt history is missing or indirect")
++    try:
++        history = [json.loads(line) for line in history_path.read_text().splitlines()]
++    except (OSError, ValueError) as exc:
++        raise ValueError("invalid fixed campaign attempt history") from exc
++    consumed: set[Path] = set()
++    accepted: dict[Path, NativeEvaluation] = {}
++    previous_cycle = 0
++    for row in history:
++        if not isinstance(row, dict) or not all(
++            isinstance(row.get(key), str) and row[key]
++            for key in ("experiment_dir", "attempt_id", "idea_id")
++        ):
++            raise ValueError("invalid fixed campaign attempt record")
++        cycle = row.get("cycle_index")
++        if type(cycle) is not int or not previous_cycle < cycle <= old_state["current_cycle"]:
++            raise ValueError("fixed attempt history and cycle state disagree")
++        previous_cycle = cycle
++        program = Path(row["experiment_dir"]) / "program_1"
++        if not program.resolve().is_relative_to(results_dir.resolve()) or program in consumed:
++            raise ValueError("fixed candidate is outside campaign or consumed twice")
++        consumed.add(program)
++        evaluation = read_native_evaluation(
++            program, target_rubrics, attempt_id=row["attempt_id"], idea_id=row["idea_id"],
++        )
++        if evaluation.manifest_sha256 != row.get("native_evaluation_manifest_sha256"):
++            raise ValueError("consumed native evaluation changed")
++        if _file_digest(program.parent / "evaluate.py") != _file_digest(task_dir / "evaluate.py"):
++            raise ValueError("consumed native evaluator differs from frozen task")
++        passed = evaluation.complete and row.get("run_exit_code") == 0
++        if row.get("attempt_status") != ("pass" if passed else "fail"):
++            raise ValueError("fixed attempt status disagrees with native evidence")
++        if passed:
++            accepted[program.resolve()] = evaluation
++    observed = {
++        path.parent for path in (results_dir / "ideas").rglob("evaluation_manifest.json")
++        if path.parent.name == "program_1"
++    }
++    if observed != consumed:
++        raise ValueError("fixed campaign contains unrecorded or missing consumed evidence")
++    best_program = _legacy_program_dir(best)
++    if best_program is None or not best_program.is_relative_to(results_dir.resolve()):
++        raise ValueError("fixed incumbent is not campaign-owned")
++    if best.get("source_attempt_id") == "bootstrap":
++        if (best.get("combined_score") is not None or best.get("correct") is not None
++            or native_source_identity(best_program) != identity["seed_sources"]
++            or native_evidence_identity(best_program) or accepted):
++            raise ValueError("invalid fixed bootstrap state")
++    else:
++        evaluation = accepted.get(best_program)
++        if evaluation is None or (
++            best.get("combined_score") != evaluation.score or best.get("correct") is not True
++            or best.get("source_attempt_id") != evaluation.status["attempt_id"]
++        ):
++            raise ValueError("fixed incumbent lacks current accepted native evidence")
++    if (old_state.get("best_program_dir") != str(best_program)
++        or old_state.get("best_combined_score") != best.get("combined_score")
++        or old_state.get("best_correct") != best.get("correct")
++        or old_state.get("task_complete", False) != bool(accepted)):
++        raise ValueError("fixed campaign state and incumbent disagree")
++    return identity
+ 
+ 
+ def _finite_score(raw_score: object) -> float | None:
+diff --git a/src/investigation/idea_generation.py b/src/investigation/idea_generation.py
+--- a/src/investigation/idea_generation.py
++++ b/src/investigation/idea_generation.py
+@@ -4,6 +4,7 @@
+ 
+ import json
+ import math
++from copy import deepcopy
+ from dataclasses import dataclass
+ from pathlib import Path
+ from typing import Any, Callable
+@@ -34,6 +35,30 @@
+     target_rubrics: list[dict[str, Any]]
+ 
+ 
++def load_fixed_target_rubrics(task_dir: Path) -> list[dict[str, Any]] | None:
++    """Read operator-owned requirements; absence alone selects optimization mode."""
++    path = task_dir / "target_rubrics.json"
++    if not path.exists() and not path.is_symlink():
++        return None
++    if path.is_symlink() or not path.is_file():
++        raise ValueError("fixed target rubrics must be a regular file")
++    try:
++        raw = json.loads(path.read_text(encoding="utf-8"))
++        normalized = normalize_target_rubrics_payload(raw)
++    except (OSError, ValueError, IdeaBundleValidationError) as exc:
++        raise ValueError(f"invalid fixed target rubrics: {exc}") from exc
++    if not isinstance(raw, list) or len(raw) > MAX_HARNESS_RUBRICS:
++        raise ValueError("fixed target rubrics must be a nonempty bounded rubric list")
++    # Normalization intentionally drops metric fields for generated ideas. Operator
++    # requirements retain them, and must already have explicit, unique normalized IDs.
++    for item, canonical in zip(raw, normalized):
++        if item.get("id") != canonical["id"] or item.get("type") != canonical["type"]:
++            raise ValueError("fixed rubrics require explicit unique IDs and types")
++        if item["type"] == "metric" and rubric_metric_check(item) is None:
++            raise ValueError("fixed metric rubric requires a numeric threshold")
++    return raw
++
++
+ def load_idea_artifacts(
+     workspace: Path,
+     cycle_index: int,
+@@ -41,6 +66,7 @@
+     *,
+     require_harness_verification: bool = False,
+     harness_incumbent_score: float | None = None,
++    fixed_target_rubrics: list[dict[str, Any]] | None = None,
+ ) -> IdeaArtifacts:
+     """Load and cross-check the required idea-generation outputs."""
+     bundle_path = workspace / "idea_bundle.json"
+@@ -50,6 +76,10 @@
+             "missing_or_invalid_idea_bundle",
+             path=bundle_path,
+         )
++    if fixed_target_rubrics is not None:
++        if not require_harness_verification:
++            raise IdeaArtifactsError("fixed_requirements_need_harness_evaluation")
++        bundle_raw = {**bundle_raw, "target_rubrics": deepcopy(fixed_target_rubrics)}
+     if not require_harness_verification:
+         bundle_raw = without_target_rubric_verification(bundle_raw)
+     try:
+@@ -60,6 +90,11 @@
+             path=bundle_path,
+             detail=str(exc),
+         ) from exc
++
++    if fixed_target_rubrics is not None:
++        # Generated rubrics have no authority to replace or weaken operator criteria.
++        bundle["target_rubrics"] = deepcopy(fixed_target_rubrics)
++        return IdeaArtifacts(bundle=bundle, target_rubrics=bundle["target_rubrics"])
+ 
+     rubrics_path = workspace / "target_rubrics.json"
+     if not rubrics_path.exists():
+diff --git a/src/investigation/campaign_loop.py b/src/investigation/campaign_loop.py
+--- a/src/investigation/campaign_loop.py
++++ b/src/investigation/campaign_loop.py
+@@ -15,6 +15,9 @@
+ from .agent_selection import resolve_agent_model, resolve_cycle_agent
+ from .config import InvestigationConfig
+ from .files import confirm_prune_warning
++from .harness_incumbent import (
++    _file_digest, fixed_campaign_identity, read_native_evaluation,
++)
+ from .idea_generation import IdeaArtifactsError, load_idea_artifacts
+ from .idea_retry_feedback import sanitize_validation_feedback, validation_feedback_from_output
+ from .models import IdeaGenerationResult, PaperGenerationResult, RunAttemptResult
+@@ -85,6 +88,7 @@
+     read_json_fn: Callable[[Path], dict[str, Any] | None],
+     utc_now_fn: Callable[[], str],
+     checkpoint_fn: Callable[..., None] = lambda **_kwargs: None,
++    fixed_target_rubrics: list[dict[str, Any]] | None = None,
+ ) -> int:
+     """Execute campaign cycles and finalize optional paper output."""
+     agent_model = resolve_agent_model(cfg.agent, cfg.agent.name)
+@@ -112,6 +116,12 @@
+         confirm_prune_warning()
+ 
+     for cycle_idx in range(start_cycle, cfg.execution.max_idea_cycles + 1):
++        if fixed_target_rubrics is not None:
++            if fixed_campaign_identity(task_dir, task_dir / "program_0", fixed_target_rubrics) != outer_state.get("fixed_requirements"):
++                log_event_fn("campaign_failed", reason="fixed_task_identity_changed")
++                return 2
++            if outer_state.get("task_complete") is True:
++                break
+         # Parallel workers number cycles locally; events also carry the
+         # campaign-wide position so progress output reads "Cycle 2/3".
+         cycle_position = {
+@@ -293,6 +303,7 @@
+                         read_json_fn,
+                         require_harness_verification=cfg.execution.harness_evaluated_attempts,
+                         harness_incumbent_score=harness_incumbent_score,
++                        fixed_target_rubrics=fixed_target_rubrics,
+                     )
+                 except IdeaArtifactsError as exc:
+                     failure_reason = exc.reason
+@@ -400,6 +411,9 @@
+             idea_id=idea_id,
+         )
+         idea_dir = state_store.idea_dir(results_dir, idea_dir_name)
++        if fixed_target_rubrics is not None and idea_dir.exists():
++            log_event_fn("campaign_failed", reason="fixed_candidate_workspace_already_exists")
++            return 2
+         idea_dir.mkdir(parents=True, exist_ok=True)
+         reconcile_legacy_idea_local_memory_fn(
+             results_dir=results_dir,
+@@ -554,7 +568,32 @@
+             error="no experiment directory found",
+             status=None,
+         )
+-        if attempt_result.experiment_dir is not None:
++        native_evaluation = None
++        native_error = None
++        if fixed_target_rubrics is not None:
++            try:
++                experiment = attempt_result.experiment_dir
++                if experiment is None or not experiment.resolve().is_relative_to(idea_dir.resolve()):
++                    raise ValueError("native attempt must return a fresh idea-owned workspace")
++                if fixed_campaign_identity(task_dir, task_dir / "program_0", fixed_target_rubrics) != outer_state.get("fixed_requirements"):
++                    raise ValueError("fixed task identity changed during attempt")
++                if _file_digest(experiment / "evaluate.py") != _file_digest(task_dir / "evaluate.py"):
++                    raise ValueError("native attempt evaluator differs from frozen task")
++                native_evaluation = read_native_evaluation(
++                    experiment / "program_1", fixed_target_rubrics,
++                    attempt_id=attempt_id, idea_id=idea_id,
++                )
++                status_data = native_evaluation.status
++                validation = rubrics.validate_rubric_status(
++                    status_data, target_ids,
++                    expected_attempt_id=attempt_id, expected_idea_id=idea_id,
++                )
++            except (OSError, ValueError) as exc:
++                native_error = str(exc)
++                validation = rubrics.RubricStatusValidation(
++                    valid=False, overall_pass=False, error=native_error, status=None,
++                )
++        elif attempt_result.experiment_dir is not None:
+             status_data = rubrics.load_json_dict(
+                 attempt_result.experiment_dir / "rubric_status.json"
+             )
+@@ -579,7 +618,21 @@
+         evaluated_score: float | None = None
+         evaluated_correct: bool | None = None
+         if attempt_result.experiment_dir is not None:
+-            candidate = find_best_program_in_experiment_fn(attempt_result.experiment_dir)
++            if fixed_target_rubrics is not None:
++                candidate_dir = attempt_result.experiment_dir / "program_1"
++                candidate = (
++                    (candidate_dir, "src/program.py", native_evaluation.score, True)
++                    if native_evaluation is not None and native_evaluation.complete
++                    and attempt_result.exit_code == 0 else None
++                )
++                if candidate is not None:
++                    from .program_spec import entrypoint_relpath_from_spec
++                    candidate = (candidate[0], entrypoint_relpath_from_spec(candidate[0]), *candidate[2:])
++                if native_evaluation is not None:
++                    evaluated_score = native_evaluation.score
++                    evaluated_correct = native_evaluation.correct
++            else:
++                candidate = find_best_program_in_experiment_fn(attempt_result.experiment_dir)
+             if candidate is not None:
+                 candidate_dir, candidate_entrypoint, candidate_score, candidate_correct = candidate
+                 evaluated_score = candidate_score
+@@ -606,6 +659,9 @@
+ 
+         run_failed = attempt_result.exit_code != 0
+         attempt_pass = (not run_failed) and validation.valid and validation.overall_pass
++        if fixed_target_rubrics is not None:
++            attempt_pass = attempt_pass and native_evaluation is not None and native_evaluation.complete
++            outer_state["task_complete"] = attempt_pass
+         idea_success = attempt_pass
+         attempt_status = "pass" if attempt_pass else "fail"
+         outer_state["failure_streak"] = 0
+@@ -634,6 +690,10 @@
+             "reasoning_effort": reasoning_effort,
+         }
+         metrics: dict[str, Any] | None = None
++        if native_evaluation is not None:
++            attempt_record["native_evaluation_manifest_sha256"] = native_evaluation.manifest_sha256
++        if native_error is not None:
++            attempt_record["native_evaluation_error"] = native_error
+         if isinstance(status_data, dict):
+             metrics = status_data.get("metrics")
+             if isinstance(metrics, dict):
+@@ -641,6 +701,9 @@
+ 
+         state_store.append_jsonl(state_store.attempts_history_path(results_dir), attempt_record)
+         state_store.save_outer_state(results_dir, outer_state)
++        if native_error is not None:
++            log_event_fn("campaign_failed", reason="invalid_native_evidence", error=native_error)
++            return 2
+         checkpoint_fn(
+             label=f"evaluation c{cycle_idx:03d} a{attempt_number:02d}",
+             phase="investigation",
+@@ -779,6 +842,14 @@
+                     cycle_idx,
+                     worker_index,
+                 )
++
++        if fixed_target_rubrics is not None and idea_success:
++            log_event_fn("task_complete", reason="frozen_requirements_and_evaluator_correctness", cycle=cycle_idx)
++            break
++
++    if fixed_target_rubrics is not None and outer_state.get("task_complete") is not True:
++        log_event_fn("campaign_incomplete", reason="fixed_requirements_not_satisfied")
++        return 2
+ 
+     if cfg.paper.enabled:
+         paper_output_dir = (
+diff --git a/src/investigation/harness_eval.py b/src/investigation/harness_eval.py
+--- a/src/investigation/harness_eval.py
++++ b/src/investigation/harness_eval.py
+@@ -14,6 +14,9 @@
+ from typing import Any
+ 
+ from .harness_feedback import evaluation_feedback, search_metric_feedback
++from .harness_incumbent import (
++    _file_digest, _json_digest, native_evidence_identity, native_source_identity,
++)
+ from .harness_sources import read_candidate_sources as _read_candidate_sources
+ from .evaluator_outputs import EvaluatorOutputContractError
+ from .task_failure import TASK_CONTRACT_EXIT_CODE, TASK_CONTRACT_FAILURE, write_task_failure
+@@ -405,6 +408,7 @@
+                 environment,
+                 gpu_evaluation=gpu_evaluation,
+             ),
++            target_rubrics=target_rubrics,
+         )
+ 
+     missing_artifacts = [
+@@ -456,6 +460,21 @@
+     }
+     _write_json(program_dir / "rubric_status.json", status)
+     _write_json(experiment_dir / "rubric_status.json", status)
++    manifest_path = program_dir / "evaluation_manifest.json"
++    if sealed_config is None and manifest_path.is_file():
++        manifest = _load_json(manifest_path, {})
++        source_records = manifest.get("source_records")
++        if not isinstance(source_records, dict) or source_records != native_source_identity(program_dir, expected=source_records):
++            raise ValueError("native candidate source changed during evaluation")
++        if manifest.get("evaluator_sha256") != _file_digest(evaluate_py):
++            raise ValueError("native evaluator changed during evaluation")
++        if manifest.get("rubrics_sha256") != _json_digest(_target_rubrics(rubrics_path)):
++            raise ValueError("native criteria changed during evaluation")
++        manifest.update(
++            completed=True,
++            evidence_records=native_evidence_identity(program_dir, source_records=source_records),
++        )
++        _write_json(manifest_path, manifest)
+     _append_memory(
+         md_path=global_memory_md,
+         jsonl_path=global_memory_jsonl,
+@@ -479,6 +498,7 @@
+     python_bin: str,
+     timeout_seconds: int,
+     environment: Mapping[str, str],
++    target_rubrics: list[dict[str, Any]],
+ ) -> int:
+     manifest_path = program_dir / "evaluation_manifest.json"
+     command = [
+@@ -491,6 +511,12 @@
+     ]
+     manifest: dict[str, Any] = {
+         "producer": "harness_eval",
++        "native_receipt_version": 1,
++        "execution_boundary": "native",
++        "program_dir": str(program_dir.resolve()),
++        "source_records": native_source_identity(program_dir),
++        "evaluator_sha256": _file_digest(evaluate_py),
++        "rubrics_sha256": _json_digest(target_rubrics),
+         "attempt_id": attempt_id,
+         "idea_id": idea_id,
+         "program_id": "program_1",

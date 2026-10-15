@@ -42,19 +42,58 @@ def load_config(path: Path, *, model: str) -> tuple[dict, dict]:
                     "scope": "Operator-declared pinned deployment; response model identity checked on every request."}
 
 
-def stage_workspace(root: Path, source: Path) -> FileAuthorWorkspace:
+def campaign_history_grants(results: Path | None, *, current: Path) -> tuple[FileGrant, ...]:
+    """Expose prior author source and search observations, never evaluator source."""
+    if results is None:
+        return ()
+    results = results.resolve()
+    grants = [FileGrant("history/" + name, results / name) for name in
+              ("memory.md", "memory.jsonl", "conclusions.md", "attempts_history.jsonl", "ideas_history.jsonl")
+              if (results / name).is_file()]
+    for attempt in sorted((results / "ideas").glob("*")):
+        if not attempt.is_dir() or attempt.resolve() == current.resolve():
+            continue
+        prefix = "history/" + attempt.relative_to(results).as_posix()
+        for name in ("active_idea.json", "active_rubrics.json", ".local-api/session/result.json"):
+            if (attempt / name).is_file():
+                grants.append(FileGrant(prefix + "/" + name, attempt / name))
+        for program in sorted(attempt.glob("program_[0-9]*")):
+            for name in ("src", "program_spec.toml", "metrics.json", "correct.json", "rubric_status.json",
+                         "evaluation_manifest.json", "harness_evaluate_stdout.log", "harness_evaluate_stderr.log"):
+                path = program / name
+                if path.exists():
+                    grants.append(FileGrant(prefix + "/" + program.name + "/" + name, path, directory=name == "src"))
+    return tuple(grants)
+
+
+def stage_workspace(root: Path, source: Path, *, stage="research", results: Path | None = None) -> FileAuthorWorkspace:
     root, source = root.resolve(), source.resolve()
+    shared = (
+        FileGrant("skills", root / ".local-api/skills", directory=True),
+        FileGrant("sources", source / "resources/search", directory=True),
+        *campaign_history_grants(results, current=root),
+    )
+    if stage == "idea":
+        return FileAuthorWorkspace((
+            FileGrant("task.md", source / "task.md"),
+            FileGrant("task_requirements.json", source / "target_rubrics.json"),
+            FileGrant("program_0", source / "program_0", directory=True),
+            FileGrant("idea_bundle.json", root / "idea_bundle.json", writable=True),
+            FileGrant("target_rubrics.json", root / "target_rubrics.json", writable=True),
+            *shared,
+        ))
+    if stage != "research":
+        raise ValueError("Unknown native API stage.")
     grants = [
         FileGrant(name, root / name) for name in
         ("task.md", "active_idea.json", "active_rubrics.json") if (root / name).is_file()
     ]
     grants.extend((
         FileGrant("program_0", root / "program_0", directory=True),
-        FileGrant("skills", root / ".local-api/skills", directory=True),
-        FileGrant("sources", source / "resources/search", directory=True),
         FileGrant("program_1/src", root / "program_1/src", directory=True, writable=True),
         FileGrant("program_1/program_spec.toml", root / "program_1/program_spec.toml", writable=True),
         FileGrant("memory.md", root / "memory.md", writable=True),
+        *shared,
     ))
     workspace = FileAuthorWorkspace(tuple(grants))
     specification = tomllib.loads(workspace._path("program_0/program_spec.toml").read_text())
@@ -67,21 +106,31 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prompt-file", type=Path, required=True)
     parser.add_argument("--model", required=True)
+    parser.add_argument("--stage", choices=("idea", "research"), default="research")
     args = parser.parse_args()
     config, identity = load_config(Path(os.environ["AI_STATISTICIAN_API_CONFIG"]), model=args.model)
     root = Path.cwd().resolve()
-    workspace = stage_workspace(root, Path(os.environ["TASK_SOURCE_DIR"]).resolve())
+    results = Path(os.environ["AI_STATISTICIAN_CAMPAIGN_RESULTS"]) if os.environ.get("AI_STATISTICIAN_CAMPAIGN_RESULTS") else None
+    workspace = stage_workspace(root, Path(os.environ["TASK_SOURCE_DIR"]), stage=args.stage, results=results)
     backend = LocalChatGeneratorBackend(base_url=config["base_url"], timeout_s=config["timeout_seconds"])
     def interrupted(signum, frame):
         raise KeyboardInterrupt(f"Received signal {signum}")
 
     previous_handler = signal.signal(signal.SIGTERM, interrupted)
     try:
+        prompt = args.prompt_file.read_text()
+        if args.stage == "idea":
+            prompt = ("Native API stage contract: write idea_bundle.json and target_rubrics.json. "
+                      "Keep author notes in notes_for_agent; the host owns global memory bookkeeping. "
+                      "Use only granted logical paths, including history for prior source and raw observations. "
+                      "task_requirements.json, when present, is the operator's fixed acceptance contract.\n\n"
+                      + prompt)
         result = run_file_author(
-            backend=backend, workspace=workspace, prompt=args.prompt_file.read_text(),
+            backend=backend, workspace=workspace, prompt=prompt,
             model=args.model, max_tokens=config["max_tokens"], temperature=config["temperature"],
             max_turns=config["max_turns"], session_dir=root / ".local-api/session",
-            session_id=os.environ["ATTEMPT_ID"], deployment_identity=identity,
+            session_id=(f"idea_{os.environ['CYCLE_INDEX']}" if args.stage == "idea" else os.environ["ATTEMPT_ID"]),
+            deployment_identity={**identity, "stage": args.stage},
         )
     finally:
         signal.signal(signal.SIGTERM, previous_handler)
