@@ -52,6 +52,11 @@ Five original scripts were read; the primary paper was not. Consolidate the
 remaining shared handoff complexity before another scientific draw, without
 changing this result, adding statistical rules or using more families to chase a
 success. Both exposed paper families remain outside official held-out claims.
+The shared interface now separates executable estimator IDs from mathematical
+claim IDs: the author selects an existing mathematical file, which is retained in
+coding, scoped review, revision and evaluator inputs. This removes a redundant
+identity requirement, not a scientific obligation. Deterministic verification does
+not complete a checklist item or alter either consumed result.
 
 The minimum scientific scope is a justified comparison of the implemented
 intervention on the declared roster/model, not universal research automation.

@@ -7,6 +7,7 @@ import pytest
 
 import ai_statistician.research_architect as research_architect_module
 from ai_statistician.estimator_interface_contract import (
+    estimator_interface_contract_errors,
     frozen_estimator_execution_contract_alignment_errors,
     frozen_estimator_execution_contract_clause_ids,
     frozen_estimator_execution_contract_empirical_claim_ids,
@@ -217,18 +218,18 @@ def test_frozen_estimator_alignment_rejects_field_or_binding_drift() -> None:
 def test_frozen_estimator_reference_binds_unchanged_abi_without_authoring_it() -> None:
     frozen = _frozen_contract()
     original = deepcopy(frozen)
-    packet = {"estimator_specs": [{"id": "est_example", "name": "Example"}]}
+    packet = {"estimator_specs": [{"id": "est_example", "name": "Example", "document_path": "theory/estimator.tex"}]}
     authored_spec = packet["estimator_specs"][0]
     normalize_theory_estimator_interface_contracts(packet, frozen_contract=frozen)
     spec = packet["estimator_specs"][0]
 
-    assert authored_spec == {"id": "est_example", "name": "Example"}
+    assert authored_spec == {"id": "est_example", "name": "Example", "document_path": "theory/estimator.tex"}
     assert frozen == original
     assert frozen_estimator_execution_contract_alignment_errors(packet, frozen) == []
     assert spec["estimator_interface_contract"]["response_fields"][0] == {
         "name": "estimate", "meaning": frozen["response_fields"][0]["meaning"],
         "normalization": frozen["response_fields"][0]["normalization"],
-        "derivation_ref": "est_example",
+        "derivation_ref": "theory/estimator.tex",
     }
     once = deepcopy(packet)
     normalize_theory_estimator_interface_contracts(packet, frozen_contract=frozen)
@@ -247,6 +248,16 @@ def test_frozen_binding_does_not_repair_an_authored_invalid_contract(replacement
     normalize_theory_estimator_interface_contracts(packet, frozen_contract=_frozen_contract())
     assert packet["estimator_specs"][0]["estimator_interface_contract"] == replacement
     assert frozen_estimator_execution_contract_alignment_errors(packet, _frozen_contract())
+
+
+def test_frozen_binding_never_infers_a_document_from_the_estimator_id() -> None:
+    packet = {"estimator_specs": [{"id": "est_example", "name": "Example"}]}
+    normalize_theory_estimator_interface_contracts(packet, frozen_contract=_frozen_contract())
+    contract = packet["estimator_specs"][0]["estimator_interface_contract"]
+    assert all(row["derivation_ref"] == "" for row in contract["response_fields"])
+    assert any("missing derivation_ref" in error for error in estimator_interface_contract_errors(
+        contract, label="test", required=True,
+    ))
 
 
 def test_unfrozen_estimator_still_requires_model_authored_interface() -> None:
@@ -405,6 +416,7 @@ def test_executable_estimator_projection_removes_legacy_theory_prose() -> None:
         {
             "id": "est_example",
             "name": "Example estimator",
+            "document_path": "theory/estimator.md",
             "formula": "theory-document-only formula",
             "algorithm_sketch": "theory-document-only algorithm",
             "estimator_interface_contract_id": "abi:example",
@@ -433,10 +445,12 @@ def test_executable_estimator_projection_removes_legacy_theory_prose() -> None:
     assert set(projected) == {
         "id",
         "name",
+        "document_path",
         "estimator_interface_contract_id",
         "estimator_interface_contract",
     }
     serialized = json.dumps(projected, sort_keys=True)
+    assert projected["document_path"] == "theory/estimator.md"
     assert "theory-document-only" not in serialized
     assert "legacy_theory_note" not in serialized
     assert "sample_size_rate" not in serialized

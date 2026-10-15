@@ -184,10 +184,9 @@ def _theory_output_contract_for_question(
         if isinstance(derivation_contract, dict):
             derivation_contract.pop("formalization_handoff", None)
     if question.estimator_execution_contract and "estimator_specs" in output:
-        output["estimator_specs"] = [{
-            "id": question.estimator_execution_contract["estimator_id"],
-            "name": "short name; the matching claim_index entry points to the estimator derivation",
-        }]
+        spec = output["estimator_specs"][0]
+        spec["id"] = question.estimator_execution_contract["estimator_id"]
+        del spec["estimator_interface_contract"]
     return output, requirements
 
 
@@ -1253,6 +1252,7 @@ THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT: dict[str, Any] = {
         {
             "id": "stable executable estimator id",
             "name": "short human-readable name",
+            "document_path": "existing workspace .md or .tex file containing the estimator mathematics",
             "estimator_interface_contract": deepcopy(
                 THEORY_DEVELOPER_OUTPUT_CONTRACT["estimator_specs"][0][
                     "estimator_interface_contract"
@@ -1551,7 +1551,12 @@ def _file_theory_index_errors(
     if len(check_ids) != len(set(check_ids)):
         errors.append("sanity_check_index ids must be unique")
     indexed_ids = set(claim_ids)
-    for field in ("estimator_specs", "theorem_cards", "lemma_cards"):
+    for index, row in enumerate(packet.get("estimator_specs", []) or []):
+        if isinstance(row, Mapping):
+            path = row.get("document_path", "")
+            if not isinstance(path, str) or path not in document_paths or not path.endswith((".md", ".tex")):
+                errors.append(f"estimator_specs[{index}].document_path must reference an existing Markdown/LaTeX document")
+    for field in ("theorem_cards", "lemma_cards"):
         for index, row in enumerate(packet.get(field, []) or []):
             if not isinstance(row, Mapping):
                 continue
@@ -1630,6 +1635,7 @@ def _file_theory_handoff_reference_errors(
             {
                 "id",
                 "name",
+                "document_path",
                 "estimator_interface_contract",
                 "estimator_interface_contract_id",
             },
@@ -1885,6 +1891,15 @@ def _validate_theory_packet(
             if not isinstance(packet.get(list_field), list):
                 errors.append(f"{list_field} must be a list")
     allowed_derivation_refs = theory_semantic_reference_ids(packet)
+    manifest = packet.get("theory_workspace_manifest", {})
+    if document_authority and isinstance(manifest, Mapping):
+        allowed_derivation_refs.update(
+            row["relative_path"]
+            for row in (manifest.get("documents") or [])
+            if isinstance(row, Mapping)
+            and isinstance(row.get("relative_path"), str)
+            and row["relative_path"].endswith((".md", ".tex"))
+        )
     estimator_ids: list[str] = []
     for idx, row in enumerate(packet.get("estimator_specs", []) or []):
         if not isinstance(row, Mapping):
@@ -2556,9 +2571,10 @@ def _initial_theory_workspace_prompt(
         "calls, with no separate read or write quota. Use write_theory_document for a "
         "complete text file, edit_theory_document for a hash-bound local edit, and "
         "write_theory_workspace only for compact structured handoffs. Preserve any "
-        "frozen estimator ABI by submitting only its exact id and a name in estimator_specs; "
-        "index that estimator's mathematical document under the same claim ID. Runtime "
-        "binds the question's unchanged ABI to that reference. Without a frozen ABI, "
+        "frozen estimator ABI by submitting its exact id, name and document_path in "
+        "estimator_specs. The path selects your existing mathematical file; an executable "
+        "estimator ID need not be a claim ID. Runtime binds the unchanged ABI to the file "
+        "reference, without judging its mathematics. Without a frozen ABI, "
         "author the executable interface yourself. The required compact handoffs are: "
         + required_handoffs
         + ". Handoffs not required by this task intent may remain empty: "
@@ -2680,9 +2696,10 @@ def _theory_workspace_revision_prompt(
     }
     if "estimator_specs" in writable_artifacts:
         payload["instructions"].append(
-            "For the question's frozen estimator ABI, submit only its exact id and "
-            "a name in estimator_specs, with the same claim ID indexing its mathematical "
-            "document; runtime binds the unchanged public ABI. A retained parent ABI "
+            "For the question's frozen estimator ABI, submit its exact id, name and "
+            "document_path in estimator_specs; the file contains its mathematics and "
+            "the executable ID need not be a claim ID. Runtime binds the unchanged "
+            "public ABI to that file reference. A retained parent ABI "
             "must remain exact. For other estimators, author or revise their executable "
             "interfaces yourself when semantics change. Structural validation does "
             "not establish mathematical correctness."

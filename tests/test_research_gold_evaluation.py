@@ -1715,6 +1715,7 @@ def test_full_task_theory_requires_calibrated_semantic_judgment(
         assert interface_payload["estimator_specs"][0]["id"] == (
             "est_ols_hc0_covariance"
         )
+        assert interface_payload["estimator_specs"][0]["document_path"] == "derivations/C1.md"
         assert kwargs["reference_documents"][0]["content"].startswith(
             "# Reference"
         )
@@ -1744,6 +1745,7 @@ def test_full_task_theory_requires_calibrated_semantic_judgment(
             {
                 "id": "est_ols_hc0_covariance",
                 "name": "OLS HC0 covariance",
+                "document_path": "derivations/C1.md",
                 "inputs": ["design_matrix", "outcomes"],
                 "outputs": [
                     "coefficients",

@@ -1390,7 +1390,7 @@ def _hidden_theory_semantic_candidate_documents(
         deepcopy(dict(row)) for row in authoritative_rows if isinstance(row, Mapping)
     ]
     interface_keys = (
-        "id", "name", "inputs", "outputs", "estimator_interface_contract_id",
+        "id", "name", "document_path", "inputs", "outputs", "estimator_interface_contract_id",
         "estimator_interface_contract", "termination_guarantee",
     )
     estimator_specs = [

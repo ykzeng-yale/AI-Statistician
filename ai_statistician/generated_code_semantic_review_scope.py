@@ -286,22 +286,6 @@ def generated_code_semantic_review_theory_projection(
         if field in theory_packet
     }
     projected["theory_derivation_packet"] = projected_trace
-    authoritative_documents = load_theory_workspace_document_rows(theory_packet)
-    selected_document_paths = {
-        str(row.get("document_path", "") or "")
-        for row in claim_index
-        if isinstance(row, Mapping) and str(row.get("document_path", "") or "")
-    }
-    projected["authoritative_theory_documents"] = (
-        [
-            row
-            for row in authoritative_documents
-            if str(row.get("path", "") or "") in selected_document_paths
-        ]
-        if claim_id_alignment and selected_document_paths
-        else authoritative_documents
-    )
-
     implementation_target_ids = {
         str(row.get("estimator_id", "") or "")
         for row in proposal_packet.get("implementation_targets", []) or []
@@ -316,6 +300,28 @@ def generated_code_semantic_review_theory_projection(
         )
         if estimator_specs:
             projected["estimator_specs"] = estimator_specs
+
+    authoritative_documents = load_theory_workspace_document_rows(theory_packet)
+    selected_document_paths = {
+        str(row.get("document_path", "") or "")
+        for row in [*claim_index, *projected.get("estimator_specs", [])]
+        if isinstance(row, Mapping) and str(row.get("document_path", "") or "")
+    }
+    for spec in projected.get("estimator_specs", []):
+        contract = spec.get("estimator_interface_contract", {})
+        if isinstance(contract, Mapping):
+            for field in contract.get("response_fields", []) or []:
+                if isinstance(field, Mapping):
+                    selected_document_paths.add(str(field.get("derivation_ref", "") or ""))
+    projected["authoritative_theory_documents"] = (
+        [
+            row
+            for row in authoritative_documents
+            if str(row.get("path", "") or "") in selected_document_paths
+        ]
+        if claim_id_alignment and selected_document_paths
+        else authoritative_documents
+    )
 
     projected["theory_review_projection"] = {
         "canonical_theory_packet_id": str(

@@ -265,7 +265,7 @@ def project_executable_estimator_spec(spec: Mapping[str, Any]) -> dict[str, Any]
 
     projected = {
         key: deepcopy(spec[key])
-        for key in ("id", "name", "estimator_interface_contract_id")
+        for key in ("id", "name", "document_path", "estimator_interface_contract_id")
         if key in spec
     }
     contract = spec.get("estimator_interface_contract", {})
@@ -401,10 +401,10 @@ def normalize_theory_estimator_interface_contracts(
         if (frozen_contract and spec.get("id") == frozen_contract.get("estimator_id")
                 and "estimator_interface_contract" not in spec):
             contract = project_executable_estimator_interface_contract(frozen_contract)
-            # The estimator claim is the document reference, not a proof of its ABI.
+            # Bind the author's file selection, not an invented mathematical claim.
             for row in contract["response_fields"]:
                 if isinstance(row, dict):
-                    row["derivation_ref"] = spec["id"]
+                    row["derivation_ref"] = spec.get("document_path", "")
             spec["estimator_interface_contract"] = contract
         contract = spec.get("estimator_interface_contract")
         if isinstance(contract, Mapping):

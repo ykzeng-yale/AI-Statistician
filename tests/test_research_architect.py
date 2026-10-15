@@ -665,6 +665,7 @@ def _file_authority_theory_fixture(
         {
             "id": row.get("id", ""),
             "name": row.get("name", ""),
+            "document_path": document_path,
             "estimator_interface_contract": row.get(
                 "estimator_interface_contract", {}
             ),
@@ -2628,6 +2629,7 @@ def test_document_theory_handoff_keeps_math_out_of_estimator_json(
         {
             "id": rich_spec["id"],
             "name": rich_spec["name"],
+            "document_path": rich_spec["document_path"],
             "estimator_interface_contract": deepcopy(
                 rich_spec["estimator_interface_contract"]
             ),
@@ -2647,12 +2649,14 @@ def test_document_theory_handoff_keeps_math_out_of_estimator_json(
     assert set(THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["estimator_specs"][0]) == {
         "id",
         "name",
+        "document_path",
         "estimator_interface_contract",
     }
     assert validate_theory_packet(normalized) == []
     assert set(normalized["estimator_specs"][0]) == {
         "id",
         "name",
+        "document_path",
         "estimator_interface_contract",
         "estimator_interface_contract_id",
     }
@@ -2675,6 +2679,7 @@ def _frozen_abi_from_test_spec(spec: dict) -> dict:
 def test_frozen_abi_reference_survives_theory_workspace_and_revision(tmp_path: Path) -> None:
     core, documents = _file_authority_theory_fixture(_sample_response())
     spec = core["estimator_specs"][0]
+    spec["id"] = "executable_id_distinct_from_mathematical_claim_ids"
     frozen = _frozen_abi_from_test_spec(spec)
     spec.pop("estimator_interface_contract")
     question = OpenResearchQuestion(
@@ -2709,7 +2714,8 @@ def test_frozen_abi_reference_survives_theory_workspace_and_revision(tmp_path: P
     )
     assert research_architect_module._validate_theory_packet_for_question(packet, question=question) == []
     contract = packet["estimator_specs"][0]["estimator_interface_contract"]
-    assert all(row["derivation_ref"] == spec["id"] for row in contract["response_fields"])
+    assert all(row["derivation_ref"] == document_path for row in contract["response_fields"])
+    assert spec["id"] not in {row["id"] for row in packet["theory_derivation_packet"]["claim_index"]}
     assert packet["kernel_verified"] is False
     assert provider.generator_requests == []
     assert packet["estimator_interface_authoring"]["disposition"] == "frozen_question_abi_referenced"
@@ -2719,15 +2725,13 @@ def test_frozen_abi_reference_survives_theory_workspace_and_revision(tmp_path: P
     prompt_contract, _ = research_architect_module._theory_output_contract_for_question(
         THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT, question=question, formalization_authoring_required=True,
     )
-    assert set(prompt_contract["estimator_specs"][0]) == {"id", "name"}
-    assert set(spec) == {"id", "name"}
+    assert set(prompt_contract["estimator_specs"][0]) == {"id", "name", "document_path"}
+    assert set(spec) == {"id", "name", "document_path"}
 
     invalid = deepcopy(packet)
-    invalid["theory_derivation_packet"]["claim_index"] = [
-        row for row in invalid["theory_derivation_packet"]["claim_index"] if row["id"] != spec["id"]
-    ]
+    invalid["estimator_specs"][0]["document_path"] = "missing.md"
     errors = research_architect_module._validate_theory_packet_for_question(invalid, question=question)
-    assert any("has unresolved derivation_ref" in error for error in errors)
+    assert any("document_path must reference an existing Markdown/LaTeX document" in error for error in errors)
 
     revised_document = document + "\n## Revision note\n\nThe public interface is retained.\n"
     revision_provider = ScriptedTheoryToolBackend(tool_responses=[
@@ -2752,6 +2756,53 @@ def test_frozen_abi_reference_survives_theory_workspace_and_revision(tmp_path: P
     assert revised["estimator_interface_authoring"]["n_interfaces_reused"] == 1
     assert revised["llm_client_tool_loop"]["resumed_from_client_tool_session_ref"] == parent_session
     assert revision_provider.generator_requests == []
+
+
+@pytest.mark.parametrize("path", [None, "", "missing.md", "references.bib", "../outside.md"])
+def test_document_estimator_reference_requires_actual_mathematical_file(tmp_path: Path, path) -> None:
+    packet, documents = _file_authority_theory_fixture(_sample_response())
+    documents["references.bib"] = "@misc{example, title={Example}}\n"
+    workspace = tmp_path / "theory"
+    workspace.mkdir()
+    for relative_path, content in documents.items():
+        target = workspace / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content)
+    packet["theory_workspace_manifest"] = theory_workspace_document_manifest(documents, workspace_dir=workspace)
+    packet["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
+    packet["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
+    packet["estimator_specs"][0]["document_path"] = path
+    normalized = research_architect_module._normalize_theory_packet(
+        packet, question=OpenResearchQuestion(id="file-reference", title="File reference", description="Validate references only."),
+        model=DEFAULT_LOCAL_GENERATOR_MODEL, model_tier="local", provider_name="local",
+        raw_response=json.dumps(packet), theory_prompt_mode=THEORY_PROMPT_MODE_SERIOUS_CAPABILITY,
+        formalization_authoring_required=True,
+    )
+    errors = validate_theory_packet(normalized)
+    assert any("document_path must reference an existing Markdown/LaTeX document" in error for error in errors)
+
+
+def test_file_derivation_reference_does_not_relax_hash_or_legacy_authority(tmp_path: Path) -> None:
+    packet, documents = _file_authority_theory_fixture(_sample_response(), workspace_dir=tmp_path)
+    path, content = next(iter(documents.items()))
+    for field in packet["estimator_specs"][0]["estimator_interface_contract"]["response_fields"]:
+        field["derivation_ref"] = path
+    normalized = research_architect_module._normalize_theory_packet(
+        packet, question=OpenResearchQuestion(id="file-hash", title="File hash", description="Validate identities only."),
+        model=DEFAULT_LOCAL_GENERATOR_MODEL, model_tier="local", provider_name="local",
+        raw_response=json.dumps(packet), theory_prompt_mode=THEORY_PROMPT_MODE_SERIOUS_CAPABILITY,
+        formalization_authoring_required=True,
+    )
+    assert validate_theory_packet(normalized) == []
+    assert normalized["kernel_verified"] is False
+    (tmp_path / path).write_text(content + "\nChanged outside the author checkpoint.\n")
+    assert any("hash mismatch" in error for error in validate_theory_packet(normalized))
+
+    legacy = _sample_response()
+    for field in legacy["estimator_specs"][0]["estimator_interface_contract"]["response_fields"]:
+        field["derivation_ref"] = path
+    errors = validate_theory_packet(legacy)
+    assert any("has unresolved derivation_ref" in error for error in errors)
 
 
 def test_document_theory_handoff_rejects_duplicated_mathematical_content(

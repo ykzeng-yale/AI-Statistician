@@ -99,6 +99,44 @@ def _document_theory_packet(tmp_path: Path) -> tuple[dict, str]:
     )
 
 
+def test_scoped_code_review_includes_selected_estimator_file_without_claim_alias(tmp_path: Path) -> None:
+    packet, content = _document_theory_packet(tmp_path)
+    documents = {
+        "derivations/C1.md": content,
+        "estimator.md": "# Estimator\n\nIts computation is defined here.\n",
+        "variance.tex": "The selected output's separate derivation.\n",
+        "other.md": "# Unrelated estimator\n",
+    }
+    for path, text in documents.items():
+        (tmp_path / path).write_text(text, encoding="utf-8")
+    packet["theory_workspace_manifest"] = theory_workspace_document_manifest(documents, workspace_dir=tmp_path)
+    packet["estimator_specs"] = [
+        {"id": "executable", "name": "Selected", "document_path": "estimator.md",
+         "estimator_interface_contract": {"response_fields": [{"derivation_ref": "variance.tex"}]}},
+        {"id": "other", "name": "Unselected", "document_path": "other.md"},
+    ]
+    alignment = theory_trace_alignment_contract(
+        packet, {"referenced_claim_ids": ["C1"], "rationale": "Implement C1."},
+        consumer_subsystem="AlgorithmEngineer",
+    )
+    projected = generated_code_semantic_review_theory_projection(
+        theory_packet=packet,
+        proposal_packet={"theory_trace_alignment_contract": alignment,
+                         "implementation_targets": [{"estimator_id": "executable"}]},
+    )
+    assert projected["estimator_specs"] == [packet["estimator_specs"][0]]
+    assert {row["path"]: row["content"] for row in projected["authoritative_theory_documents"]} == {
+        key: documents[key] for key in ("derivations/C1.md", "estimator.md", "variance.tex")
+    }
+    assert projected["theory_review_projection"]["claim_dependency_closure"] == ["C0", "C1"]
+    non_claim = theory_trace_alignment_contract(
+        packet, {"referenced_claim_ids": ["estimator.md"], "rationale": "A file is not a claim."},
+        consumer_subsystem="AlgorithmEngineer",
+    )
+    assert non_claim["structured_alignment_observed"] is False
+    assert non_claim["unsupported_claim_ids"] == ["estimator.md"]
+
+
 def test_every_theory_consumer_reads_the_same_hash_bound_document(
     tmp_path: Path,
 ) -> None:

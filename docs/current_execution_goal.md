@@ -82,12 +82,15 @@ not a resource limit; the drafts also lack adequate source-grounded arguments.
 See the [immutable outcome record](../benchmarks/publication_development/ebnm_integrated_20261015/observed_results.json).
 This is failure evidence, not a completed workflow or evidence that its mathematical
 question is unsolvable. The shared interface now permits the author to reference
-the frozen estimator by ID/name and index its mathematical document. Runtime binds
+the frozen estimator by ID/name and select its mathematical file. Runtime binds
 the unchanged public ABI without requiring a second model-authored copy; it records
 the frozen contract identity rather than claiming autonomous interface invention.
-Deterministic tests cover first submission, document revision, missing derivation
-references, conflicting interfaces and unfrozen model-owned interfaces. This is
-mechanism evidence only, not a new successful research run. Do not repair or rerun this draw,
+Executable IDs are separate from mathematical claim IDs; `document_path` identifies
+the author's existing Markdown/LaTeX file. Scoped review retains that file and any
+file-valued output references. Deterministic tests cover first submission, document
+revision, missing or modified files, conflicting interfaces and unfrozen
+model-owned interfaces. This is mechanism evidence only, not a new successful
+research run. Do not repair or rerun this draw,
 raise limits as the presumed solution, or turn its formulas into runtime rules.
 Mathematical definitions, arguments and source use still belong to the model's
 documents and independent assessment. The next scientific development must show
@@ -103,9 +106,11 @@ was still generating. The model read five original scripts but did not read the
 available primary article. See the [immutable outcome record](../benchmarks/publication_development/stepmix_integrated_20261015/observed_results.json).
 This is neither a successful test of frozen-ABI reuse nor a causal comparison with
 ebnm. Both results remain failures under their own conditions. Inspect and
-consolidate unnecessary handoff metadata before another full model draw; preserve
-source/target identity and reviewable mathematical documents. Do not patch the
-generated derivation, add task-specific error handling, or presume that extending
+consolidate unnecessary handoff metadata before another full model draw. The
+executable-ID/claim-ID coupling is now removed through the existing file-reference
+boundary, with source/target identity intact; no fresh scientific success has been
+observed. Do not patch the generated derivation, add task-specific error handling,
+or presume that extending
 the timeout establishes scientific capability. The StepMix paper family is now
 exposed development material, not an official held-out task.
 
@@ -128,8 +133,8 @@ scientific gaps.
    coverage of file references and retained revision. Do not launch more families
    merely to search for a passing handoff or replace either consumed failure.
    Use the existing retained workspaces and pinned local Qwen, with the question,
-   resources and data-use
-   plan recorded before calls. The research agents perform source work, theory,
+   resources and data-use plan recorded before calls. The research agents perform
+   source work, theory,
    implementation, simulation and reporting. Record all attempts and human
    interventions. An unresolved argument stays unresolved; neither an attractive
    intermediate nor a later rerun replaces the final artifact. Development and
