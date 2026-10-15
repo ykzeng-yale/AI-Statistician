@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import subprocess
 import sys
@@ -13,6 +14,22 @@ import urllib.request
 from ai_statistician.theory_semantic_gold_judge import run_theory_semantic_gold_judge
 from benchmarks.publication_deployment_qualification_20261003.observe import digest, write_json
 from benchmarks.publication_deployment_qualification_20261003.observe_retained_session import RecordingBackend
+
+
+def settings_match(actual, expected):
+    if actual.keys() != expected.keys():
+        return False
+    for key, value in expected.items():
+        observed = actual[key]
+        if key in {"temperature", "top_p", "min_p"}:
+            if any(type(item) not in (int, float) or not math.isfinite(item)
+                   for item in (observed, value)):
+                return False
+            if not math.isclose(observed, value, rel_tol=0, abs_tol=1e-7):
+                return False
+        elif type(observed) is not type(value) or observed != value:
+            return False
+    return True
 
 
 def main():
@@ -55,7 +72,7 @@ def main():
                   "context": settings["n_ctx"], "slots": props["total_slots"],
                   "template_sha256": hashlib.sha256(props["chat_template"].encode()).hexdigest(),
                   **{key: settings["params"][key] for key in ("seed", "temperature", "top_k", "top_p", "min_p")}}
-        if actual != plan["active_settings"]:
+        if not settings_match(actual, plan["active_settings"]):
             raise ValueError("active model/template/decoding differs from prospective condition")
         result["active_settings"] = actual
         result["hardware"] = subprocess.check_output(

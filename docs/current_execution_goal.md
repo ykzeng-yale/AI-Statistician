@@ -78,6 +78,35 @@ uses the existing source/rights/assessment criteria, never which task the model
 appears likely to pass. Development exposure and official held-out access remain
 separate. The existing 40-item checklist records all completion credit.
 
+### October 15 Execution Checkpoint
+
+The immediate missing evidence is scientific completion, not another architecture
+audit. Preserve the existing file-backed workspaces and model-owned revisions;
+do not add a reviewer framework, research scheduler or content repair rules.
+This worker organizes AI assessment. No user-appointed human reviewer is required,
+and AI-assessed results must not be labelled human validation or mathematical proof.
+
+The [declared local assessment qualification](../benchmarks/publication_assessment_qualification_20261015/README.md)
+now has source-bound analytic controls and a fixed decision rule. Its first
+preparation stopped before inference because a float32 server value was compared
+exactly with its decimal configuration: **zero model requests, no mathematical
+verdict**. The original plan and result are immutable. A
+[pre-call amendment](../benchmarks/publication_assessment_qualification_20261015/precall_amendment.json)
+only specifies finite numerical roundoff tolerance for three decoding values;
+identity, mathematical materials, criteria and the live model deployment stay
+unchanged. Execute that first model qualification once, retain every report and
+stop on the existing protocol's failure. Do not pursue repeated qualifications
+until one passes. Either outcome informs the next prospective condition, not an
+official success rate or a new task-family workaround.
+
+After this observation, reconcile task, local model resources and assessment in
+one coherent complete-workflow condition before another product draw. Do not
+spend more effort on toy capability gates, installation repeats or numerical
+checks presented as theory. A full methods reconstruction, then unrelated-family
+transfer and matched H/S comparisons remain the scientific milestones. The
+paper outlines, theory and experiment obligations, case dependencies and release
+items remain in the original 40-item checklist; this checkpoint grants no credit.
+
 Meta's [companion report](https://research.meta.ai/static/observational-research-with-muse-models)
 reinforces a useful distinction: research speed is not scientific reliability.
 We adopt its emphasis on data meaning, traceable review and consistency across

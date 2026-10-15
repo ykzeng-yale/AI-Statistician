@@ -1,0 +1,106 @@
+{
+  "qualification_id": "drdid_population_assessor_20261015_precall_amendment",
+  "scope": "One prospective task-bound local-Qwen assessor qualification, not an agent research draw, official publication comparison or global mathematical reliability result.",
+  "bank": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/bank.json",
+  "output": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/observation_2",
+  "asset_plan": "benchmarks/publication_deployment_qualification_20261003/plan.json",
+  "server_url": "http://127.0.0.1:8081",
+  "active_settings": {
+    "model": "Qwen3-4B-Instruct-2507",
+    "model_path": "/Users/yukangzengcmac/AI-Statistician/runs/publication_deployment_qualification_20261003/assets/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    "model_ids": [
+      "Qwen3-4B-Instruct-2507"
+    ],
+    "context": 131072,
+    "slots": 1,
+    "template_sha256": "c979e0e71a3e21b8f208e6ab120d5cb29327885f29d2a8b18fda67a723798e18",
+    "seed": 2026101505,
+    "temperature": 0,
+    "top_k": 20,
+    "top_p": 0.8,
+    "min_p": 0
+  },
+  "max_tokens": 16384,
+  "request_timeout_seconds": 7200,
+  "review_contract": "Existing protocol 26, integrated_single; native request temperature 0, auto tool choice, no thinking budget. Existing 32-turn, 64-tool, 3-no-progress bounds are unchanged. No extra global deadline, model retry, output repair or automatic model escalation.",
+  "order": "c1, c2, c3, c4; then c1+n1 in candidate-negative mode; then c2 in candidate-positive mode. Existing protocol stops after the first wrong control. Later cases are NOT_RUN, not silently counted as correct or incorrect.",
+  "qualification_decision": "Require every prespecified status and the positive candidate status to match. Also inspect the exact retained reports against the private analytic key once, as part of this declared qualification: every decisive reason must be mathematically supported, both correctness branches and the valid alternative recognized, honest missing argument distinguished from false assertion, and the active false supplementary identity rejected. Native tag agreement alone does not qualify scientific authority. Preserve any mismatch/incomplete output without repair or rerun.",
+  "independence": "Every case uses the existing isolated retained review context; labels/key are not sent to the model. Same checkpoint and common reference imply shared bias, not independent scientific truth. c2 is deliberately reused for the candidate-mode check and is not another independent case. This source family is evaluator-exposed development, excluded from official untouched test families.",
+  "source_scope": "Author main and supplement dated May 5, 2020. Selected main pages 6, 8, 9 and supplement page 2 were inspected visually with their text, for the panel population functional only. No full-paper reading, estimator/CLT, original Monte Carlo/NSW application or package execution is claimed. Original absent-space appendix URL returned 404; the current author research page supplies the space-containing URL. PDF text extraction emitted a rotated-text warning; rendered selected pages remain authoritative.",
+  "inputs": [
+    {
+      "path": "benchmarks/publication_assessment_qualification_20261015/qualify.py",
+      "sha256": "94eef19150979d6727221b4f2c1aab57886ed8bdb819b514ada10fe4595d129d"
+    },
+    {
+      "path": "benchmarks/publication_deployment_qualification_20261003/plan.json",
+      "sha256": "603b40c084c3f0375a7fbbebbdd1fefbb759648a7a6e59017b668bd04c73e149"
+    },
+    {
+      "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/bank.json",
+      "sha256": "9739e179a3a02d041746a18a725f70ed559ede23a2c4027017dddb60c05fa2d6"
+    },
+    {
+      "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/setup.md",
+      "sha256": "f7de3687994947a3294c92f6ee04183aea2ee2dea6c10b05184c8dd10b7f0433"
+    },
+    {
+      "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/reference.md",
+      "sha256": "6bbe26153d877f42eb63e62b12b4df19164596e8273125b278003101c6205146"
+    },
+    {
+      "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/c1.md",
+      "sha256": "ebcc97d5eeeea8417c5b70d47941b2568b8199b01f741fa5a443a232881d0fff"
+    },
+    {
+      "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/c2.md",
+      "sha256": "73747058692847c6af62295831a521822fa281eff43588c341a1c9e9c6443617"
+    },
+    {
+      "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/c3.md",
+      "sha256": "c3449f53f4408ded9fab4689f461670c318227cacf75add6f10f0b3abb2c4aa7"
+    },
+    {
+      "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/c4.md",
+      "sha256": "293e64d4413d877b998d3afbd85af53ad8ea20a0c1561dfc631f3028ea9a25df"
+    },
+    {
+      "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/n1.md",
+      "sha256": "416e6d98a3f2fe88c06bde63e175b23632eda82214e7ebf96ee589e27c553f18"
+    },
+    {
+      "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/key.md",
+      "sha256": "789d0f77811f1047748d3063a838a981ae4cbece0f522f1e4ac41e13ced4af91"
+    },
+    {
+      "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/source_qa.md",
+      "sha256": "c8348707237f4935b67e1fc7c501219121668522d9ec0f8458bfb96edbe894df"
+    },
+    {
+      "path": "runs/publication_method_sources_20261015/drdid/SantAnna_Zhao_DRDID.pdf",
+      "sha256": "8c013e1353ac11ddd2a6623011f5131783d7fb2526bd64a88c3966a922a0e876"
+    },
+    {
+      "path": "runs/publication_method_sources_20261015/drdid/DR-DID_Appendix.pdf",
+      "sha256": "ab412cba7d27bb60c79e34b12b08840db7a88ce9f8e28d029177561ecffcc58f"
+    },
+    {
+      "path": "benchmarks/publication_assessment_qualification_20261015/plan.json",
+      "sha256": "35db62ed2a4d42b043424a8214d51ba3e7921da8558d37f6de2ab1c4176cc9bd"
+    },
+    {
+      "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/observation_1/result.json",
+      "sha256": "a87af031303df3646a5daecb61ee2a63c67b5d2be38a9439472e1e17d11cbbe8"
+    }
+  ],
+  "server_ownership": "Operator launches one matching pinned server in a fresh owned HOME, with model/path/context/sampling from active_settings; all remaining runtime flags are those of asset_plan. Verify props/models and asset hashes before inference. No existing listener is reused or killed. Retain launch/stream/process evidence and stop the owned server after this single qualification.",
+  "limitations": "One population-identification argument family and purposive controls cannot qualify arbitrary statistics, research-E2E, human review, frontier discovery or either publication. Reference QA is AI-assisted, not a human panel or Lean proof. Successful statuses need the declared report-level examination. Missing reports or failed controls leave authority unqualified; do not activate official experiments, alter old scores or rerun this qualification. Source rights and bank release remain separate; no original PDF, package data or credential is committed.",
+  "precall_amendment": {
+    "original_plan": "benchmarks/publication_assessment_qualification_20261015/plan.json",
+    "original_result": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/observation_1/result.json",
+    "observed": "Preparation stopped before inference: zero model attempts; server returned top_p=0.800000011920929 for the declared 0.8. No control, candidate or reviewer outcome was consumed.",
+    "change": "Compare only finite temperature/top_p/min_p numeric values with absolute tolerance 1e-7 and zero relative tolerance, rejecting bool/string/nonfinite values. Model identity, assets, template, integer settings and remaining fields retain exact typed comparison. Retain actual observed values.",
+    "unchanged": "Same private bank, analytic key, source hashes, case order, pass criteria, model weights, launch, seed, decoding and owned live server. No scientific output repair, assessment-rule change, inference probe or discarded model draw.",
+    "decision": "One first model qualification under this amendment. Keep the original plan and zero-call result immutable. No retry after the first model request; stop on the existing protocol's first mismatch or incomplete review."
+  }
+}

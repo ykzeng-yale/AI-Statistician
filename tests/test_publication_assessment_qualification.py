@@ -59,7 +59,8 @@ def _fixture(tmp_path, monkeypatch):
 
 
 def test_assessment_assembly_reuses_frozen_review_without_key_or_source_edits(tmp_path, monkeypatch):
-    plan, sources, _ = _fixture(tmp_path, monkeypatch)
+    plan, sources, observations = _fixture(tmp_path, monkeypatch)
+    observations[0]["default_generation_settings"]["params"]["top_p"] = 0.800000011920929
 
     def review(**kwargs):
         assert kwargs["model"] == "Qwen3-4B-Instruct-2507" and kwargs["model_tier"] == "local"
@@ -76,6 +77,7 @@ def test_assessment_assembly_reuses_frozen_review_without_key_or_source_edits(tm
     assert qualify.main() == 0
     result = json.loads((tmp_path / "output/result.json").read_text())
     assert result["scientific_qualification"] == "not_established"
+    assert result["active_settings"]["top_p"] == 0.800000011920929
     assert result["inputs_unchanged"] is True and result["model_attempts"] == 0
     assert {path: path.read_bytes() for path in sources} == before
     with pytest.raises(FileExistsError):
@@ -103,3 +105,25 @@ def test_assessment_precheck_or_review_failure_is_not_retried(tmp_path, monkeypa
     result = json.loads((tmp_path / "output/result.json").read_text())
     assert result["scientific_qualification"] == "not_established" and result["status"] == "stopped"
     assert not (tmp_path / "output/judgment.json").exists()
+
+
+@pytest.mark.parametrize("observed, expected, matches", [
+    ({"top_p": 0.800000011920929}, {"top_p": 0.8}, True),
+    ({"temperature": 0}, {"temperature": 0.0}, True),
+    ({"top_p": 0.81}, {"top_p": 0.8}, False),
+    ({"min_p": 0.001}, {"min_p": 0}, False),
+    ({"temperature": True}, {"temperature": 1.0}, False),
+    ({"temperature": 0}, {"temperature": False}, False),
+    ({"top_p": float("nan")}, {"top_p": 0.8}, False),
+    ({"top_p": float("inf")}, {"top_p": float("inf")}, False),
+    ({"top_p": "0.8"}, {"top_p": 0.8}, False),
+    ({"seed": 1.0}, {"seed": 1}, False),
+    ({"slots": True}, {"slots": 1}, False),
+    ({"context": 32768}, {"context": 131072}, False),
+    ({"template_sha256": "changed"}, {"template_sha256": "frozen"}, False),
+    ({"model": "different"}, {"model": "frozen"}, False),
+    ({"top_p": 0.8, "extra": 1}, {"top_p": 0.8}, False),
+    ({}, {"top_p": 0.8}, False),
+])
+def test_settings_match_only_tolerates_finite_decoding_roundoff(observed, expected, matches):
+    assert qualify.settings_match(observed, expected) is matches

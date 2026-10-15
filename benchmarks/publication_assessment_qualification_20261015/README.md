@@ -1,5 +1,17 @@
 # Local Mathematical Assessor Qualification
 
+## Pre-Call Amendment
+
+The original preparation stopped before inference with zero model requests: the
+server represents the declared `top_p=0.8` as `0.800000011920929`. Its plan and
+result remain unchanged. `precall_amendment.json` binds both records and the new
+runner before the first model call. Only finite numeric comparison of
+`temperature`, `top_p` and `min_p` allows absolute roundoff up to `1e-7`; all
+identity and integer fields stay exact and actual values are recorded. No bank,
+criterion, model setting, server or scientific outcome changes. The new output
+directory cannot overwrite the zero-call preparation. This is not a retry of a
+consumed model evaluation.
+
 Prospectively declared on 2026-10-15, before model calls. This checks the actual
 existing Qwen semantic-review protocol against a source-grounded population
 identification argument. It is not a research-system draw, new statistical method,
