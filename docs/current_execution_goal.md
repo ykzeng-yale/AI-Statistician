@@ -95,6 +95,20 @@ that usable source access and this simpler handoff actually support a complete
 workflow. Do not substitute interface conformance for correct mathematics or add
 a new repair layer.
 
+The subsequent, precommitted full StepMix development draw also terminated
+`BLOCKED`: 30 requests in 31.2 minutes, three rejected theory checkpoints, no
+final submission and no source execution, independent review, simulation or
+application. Request 30 exceeded its declared 900-second timeout while the server
+was still generating. The model read five original scripts but did not read the
+available primary article. See the [immutable outcome record](../benchmarks/publication_development/stepmix_integrated_20261015/observed_results.json).
+This is neither a successful test of frozen-ABI reuse nor a causal comparison with
+ebnm. Both results remain failures under their own conditions. Inspect and
+consolidate unnecessary handoff metadata before another full model draw; preserve
+source/target identity and reviewable mathematical documents. Do not patch the
+generated derivation, add task-specific error handling, or presume that extending
+the timeout establishes scientific capability. The StepMix paper family is now
+exposed development material, not an official held-out task.
+
 The immediate priority is a complete methods-research workflow, with the same
 estimand, assumptions, algorithm and interpretation followed across artifacts.
 Broader comparisons follow qualification of that workflow. Repeated installation
@@ -109,8 +123,12 @@ scientific gaps.
    and application scope. Resolve the recorded mathematical-source ambiguities
    through source access; do not hand-author the agents' answers. If an existing
    task cannot support a methods claim, state its narrower role before execution.
-2. **Produce one complete fresh development study.** Use the existing retained
-   workspaces and pinned local Qwen, with the question, resources and data-use
+2. **Resolve the observed handoff obstacle, then produce a complete fresh study.**
+   First simplify only demonstrated shared interface duplication, with deterministic
+   coverage of file references and retained revision. Do not launch more families
+   merely to search for a passing handoff or replace either consumed failure.
+   Use the existing retained workspaces and pinned local Qwen, with the question,
+   resources and data-use
    plan recorded before calls. The research agents perform source work, theory,
    implementation, simulation and reporting. Record all attempts and human
    interventions. An unresolved argument stays unresolved; neither an attractive

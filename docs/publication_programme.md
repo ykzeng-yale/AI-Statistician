@@ -1,7 +1,7 @@
 # Publication Programme
 
 Updated: 2026-10-15. Status: scientific workflow qualification in progress;
-one fresh integrated development draw terminated without a final submission.
+two fresh integrated development draws terminated without final submissions.
 The native chat goal is active and covers
 both publications.
 
@@ -44,6 +44,14 @@ authoring step, with deterministic mechanism tests but no new live efficacy
 evidence. Verify actual primary-source use and scientific progress in the next
 prospectively declared condition. Keep this
 failed run and the exposed family out of official held-out comparisons.
+
+The subsequently declared [StepMix development record](../benchmarks/publication_development/stepmix_integrated_20261015/observed_results.json)
+also adds no completion credit: 30 requests, three rejected theory checkpoints,
+then a 900-second provider timeout, with no final submission or computation.
+Five original scripts were read; the primary paper was not. Consolidate the
+remaining shared handoff complexity before another scientific draw, without
+changing this result, adding statistical rules or using more families to chase a
+success. Both exposed paper families remain outside official held-out claims.
 
 The minimum scientific scope is a justified comparison of the implemented
 intervention on the declared roster/model, not universal research automation.
