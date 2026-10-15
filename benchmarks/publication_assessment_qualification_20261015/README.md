@@ -1,5 +1,16 @@
 # Local Mathematical Assessor Qualification
 
+## Observed Outcome
+
+The single model qualification stopped without scientific qualification: seven
+requests, two completed reports, then output-limit truncation inside a scratch
+tool's arguments and JSONDecodeError before execution. All later cases were
+NOT_RUN. The [record](observed_results.json) and declared
+[report examination](report_assessment.md) retain the incomplete result and a
+completed report's overstated scratch corroboration. No verdict, code or outcome
+is repaired or rerun. The owned server was stopped and its PID/port absence
+verified. No official comparison or research completion credit is added.
+
 ## Pre-Call Amendment
 
 The original preparation stopped before inference with zero model requests: the
@@ -55,14 +66,15 @@ The repeated positive document tests candidate-mode behavior, not another
 independent case. A pass would remain task-bound and would not close Q05 for an
 unqualified multi-family publication roster.
 
-After separately starting the matching pinned local server, invoke once:
+The first model invocation used the precommitted amendment once at abcc861a:
 
 ```sh
 .venv/bin/python -m benchmarks.publication_assessment_qualification_20261015.qualify \
-  --plan benchmarks/publication_assessment_qualification_20261015/plan.json
+  --plan benchmarks/publication_assessment_qualification_20261015/precall_amendment.json
 ```
 
-The output must not exist. The caller verifies bank, source, runtime and active
-model identities before inference and records raw requests/responses and all
-retained review files. The operator owns server cleanup. No outcome or scientific
-qualification is claimed by this prospective preparation.
+Do not run this consumed condition again. The caller required absent output,
+verified bank, source, runtime and active
+model identities before inference and recorded raw requests/responses and all
+retained review files. Original preparation at b4040cdf and the amendment at
+abcc861a remain distinct. These are development records, not official outcomes.

@@ -188,9 +188,10 @@ proof or blind-rediscovery tasks. The software-article source channel and prior
 EM/normal-means development exposure limit interpretation. Numerical reference
 execution does not qualify their arguments, rights or final assessment. No official
 roster, sample size or result is established by these candidate definitions.
-Subsequent development draws consumed the StepMix and ebnm families without
-final submissions; both are excluded from official held-out comparisons. Bizicount
-remains unconsumed but unqualified. The original panel is not the official roster.
+Subsequent development draws consumed all three families without final submissions;
+all are excluded from official held-out comparisons. The bizicount draw ended in
+a provider timeout before computation, not a mathematical rejection. The original
+panel is not a fresh official roster or evidence of complete research performance.
 
 For a separately qualified broader study, replication tasks permit author code.
 Paper-to-code tasks hide it and the target

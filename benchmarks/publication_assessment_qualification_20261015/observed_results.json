@@ -1,0 +1,142 @@
+{
+  "observation_id": "drdid_population_assessor_20261015_qualification_observation",
+  "observed_date": "2026-10-15",
+  "scope": "One prospective local-Qwen assessor qualification; not agent-authored research, a full DRDID-method test or an official H/S comparison.",
+  "frozen_code_commit": "abcc861afe4b829b15406bda94ada35a8e5861e6",
+  "original_plan": {
+    "path": "benchmarks/publication_assessment_qualification_20261015/plan.json",
+    "sha256": "35db62ed2a4d42b043424a8214d51ba3e7921da8558d37f6de2ab1c4176cc9bd"
+  },
+  "precall_amendment": {
+    "path": "benchmarks/publication_assessment_qualification_20261015/precall_amendment.json",
+    "sha256": "75e155841951f90b919d4828e516cec7b5aec1c3fd795082ef0a2036567544d5"
+  },
+  "runner_sha256": "94eef19150979d6727221b4f2c1aab57886ed8bdb819b514ada10fe4595d129d",
+  "zero_call_preparation": {
+    "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/observation_1/result.json",
+    "sha256": "a87af031303df3646a5daecb61ee2a63c67b5d2be38a9439472e1e17d11cbbe8",
+    "model_requests": 0,
+    "outcome": "Stopped before inference on float32 decoding roundoff; not a consumed model draw."
+  },
+  "raw_result": {
+    "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/observation_2/result.json",
+    "sha256": "89bdabdc15d22219e4b6b91c1f9b1b8b7ee66127e4b17c19c1e33587d7863daa"
+  },
+  "raw_wire_directory": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/observation_2/wire",
+  "model": "Qwen3-4B-Instruct-2507 Q4_K_M",
+  "scientific_qualification": "not_established",
+  "terminal_status": "stopped",
+  "model_requests": 7,
+  "completed_wire_responses": 7,
+  "elapsed_seconds": 931.5862629578914,
+  "usage": {
+    "input_tokens": 35876,
+    "output_tokens": 19982,
+    "total_tokens": 55858,
+    "cache_read_input_tokens": 19786
+  },
+  "cases": [
+    {
+      "id": "c1",
+      "expected_status": "PASS",
+      "native_status": "PASS",
+      "model_requests": 2,
+      "report": {
+        "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/observation_2/review_sessions/calibration-vbn_7by_/review.md",
+        "sha256": "160a6fc7868c437d6f602b04d9434a77bc58beaed103f2d5599c9c219d3f876e"
+      }
+    },
+    {
+      "id": "c2",
+      "expected_status": "PASS",
+      "native_status": "PASS",
+      "model_requests": 3,
+      "report": {
+        "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/observation_2/review_sessions/calibration-wite55_a/review.md",
+        "sha256": "b795c10f53385d951cec60caaff41fd4ea61b27fb00f412270b23c2ee60be5e7"
+      },
+      "report_qa": "Central argument agrees with the key; the executed scratch is not the full functional/direct two-zero corroboration claimed."
+    },
+    {
+      "id": "c3",
+      "expected_status": "FAIL",
+      "native_status": "INCOMPLETE_NO_VERDICT",
+      "model_requests": 2
+    },
+    {
+      "id": "c4",
+      "expected_status": "INCONCLUSIVE",
+      "native_status": "NOT_RUN",
+      "model_requests": 0
+    },
+    {
+      "id": "candidate_negative_c1_n1",
+      "expected_status": "FAIL",
+      "native_status": "NOT_RUN",
+      "model_requests": 0
+    },
+    {
+      "id": "candidate_positive_c2",
+      "expected_status": "PASS",
+      "native_status": "NOT_RUN",
+      "model_requests": 0
+    }
+  ],
+  "report_examination": "benchmarks/publication_assessment_qualification_20261015/report_assessment.md",
+  "incomplete_session": {
+    "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/observation_2/review_sessions/calibration-gcji3xlq/incomplete.json",
+    "sha256": "b576fa5325a2cd6b5298ca5f31ae654d591cea68456bf4e27f705933330721ff"
+  },
+  "final_wire_response": {
+    "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/observation_2/wire/turn-007.response.json",
+    "sha256": "861b43db530f28b648ee0234d9a4823cde24c1263027282bf9a9ddb45a8f2018",
+    "finish_reason": "length",
+    "output_tokens": 16384,
+    "tool_name": "run_theory_scratchpad",
+    "argument_characters": 49551,
+    "tool_executed": false
+  },
+  "interpretation": "The last response was received as outer JSON, but its unfinished tool arguments failed decoding before dispatch. No third-case mathematical judgment exists. The generic session lost truncation metadata; raw wire/usage remain available. Do not label this scientific rejection, timeout, successful qualification or an accuracy estimate.",
+  "integrity": {
+    "inputs_unchanged": true,
+    "resume_or_retry": false,
+    "scientific_output_edits": false,
+    "model_or_cloud_escalation": false,
+    "activation_judgment_emitted": false,
+    "official_study_activated": false,
+    "checklist_credit_added": false
+  },
+  "cleanup": {
+    "owned_pid": 39852,
+    "owned_server_session": 24884,
+    "stop": "Ctrl-C after caller termination",
+    "server_session_exit_code": 0,
+    "pid_absent": true,
+    "port_8081_listener_absent": true,
+    "launch": {
+      "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/server_launch.json",
+      "sha256": "6b068dacabab7b39e7109f947d5f49a9889f68a67940c033887c42adb0da8ecf"
+    },
+    "stderr": {
+      "path": "/Users/yukangzengcmac/.codex/publication-evaluator/ai-statistician-drdid-20261015/server.stderr",
+      "sha256": "bd4f7d3036e9e5d65f2169762199c848f681b81d388dabe796aa43da085d1568"
+    }
+  },
+  "verification": [
+    {
+      "command": ".venv/bin/pytest -q tests/test_publication_assessment_qualification.py tests/test_theory_semantic_gold_judge.py tests/test_local_model_backend.py tests/test_core.py",
+      "passed": 191,
+      "skipped": 1,
+      "elapsed_seconds": 6.65,
+      "scope": "Before inference; deterministic tests, not scientific qualification."
+    },
+    {
+      "command": ".venv/bin/pytest -q tests/test_publication_assessment_qualification.py tests/test_publication_outcomes.py tests/test_publication_submission.py tests/test_core.py",
+      "passed": 161,
+      "skipped": 22,
+      "elapsed_seconds": 115.22,
+      "scope": "Ran during the qualification, including its long final request. Not an isolated hardware/performance benchmark."
+    }
+  ],
+  "limitations": "One purposive population-identification bank with operator-AI source QA, not human or kernel authority. Candidate-positive repeats c2 by design and was not reached. Raw private evaluator artifacts remain local and are not a complete public reproduction release. No product research success, official comparison, full-method qualification or publication-readiness credit."
+}

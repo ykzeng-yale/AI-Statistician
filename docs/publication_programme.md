@@ -1,8 +1,12 @@
 # Publication Programme
 
 Updated: 2026-10-15. Status: scientific workflow qualification in progress;
-the ebnm and two distinct StepMix development conditions terminated without
-final submissions.
+the ebnm, two distinct StepMix and complete-scope bizicount development conditions
+terminated without final submissions. The source-grounded AI-assessor
+qualification also stopped without qualification: seven requests, two completed
+reports, then truncated scratch-tool arguments and a decoding error. It is not a
+research-system draw or official comparison. Original records and the declared
+report-level examination remain [available](../benchmarks/publication_assessment_qualification_20261015/README.md).
 The native chat goal is active and covers
 both publications.
 
@@ -174,7 +178,7 @@ does not establish novelty or mathematical truth.
 | Retained research session | `client_tool_loop.py`, hash-bound files and raw observations | Local Qwen conformance for every workspace and long-session recovery |
 | Collaboration | `agent_runtime.py`, scoped roles and reference handoffs | Dependency-aware independent work, exact-input joins and evidence invalidation; current execution is serial/interleaved |
 | Scientific execution | Existing local Python/R projects; native Python/R share the pinned local executor | Actual matched study access, environment reconstruction and clean-machine reproduction |
-| Verification | Independent review, frozen confirmation and exact Lean checks | Qualified independent Qwen-era evaluation plus expert calibration |
+| Verification | Independent review, frozen confirmation and exact Lean checks | Source-qualified, calibrated Qwen-era assessment, explicitly labelled AI-assessed |
 | Lean foundation | Pinned Mathlib/Statlib/StatInference and retrieval | Audited statement/proof/dependency maps and a compact curated public API |
 
 Extend the sole runtime if independent scheduling is justified; do not layer a
