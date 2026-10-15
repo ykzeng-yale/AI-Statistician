@@ -1,10 +1,17 @@
 {
-  "schema_version": 521,
+  "schema_version": 522,
   "updated_at": "2026-10-15",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The native two-publication goal is active. Use Sakana Agentic Scientist v3 as the sole new outer backbone while preserving validated statistical workspaces and intent-selected Lean. Following the October 15 clarification, deliver complete reviewable theory, algorithm and simulation; no mandatory small-simulation stage. Default scientific execution is evaluator-owned, with additional diagnostics only when the public task permits them. Actual findings may require source-owner revision; completeness does not imply one-shot generation. Use authorized SSH/Bouchet capacity for demonstrated compute needs. H requires matched host/v3 comparisons; S still requires the actual single-local-model-API system. Keep the sole 40-item checklist and immutable outcomes.",
-  "execution_status": "Verified the pinned upstream native evaluator on real multi-file Python/R success and failure fixtures, including raw observations, preserved sources and refusal to execute a consumed attempt twice. No new executor, repair rule or scheduler. Removed mandatory exploratory-work instructions from the task preparer and portable skill; complete theory, method and full simulation remain the scientific target. Larger Qwen models and long Bouchet runs are authorized, with prospective fixed configurations. Actual CPU job 29681055 verified the managed Pi launcher/model inventory, not inference or scientific capability. Full suite: 2406 passed, 74 skipped, one existing xfail; final focused checks: 36 passed, 5 skipped. The prior native-v3 observation remains unsuccessful and unchanged. Complete-study scientific assessment, native full-pipeline execution, single-API specialists and live statistical comparisons remain unfinished; no checklist credit or official efficacy.",
+  "execution_status": "Prepared a frozen Bouchet/Qwen-Pi stock-versus-statistical single-attempt module comparison with a 12-cell complete numerical study, paired methods, raw failures and Monte Carlo uncertainty. Both scientific launches failed before the Pi client because of the operator's long NFS temporary paths. A separate zero-inference /tmp verification completed. No model research, candidate evaluation, completed simulation or mathematical acceptance. Original configuration and failures preserved; only the future runner corrected. Selected an exact public Qwen3.8-27B revision for prospective consistent task-owned deployment, with quota/account/partition checks; no new weights, GPU job or model call. Full regression: 2436 passed, 90 skipped, one existing xfail. Final evaluator tests: 46 passed; core tests: 10 passed. Full upstream campaign cold-start semantics, native final pipeline, direct-API specialists and actual scientific comparison remain unfinished. No checklist credit or official efficacy.",
+  "latest_bouchet_module_observation": {
+    "record": "benchmarks/agentic_scientist_hc0_bouchet_20261015/observed_results.json",
+    "frozen_commit": "54d4a3f562b9423ce8c38d79e76e177b5b7f0991",
+    "jobs": {"stock": "29683338", "statistical": "29683341", "zero_inference_temp_verification": "29683607"},
+    "scope": "Failed managed-host launches, not scientific evidence. The evaluator executes a prespecified study for an authored estimator; this is not autonomous simulation-design generation, a full six-phase campaign or Paper S.",
+    "verification": "Full default suite: 2436 passed, 90 skipped, 1 existing xfail in 826.51 seconds; runs/bouchet_v3_pi_20261015/regression.xml SHA-256 dcaf45a13279534908dd15defcd0e6c41b7ce302c77afa844fec5d294c31c0a5. Separate final evaluator tests: 46 passed with numpy 2.4.2, scipy 1.17.1, statsmodels 0.14.6; final_evaluator.xml. Latest core checks: 10 passed in the main venv; final_core.xml. An intervening mixed-environment collection failed because upstream's venv lacks project jsonschema; retained in final_focused.xml, not a product regression. Compileall and shell/diff checks pass. Frozen input/output archives and prior 146-file record hashes preserved."
+  },
   "latest_agentic_scientist_observation": {
     "record": "benchmarks/agentic_scientist_hc0_20261015/observed_results.json",
     "analysis": "benchmarks/agentic_scientist_hc0_20261015/analysis.md",
@@ -51,7 +58,7 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "2a594f2964fd0c873fcf15463937275fd9345796",
+  "validated_code_head": "54d4a3f562b9423ce8c38d79e76e177b5b7f0991",
   "open_weight_system_development": {
     "study_id": "fixed_k_l2_20261002",
     "record": "benchmarks/publication_development/fixed_k_l2_20261002/observed_results.json",
@@ -67,8 +74,8 @@
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "f1592d326f5a02587539f69f0c2d7d9b84c0d394",
-    "working_tree_before_current_change": "Started clean at f1592d32 with main/canonical aligned. This work verifies native whole-project handoff, removes mandatory exploration instructions and records authorized Bouchet scaling plus the actual managed-model inventory. No ai_statistician source, upstream source, consumed result or Lean proof changed. All 40 checklist states remain unchanged. Direct atomic main/canonical delivery after verification, no PR or force."
+    "remote_before_current_change": "71365493c5b8b5d8ea35bbd328a2c04e86de953b",
+    "working_tree_before_current_change": "Started clean at 71365493 with main/canonical aligned. Frozen development condition committed at 54d4a3f5 before calls. Subsequent launch failures, zero-inference configuration check and consistent larger-model policy recorded separately. No ai_statistician source, upstream source, consumed candidate or Lean proof changed. All 40 checklist states remain unchanged. Direct atomic main/canonical delivery after verification, no PR or force."
   },
   "latest_scientific_workflow_observation": {
     "record": "benchmarks/publication_development/bizicount_integrated_20261015/observed_results.json",

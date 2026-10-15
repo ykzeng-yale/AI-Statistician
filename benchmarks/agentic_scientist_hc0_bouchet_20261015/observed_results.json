@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-15",
+  "frozen_commit": "54d4a3f562b9423ce8c38d79e76e177b5b7f0991",
+  "scope": "Two attempted upstream single-attempt module launches; terminal infrastructure failures, not scientific/model comparisons or completed full simulation.",
+  "setup": {
+    "job_id": "29682155", "state": "FAILED", "exit_code": "1:0", "elapsed_seconds": 583,
+    "outcome": "Exact upstream and Headless installed. Final help probe used an operator-mistyped nonexistent src.investigation.main module. Original failure retained; no inference in setup."
+  },
+  "arms": [
+    {"arm": "stock", "job_id": "29683338", "state": "FAILED", "exit_code": "4:0", "elapsed_seconds": 28},
+    {"arm": "statistical", "job_id": "29683341", "state": "FAILED", "exit_code": "4:0", "elapsed_seconds": 10}
+  ],
+  "shared_failure": "The operator placed AGENTIC_TEMP_ROOT and TMPDIR under the long NFS project path. The YCRC launcher exited creating an overlong Unix-domain ssh-agent socket before apptainer/Pi inference. Independently, upstream's bounded logger could not create its private local spool under the configured project ancestry. Agent exit=1, logger exit=4 in both arms.",
+  "model_evidence": "Managed Pi version/model inventory was observed. In the actual author launch the wrapper terminated before invoking the contained Pi client. Headless reports usageStatus=missing and zero-valued counters; these are not measured serving usage. No model research response, tool action or candidate submission was observed.",
+  "candidate_evaluations": 0,
+  "completed_simulation_studies": 0,
+  "accepted_mathematical_arguments": 0,
+  "interpretation": "A launch configuration failure, not Qwen-capacity failure, statistical error, evidence against either instruction arm or scientific efficacy. No model/candidate result was edited, rerun or rescored.",
+  "records": {
+    "archive": "runs/bouchet_v3_pi_20261015/initial_observation.tar.gz",
+    "sha256": "4385506b7628f4e899183af811050b7b1e2a19766df92373c1e7ac4f37424abb",
+    "contents": "Both task/results trees, rendered prompts/skills, launch logs, setup log, exact consumed run script and Pi project adapter. No model credentials included.",
+    "remote_root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-v3-Pi-20261015"
+  },
+  "future_configuration_change": "The current run_arm.sh now uses /tmp for short node-local temporary paths and accepts an explicit fresh AISTAT_RUN_ROOT. This is a future-launch change only. The original script is retained at frozen_commit and in both archives; precall hashes still identify the consumed configuration. Existing-result refusal remains. Task, evaluator and scientific criteria are unchanged. No third scientific launch is authorized by this result record itself.",
+  "subsequent_zero_inference_check": {
+    "job_id": "29683607", "state": "COMPLETED", "exit_code": "0:0", "elapsed_seconds": 16,
+    "scope": "The actual upstream private temp-storage and bounded logger, official Pi --version, Headless --version and agsci --help completed with /tmp. No model request or scientific retry. This verifies the short-temp mechanism, not model/task/skill uptake.",
+    "log": "runs/bouchet_v3_pi_20261015/native-tmp-29683607.log",
+    "log_sha256": "8005ff4020ecdaeaa7da0278e8efa90bb16e029f2d437c37eb5c105a990b896b"
+  },
+  "remaining": "Separately freeze any fresh model condition. Actual task-path/skill uptake, model research, full-study execution and scientific assessment remain unobserved. The full upstream campaign's validated-incumbent requirement is a distinct unresolved migration issue."
+}

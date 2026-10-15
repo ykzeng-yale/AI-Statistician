@@ -1,6 +1,10 @@
 # Bouchet HC0 Development Condition
 
 Prospective preparation, 2026-10-15. No result is implied by this document.
+The subsequent [observation](observed_results.json) records both terminal
+pre-client launch failures. The consumed runner is frozen at `54d4a3f5`; the
+current runner's short temporary paths are a future configuration correction,
+not a rerun or change to that observation.
 This fresh condition does not modify or rescore
 `../agentic_scientist_hc0_20261015/`. It reuses the exposed HC0 topic rather than
 selecting a new family after failure. It is known-method reconstruction, not

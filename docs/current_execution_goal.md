@@ -123,6 +123,22 @@ run a prospectively matched statistical-profile condition with captured effectiv
 model requests. Reuse upstream's existing harness-owned evaluation. Do not add
 diagnostic gates or another controller to force a successful example.
 
+The subsequent [Bouchet module condition](../benchmarks/agentic_scientist_hc0_bouchet_20261015/observed_results.json)
+now has a complete 12-cell numerical evaluator and two frozen instruction arms,
+but both launches failed before the Pi client: the operator's long NFS temporary
+path prevented socket and private log creation. A separate zero-inference check
+passed with node-local `/tmp`. Neither model research nor the full study ran.
+Preserve those outcomes; qualify a fresh capable, consistent Qwen condition
+without treating deployment checks as scientific results. The larger-model
+route is documented in [local Qwen testing](local_qwen_testing.md#larger-consistent-deployment).
+Do not keep defaulting to the old 4B deployment or introduce a new host framework.
+
+The pinned full upstream campaign also requires a validated incumbent, whereas
+this reconstruction starts without a solution. The observed single-attempt
+module avoids neither that issue nor the unfinished native drafting boundary.
+Resolve cold-start/completion semantics in upstream's existing interfaces for
+the full migration; do not supply a reference answer or fabricated baseline.
+
 **Adopt v3 as the main backbone, without stacking controllers.** The latest user
 request replaces the prior implementation direction. Use the pinned upstream
 task/phase controller, candidate lineage, memory, ablation, final-evaluation and
@@ -257,7 +273,11 @@ module offers a managed local Qwen coding-host route according to
 its model; a shared alias alone is not an official experiment pin. Verify effective
 weights/configuration or use a pinned task-owned deployment for publication runs.
 No GPU allocation, remote inference or model download has occurred in this
-handoff-verification step. Use only permitted low-risk/public or synthetic data
+handoff-verification step. Qwen3.8-27B BF16 at the recorded exact revision is the
+prospective first task-owned model, not yet deployed or scientifically evaluated.
+Keep one model condition across each comparison. The managed service remains a
+useful development option but cannot establish Paper S's single-API requirement.
+Use only permitted low-risk/public or synthetic data
 on Bouchet; real EHR access requires the appropriate approved environment.
 
 Use the upstream backbone as the new outer workflow; do not call the legacy graph

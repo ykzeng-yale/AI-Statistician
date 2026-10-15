@@ -49,8 +49,8 @@ ranking, scientific performance result or claim that Yale already hosts every ro
 
 For Paper H, use the same actual managed host/model condition for bare and
 statistical-skill arms, recording effective access and any service changes.
-Sakana's pinned host supports Pi; integration with Yale's wrapper is still
-unverified. For Paper S, a CLI launch is not the required single-API system:
+Sakana's pinned host supports Pi; actual model/task/skill uptake through Yale's
+wrapper is still unverified. For Paper S, a CLI launch is not the required single-API system:
 verify a supported direct API and exact deployment or use a task-owned pinned
 Qwen service. Do not extract credentials or bypass managed-client restrictions.
 Match the model across each harness contrast rather than confound model upgrades
@@ -61,6 +61,57 @@ to commercial models, not local Bouchet weights; they are not selected for the
 open-weight scientific studies. Model-card scores do not establish performance
 on statistical derivations, simulations or Lean. Freeze a complete research task
 and assess those outputs directly, without a new succession of toy-task gates.
+
+## Larger Consistent Deployment
+
+The October 15 follow-up makes a capable, consistent Bouchet deployment the
+preferred route when the research workload needs it, not an exceptional fallback
+after a 4B failure. Select the model before a new comparison and keep it fixed
+across arms. There is no need for repeated operator approval of ordinary bounded
+standard-tier work. A larger model does not fix a broken launch or certify theory.
+
+The prospective first task-owned model is `Qwen/Qwen3.8-27B`, revision
+`1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`. The public Hugging Face metadata lists
+18 BF16 weight shards totaling 55,563,006,776 bytes (about 51.75 GiB), Apache-2.0
+licensing and no access gate. Its native context is 262144 tokens. These are
+source-verified properties, not an installed deployment. Metadata is retained at
+`runs/bouchet_model_inventory_20261015/qwen38_27b_metadata.json`.
+This is larger than our historical 4B baseline, not a claim that it outperforms
+Yale's managed Flash-Next model. Task results, not parameter count, decide that.
+
+Use the [upstream vLLM recipe](https://recipes.vllm.ai/Qwen/Qwen3.8-27B), including
+its supported reasoning and tool-call parsers, rather than adding model syntax
+handling to AI-Statistician. The installed Yale Transformers 4.55.2 module is not
+the recipe's Transformers 5.8+ environment. Pin a compatible runtime and its full
+resolved dependencies before serving; do not blindly install `latest` or assume
+PyPI availability implies driver compatibility. No runtime has been qualified yet.
+
+The initial resource shape is one H200 with BF16 weights, native context and
+single-request concurrency. This is a feasibility estimate, not measured fit:
+weights, attention cache, recurrent state, activations and runtime all consume
+memory. Measure actual startup/context capacity, tool round trips and throughput
+before a complete research run. Scale GPU count or choose another documented
+precision as a new fixed condition when measured needs require it; do not shrink
+the scientific task. Reasoning effort and output/time limits belong to that
+condition, not an automatic per-failure escalation policy.
+
+Fresh SSH checks found both authorized account associations, H200 and B200
+partitions, no user GPU job, and substantial `pi_fl426` project/scratch quota
+headroom. The quota tool's report is dated midnight, not live byte accounting.
+Cluster inventory is not idle capacity; request through Slurm. Use task-owned
+storage, a bounded compute-node loopback API and the existing authenticated SSH
+route. No GPU job, large weight download or inference was started by this check.
+
+## Latest Managed-Host Observation
+
+The [full-study module condition](../benchmarks/agentic_scientist_hc0_bouchet_20261015/README.md)
+prepared two matched instructions and a 12-cell, 5000-dataset-per-cell evaluator.
+Both launches failed before the managed Pi client because the operator chose a
+long NFS temporary path; the SSH socket path and upstream private log spool could
+not be created. There is no model-capacity or scientific result. Original scripts
+and records remain immutable. A separate zero-inference job **29683607** completed
+with short node-local `/tmp`, exercising the actual launcher, logger and CLI.
+The future runner uses that configuration; no consumed candidate was rerun.
 
 ## Transport Conformance
 

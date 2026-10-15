@@ -4,7 +4,7 @@ umask 077
 module load Python/3.12.3-GCCcore-13.3.0
 module load nodejs/24.12.0-GCCcore-13.3.0
 module load local-coding-agents/1.1
-ROOT="/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-v3-Pi-20261015"
+ROOT="${AISTAT_RUN_ROOT:-/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-v3-Pi-20261015}"
 arm="${1:?Specify stock or statistical}"
 case "$arm" in stock|statistical) ;; *) exit 2 ;; esac
 export AISTAT_ARM_ROOT="$ROOT/$arm"
@@ -19,12 +19,11 @@ export YCRC_THINKING=1
 pi --list-models
 export HEADLESS_BIN="$ROOT/tools/node_modules/.bin/headless"
 export PI_CODING_AGENT_BIN="$ROOT/pi_project.sh"
-export AGENTIC_TEMP_ROOT="$ROOT/temp-$arm"
-export TMPDIR="$AGENTIC_TEMP_ROOT"
+# Keep sockets and private log spools on short, node-local temporary storage.
+export AGENTIC_TEMP_ROOT=/tmp TMPDIR=/tmp
 export UV_CACHE_DIR="$ROOT/cache/uv"
 export npm_config_cache="$ROOT/cache/npm"
 export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
-mkdir -p "$AGENTIC_TEMP_ROOT"
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN OPENAI_API_KEY OPENROUTER_API_KEY
 unset HEADLESS_BILLING CHATGPT_SUBSCRIPTION
 "$ROOT/bootstrap-env/bin/uv" pip install --python "$ROOT/upstream/.venv/bin/python" \
