@@ -1,10 +1,10 @@
 {
-  "schema_version": 524,
+  "schema_version": 525,
   "updated_at": "2026-10-15",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The native two-publication goal is active. Use Sakana Agentic Scientist v3 as the sole new outer backbone while preserving validated statistical workspaces and intent-selected Lean. Following the October 15 clarification, deliver complete reviewable theory, algorithm and simulation; no mandatory small-simulation stage. Default scientific execution is evaluator-owned, with additional diagnostics only when the public task permits them. Actual findings may require source-owner revision; completeness does not imply one-shot generation. Use authorized SSH/Bouchet capacity for demonstrated compute needs. H requires matched host/v3 comparisons; S still requires the actual single-local-model-API system. Keep the sole 40-item checklist and immutable outcomes.",
-  "execution_status": "Both short-temp Qwen3.8-Flash-Next/Pi arms terminal. Numerical compliance: stock 0/60000, statistical 60000/60000; statistical author read the exposed evaluator and ran prohibited diagnostics. Theory UNASSESSED; no efficacy claim. Both host rubrics failed from our unsupported input format; only future preparation fixed, no rescore. Qwen3.8-27B BF16 weights verified; locked vLLM 0.31.0 installed in 29685758. Single-B200 API probe 29687651 pending, no owned-model inference. Full-campaign cold start, final pipeline, single-API specialists and scientific acceptance remain unfinished. No checklist credit.",
+  "execution_status": "Actual upstream attempt now reaches direct local API file authoring and host evaluation in deterministic process tests. Source owner receives file errors; starter assets, current-source identity and interruption prefixes are preserved. No CLI host, second scheduler or science call in these tests. Campaign continuation, specialist review/tools and final pipeline remain unfinished. Qwen3.8-27B weights and vLLM 0.31.0 are prepared; B200 probe 29687651 remains pending. Both consumed Pi outcomes and all 40 checklist states remain unchanged.",
   "latest_bouchet_module_observation": {
     "record": "benchmarks/agentic_scientist_hc0_bouchet_20261015/short_tmp_analysis.md",
     "frozen_commit": "d84ade4a",
@@ -58,7 +58,7 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "54d4a3f562b9423ce8c38d79e76e177b5b7f0991",
+  "validated_code_head": "c6e09ba4279d40e16cfc57d8635975fc53b5f80f",
   "open_weight_system_development": {
     "study_id": "fixed_k_l2_20261002",
     "record": "benchmarks/publication_development/fixed_k_l2_20261002/observed_results.json",
@@ -74,8 +74,8 @@
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "3301dff9",
-    "working_tree_before_current_change": "Started clean at 3301dff9. Preserve both terminal arms and all model preparation records. Future rubric input follows the real upstream consumer; deployment probe reuses pinned product API transport. No product runtime, upstream source, consumed outcome or Lean proof changed. All 40 checklist states unchanged. Direct atomic main/canonical delivery after verification, no PR or force."
+    "remote_before_current_change": "ac43d0b6",
+    "working_tree_before_current_change": "Started clean at ac43d0b6. Direct API participant and explicit patch to a separate pinned-upstream copy; canonical submodules, consumed outcomes and Lean proofs unchanged. Shared retained loop gains only an optional progress observer. Package line ceiling explicitly increases 150000 to 150500 for temporary migration overlap; legacy runtime/CLI caps unchanged. Direct atomic main/canonical delivery after review and verification; no PR or force."
   },
   "latest_scientific_workflow_observation": {
     "record": "benchmarks/publication_development/bizicount_integrated_20261015/observed_results.json",
@@ -254,7 +254,7 @@
     }
   },
   "canonical_architecture": {
-    "outer_graph": "ai_statistician/agent_runtime.py is the sole typed research graph.",
+    "outer_graph": "New migration uses pinned Sakana Agentic Scientist alone. Its native attempt can call our direct API participant; full campaign/specialists are not migrated. agent_runtime.py remains the sole graph of the preserved legacy implementation and is never nested under Sakana. The retained component descriptions below are not claims of completed migration.",
     "inner_loop": "ai_statistician/client_tool_loop.py is the shared retained model-tool loop. Theory, Scientific and Lean source owners additionally configure its read-only observation history; isolated reviewers are not granted author history. Durable observations and parent references are separate from selected model context, not a second memory service or scheduler.",
     "theory_state": "Substantive mathematics lives in hash-bound Markdown/LaTeX files; JSON is limited to compact identity, dependency, checkpoint, and handoff envelopes. Exploratory Python/R scripts have no function/JSON-return ABI: exact source, raw output and errors are retained for model-owned interpretation and revision.",
     "scientific_code": "The source-owning model writes Python/R, executes the complete hash-bound single-file or multi-file project in the scientific sandbox, receives raw observations, and authors revisions in the same retained session.",
@@ -265,7 +265,7 @@
     "native_model_capacity": "Current local Qwen uses native server function calling and schema generation through the existing retained loop. Tool IDs, raw observations and explicit error status are preserved. Historical pinned-Haiku thinking support remains available only as an explicitly selected provider mechanism, not future test policy. Plain-text stopping still requires explicit continuation, never automatic acceptance or resampling."
   },
   "current_design_assessment": {
-    "direction": "Prioritize demonstrated obstacles in Theory, exploratory computation, independent review and same-owner revision. Existing file/history tools and optional offline execution stay available; further VM, proxy or container work is deferred unless a required scientific workflow demonstrates the need. Long revision observations are now range-readable through existing tools. Scientific judgment, long-horizon reliability and fresh independent research acceptance remain unresolved; infrastructure tests are not substitutes.",
+    "direction": "Complete source-owner evaluation/feedback/revision in the single upstream controller, then integrate preserved statistical review and optional Lean tools. The direct API author is one source-only upstream stage, not the full S system. Qualify mathematical assessment and complete studies separately; no more one-shot examples as substitutes. Legacy component mechanisms below remain useful but do not establish new-boundary parity or scientific acceptance.",
     "correct_boundaries": [
       "No runtime-authored statistical, mathematical, Python/R, or Lean repair content.",
       "No RepairAgent, hidden post-runtime workflow, whole-packet regeneration loop, or second scheduler in the canonical path.",
@@ -295,7 +295,8 @@
     "theory_workspace_lines": 4599,
     "scientific_code_workspace_lines": 3615,
     "research_architect_lines": 3742,
-    "client_tool_loop_lines": 1581,
+    "client_tool_loop_lines": 1596,
+    "agentic_api_workspace_lines": 260,
     "research_control_lines": 740,
     "agent_runtime_lines": 1459,
     "formalizer_llm_lines": 1841,
@@ -305,11 +306,11 @@
     "codex_adoption_lines": 246
   },
   "latest_validated_change": {
-    "code_commit": "2a594f2964fd0c873fcf15463937275fd9345796",
+    "code_commit": "c6e09ba4279d40e16cfc57d8635975fc53b5f80f",
     "lean_commit": "db6c7718349f3c14a7e37905f3529675f1ebaa52",
-    "summary": "Complete-candidate task/skill instructions, actual upstream native multi-file Python/R handoff tests and explicitly authorized larger-Qwen/Bouchet conditions. No new execution framework or statistical source patch. Official Pi 0.85.1 ran through local-coding-agents/1.1 in CPU job 29681055 and listed two modes of one managed service; this does not establish a second model or inference health.",
-    "verification": "Full default-suite JUnit: 2406 passed, 74 skipped, one existing xfail, zero failures/errors, 778.280 seconds; runs/agentic_scientist_native_handoff_20261015/regression.xml SHA-256 64932e20c0e24850c96f220764a05e6b5dfb23d2c03075205a7ae10fe2a795c6. Final focused checks after instruction/document edits: 36 passed, 5 skipped in 1.48 seconds. Compileall, skill validation and diff checks pass. Upstream pin unchanged; all 146 native-observation record hashes remain unchanged. Bouchet inventory job completed in 12 seconds with 2 CPUs/4 GiB, zero GPUs and no inference; raw log runs/bouchet_model_inventory_20261015/inspection-29681055.log SHA-256 201c680932f7f61fe87f01cada885d44f7c7fcda6e918258cba40bb06e7ae84a. No model service remains from this work.",
-    "capability_effect": "Execution-mechanism and model-inventory evidence only, not theoretical correctness, full simulation, integrated larger-model research or publication efficacy. No new scientific draw, theorem, official comparison or checklist credit. All historical outcomes remain unchanged and the two-publication goal remains active."
+    "summary": "Actual native upstream run.sh to direct product API, model-owned Markdown/LaTeX/source edits and unchanged host evaluator. Reuses native program_clone and retained loop, with explicit file grants, source identity and interruption evidence. Review defects corrected: linked grant ancestors, lost interruption prefix, initial/current identity conflation, missing starter assets and stripped executable permissions. Campaign/full-pipeline API paths remain explicitly unsupported.",
+    "verification": "Full default suite: 2492 passed, 90 skipped, one existing xfail, zero failures/errors in 810.98 seconds. JUnit runs/agentic_direct_api_20261015/final_regression.xml SHA-256 77bdeca450b135219bad6d42e7a440b19c5e6448bbb94c8e99640d835bc02e6b. Final focused workspace/patch/retained-loop/core checks: 129 passed. Actual native runner uses deterministic HTTP fixtures; tests cover evaluator failure/access denial, binary assets, executable permissions and SIGTERM/KILL. Compileall, source whitespace and exact upstream patch-application checks pass. Two superseded partial test logs remain; the first exposed the explicitly revised package-size ceiling. No scientific rerun or model call.",
+    "capability_effect": "Native single-API authoring integration only. No new model inference, scientific draw, mathematical acceptance, collaboration result or publication checklist credit. One stage does not complete Paper S. The task-owned larger model is still queued for its first GPU probe."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-analytic-gaussian-20260911-v1",
