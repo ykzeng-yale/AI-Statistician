@@ -135,6 +135,17 @@ identity failure. Preserve the entire failed draw and qualify the actual local
 model/tool protocol before another full condition. No stronger model, new output
 limit or automatic submission is authorized by this observation.
 
+A [prospective server-schema action observation](../benchmarks/publication_tool_action_qualification_20261015/results.json)
+then produced 13 schema-valid action responses but failed its artificial file
+task: the model did not preserve input IDs and repeated actions until the
+declared no-progress stop. Its read/write-only tool surface, generic mismatch
+feedback and ordinary-action ceiling constrain that observation. Syntax control
+alone is not a complete workflow. Keep the adapter experimental and production
+unchanged; do not add another transport layer or tune this fixture into a pass.
+Further qualification should use actual research-workspace tools and distinguish
+model reasoning/source use from protocol errors. Local model choices remain
+prospective conditions rather than automatic escalation.
+
 The immediate priority is a complete methods-research workflow, with the same
 estimand, assumptions, algorithm and interpretation followed across artifacts.
 Broader comparisons follow qualification of that workflow. Repeated installation

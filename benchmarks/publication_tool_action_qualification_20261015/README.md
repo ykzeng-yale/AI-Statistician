@@ -38,3 +38,19 @@ The output directory is exclusive. Preserve the terminal result, whether it
 succeeds or fails. A passing action fixture is only evidence for this transport
 and exact file contract. Product integration, actual workspace behavior and
 complete scientific work need separate verification under their full scopes.
+
+## First Outcome
+
+The [immutable result](results.json) is a failed file task: 13 valid action
+responses in 20.1 minutes, followed by the declared no-progress stop. The model
+wrote numeric IDs instead of preserving the supplied IDs. Repeated reads/writes
+spent the 32 ordinary actions; 17 later writes were denied, and all 12 terminal
+checks failed. The checker and available tools limit this artificial task's scope.
+
+All responses met the action schema; there was no prose-only or truncated turn.
+That observed format control does not establish a correct workflow or qualify
+the transport for production research. Keep the production backend unchanged and
+retain the failed fixture. Further work must use representative research tools
+and assess actual source use, execution and terminal evidence, rather than tune
+this copying task to produce a passing result. All 124 inventoried raw files
+match their hashes/lengths; the owned server exited zero and port cleanup passed.
