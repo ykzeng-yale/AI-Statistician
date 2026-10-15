@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-10-15. The native two-publication goal remains active. This file
+Updated: 2026-10-15. A new native two-publication goal is active. This file
 sets the next executable work, now using the user-selected Agentic Scientist
 backbone, not another parallel architecture programme or checklist.
 Historical observations remain in [the measured status](main_worker_status.json)
@@ -11,7 +11,7 @@ and their original records; none is repaired, rescored or promoted here.
 Build a research system that carries a statistical or biostatistical question
 through permitted literature and baseline reproduction, an explicit estimand
 and assumptions, reviewable theoretical development, Python/R implementation,
-diagnostic and confirmatory simulation, a substantive application and a coherent
+complete task-appropriate simulation, a substantive application and a coherent
 report with complete supporting arguments and experiments. The model authors
 the research and every revision. Lean adds evidence when requested; it is not a
 universal exit requirement.
@@ -34,9 +34,8 @@ is disclosed: reconstruction is not blind rediscovery or novelty.
 
 The [existing 40-item publication checklist](publication_programme.md#delivery-checklist)
 is the sole completion record. Q01/T01/C01/W01 keep their limited draft or scope
-status. No item is completed by this update. The native goal API cannot rewrite
-an unfinished objective; this document refines execution without falsely
-completing or replacing that objective.
+status. No item is completed by this update. The goal API returned no active goal
+on this update; the new objective preserves the unfinished two-publication work.
 
 ## Scientific Acceptance
 
@@ -45,7 +44,7 @@ completing or replacing that objective.
 | Question and sources | Motivation, estimand, design/population, closest method and precise unresolved issue; versioned sources and an actual baseline comparison with discrepancies retained |
 | Theory | Durable Markdown/LaTeX definitions, assumptions, claims, dependencies and justified equation-level arguments; invoked results have applicable conditions; gaps remain explicit |
 | Algorithm | Executed Python/R project implementing the stated estimator and inferential procedure, with relevant reference comparisons and exact theory/code correspondence |
-| Simulation | ADEMP design, diagnostic findings, frozen confirmation, fair competing methods, every failure and Monte Carlo uncertainty; inner datasets are not independent agent draws |
+| Simulation | Complete task-appropriate ADEMP design, frozen evaluation, fair competing methods, every failure and Monte Carlo uncertainty; any exploratory findings are labelled separately; inner datasets are not independent agent draws |
 | Application | Data provenance, substantive estimand, comparisons, uncertainty and consequential sensitivity analyses; synthetic data do not establish real EHR utility |
 | Report | Consistent main text and complete theory/experiment appendix linked to the selected artifacts, assessments and limitations |
 | Intent-selected formal work | Stable statement and source correspondence plus exact identity-bound, axiom-clean active-project Lean evidence |
@@ -55,6 +54,21 @@ code can advance together. Exploratory findings may change the theory; confirmat
 cannot change its own criteria after outcomes. Deep Lean normally follows stable
 statements and blocks only tasks requiring formal proof. Numeric agreement,
 compilation, model agreement and schema validity do not establish a proof.
+
+The October 15 clarification favors coherent module deliverables: a complete
+reviewable theoretical argument, a complete algorithm, and a scientifically
+specified full simulation study. A mandatory small-simulation stage is not part
+of the goal. Investigate upstream's evaluator-owned, complete-candidate approach
+before retaining extra local loops. Diagnostics, when useful, are an author tool,
+not proof or a separate acceptance gate. Revisions follow actual findings rather
+than a prescribed number of iterations. Use the authorized SSH compute pool or
+Bouchet when measured workload needs justify it; preserve the prospective model,
+task and resource condition rather than shrinking the scientific question.
+Complete means sufficient for the stated claim, not a one-shot answer. Retain the
+same source owner's revision loop when substantive review or execution fails.
+For a full-method task the evaluator must execute the specified full study, not
+only an estimator unit check. Separately assess the mathematical argument; no
+single optimized numerical score can certify the whole research deliverable.
 
 For EHR questions, research reasoning must address the relevant observation
 process, timing, confounding, censoring, missingness and sampling unit. Do not
@@ -92,6 +106,20 @@ our benchmark nor evidence of this system's scientific benefit.
 
 ## Immediate Execution
 
+**Use the actual upstream observation to qualify the full-study boundary.** The
+requested native stock-v3 run on the exposed White HC0 task is now terminal.
+[Its record](../benchmarks/agentic_scientist_hc0_20261015/observed_results.json)
+separates the pre-inference Bash dependency failure, stock prompt-file handoff
+failure, and a fresh transport-adapted condition that produced an idea and code
+but skipped evaluation and claimed unsupported completion. No candidate was
+evaluated or accepted. This is not an official H/S comparison or complete v3 E2E.
+No generated output was repaired or rerun. Our six-case implementation scorer
+also cannot judge the full study; it is not a sufficient scientific comparator.
+Next qualify complete-study execution and separate mathematical assessment, then
+run a prospectively matched statistical-profile condition with captured effective
+model requests. Reuse upstream's existing harness-owned evaluation. Do not add
+diagnostic gates or another controller to force a successful example.
+
 **Adopt v3 as the main backbone, without stacking controllers.** The latest user
 request replaces the prior implementation direction. Use the pinned upstream
 task/phase controller, candidate lineage, memory, ablation, final-evaluation and
@@ -105,9 +133,12 @@ Statlib/RAG/Lean foundation. The integration's reuse map distinguishes retained
 assets from verified new-boundary use; generic co-scientist behavior is not a
 substitute for our statistical specialization.
 
-The first integration reuses the portable skill and supplies a statistical
-investigation prompt that permits theory/exploratory computation. Its full
-upstream CLI preview is verified without agent, evaluator or network execution.
+The integration reuses the portable skill and supplies a statistical investigation
+prompt. Following the latest clarification, default execution is evaluator-owned;
+the author prepares the complete scientific candidate. Additional diagnostic
+execution must be explicitly permitted by the public task contract. This revised
+prompt has no new live efficacy evidence. The full upstream CLI preview is
+verified without agent, evaluator or network execution.
 The native-full preview was rejected: upstream drafting/final verification
 require its container backend. Do not disable those checks. Next, integrate our
 existing local execution/verifier components at that boundary and implement the

@@ -120,7 +120,10 @@ prompt = load_instructions(Path(cfg.investigation.get("paths.instruct")), staged
 assert "$TASK_SOURCE_DIR/resources/search/statistical-research/SKILL.md" in prompt
 assert not re.search(r"\{\{[A-Z_]+\}\}", prompt)
 assert "Do not invoke `evaluate.py`" in prompt and "host owns official" in prompt
-assert "Use exploratory Python/R" in prompt and "No Exploratory Execution" not in prompt
+assert "complete reviewable theory, algorithm and simulation project" in prompt
+assert "There is no mandatory small-simulation stage" in prompt
+assert "public task contract explicitly permits it" in prompt
+assert "record it as not executed" in prompt
 assert "Markdown/LaTeX" in prompt and "Lean is optional" in prompt
 assert "Opaque question" in prompt and "{{TASK_GOAL}}" not in prompt
 assert Path(cfg.paper.venue_file).is_file() and Path(cfg.paper.get("contributions_file")).is_file()

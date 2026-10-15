@@ -1,0 +1,11 @@
+diff --git a/src/scripts/lib/container_agent.sh b/src/scripts/lib/container_agent.sh
+--- a/src/scripts/lib/container_agent.sh
++++ b/src/scripts/lib/container_agent.sh
+@@ -255,6 +255,6 @@ agent_runtime_allowed_env_keys() {
+ agent_streams_prompt_file() {
+   case "$1" in
+-    claude|codex|gemini) return 0 ;;
++    claude|codex|gemini|opencode) return 0 ;;
+     *) return 1 ;;
+   esac
+ }

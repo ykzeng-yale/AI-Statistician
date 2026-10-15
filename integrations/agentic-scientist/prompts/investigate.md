@@ -37,17 +37,14 @@ and unresolved steps explicitly. The small idea/rubric JSON is transport, not a
 replacement for substantive mathematics. Retain useful theory across candidate
 lineage instead of rewriting it to match the latest score.
 
-Use exploratory Python/R, unit tests, counterexample searches and small diagnostic
-simulations when useful. These may revise theory and implementation; they are not
-confirmatory evidence or proofs. Inspect exact scripts, outputs and raw errors.
-Revise your own files and check what actually changed. An executed symbolic
-expression need not represent the claimed mathematical object, and return code
-zero need not establish its conclusion.
-
-Prototype once the inferential target and computational interface are clear.
+Deliver a complete reviewable theory, algorithm and simulation project for the
+task's stated scope. Completeness does not require a one-shot answer: revise the
+same scientific files in response to actual review and execution observations.
 Specify the simulation aim, DGP, estimand, methods, measures, failures and Monte
 Carlo uncertainty. Preserve baseline fidelity and fair procedure comparisons.
-Do not use a universal repetition count or tune against final observations.
+There is no mandatory small-simulation stage or universal repetition count.
+Do not tune against final observations. A complete simulation study supports the
+claims it measures; it does not establish a mathematical proof.
 
 Lean is optional unless the task requires formal proof. Stable statements may use
 the supplied pinned project, declaration retrieval and actual compiler/goal
@@ -65,14 +62,18 @@ handoff; internal research steps do not require another program directory or an
 Architect call. No source-owning agent may edit the sealed task/evaluator,
 acceptance criteria or an already evaluated candidate.
 
-Exploratory commands may run on candidate-owned files. The host runs the official
+The host runs the official
 evaluation after you exit, subject to `{{MAX_PROGRAM_EVALS_PER_ATTEMPT}}` official
 calls in the attempt. Do not invoke `evaluate.py`, inspect private evaluator/test
 source, create later program directories, or write official `metrics.json`,
 `correct.json`, `rubric_status.json`, logs or evaluation manifests at the program
-root. Label your own diagnostics exploratory, never official evidence.
-Keep diagnostic scripts under `src/`, but put generated diagnostic outputs in
-the candidate's `diagnostics/` directory, with exact input/source references.
+root. By default, prepare scientific source through reads and edits, then hand
+the complete candidate to the host for execution. Additional diagnostic execution
+is allowed only when the public task contract explicitly permits it. It is an
+optional author tool, not another stage or acceptance gate. Label such outputs
+exploratory, never official evidence, and retain exact input/source references.
+Keep any permitted diagnostic scripts under `src/` and their generated outputs
+in the candidate's `diagnostics/` directory.
 Do not fill the inspected source tree with datasets, caches or binary results.
 Never manufacture evaluator outputs, repeat a consumed evaluation or relabel a
 diagnostic as confirmation.
@@ -102,3 +103,5 @@ the next scientific question. Prefer the compact recent view, then exact files:
 Before returning, retain the current theory, procedure, actual experiment records,
 source references and honest gaps with the selected candidate. Later manuscript
 writing must read these files, not infer success from the score or prose here.
+If execution has not occurred, record it as not executed; describe a planned
+study as a plan, never as observed results or completed validation.

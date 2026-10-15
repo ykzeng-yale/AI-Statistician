@@ -8,8 +8,12 @@ interfaces. It does not invoke our old `AgentRuntime` inside that controller.
 
 **Current scope:** source installation, task preparation, actual upstream config
 composition, six-phase command construction, statistical prompt rendering and
-the real CLI's dry-run are verified. These are not live agent use, research
-success, a standalone single-API implementation or publication evidence. The
+the real CLI's dry-run are verified. A separate native stock-v3/local-Qwen
+[development observation](../../benchmarks/agentic_scientist_hc0_20261015/analysis.md)
+now reaches actual host/model use; a prompt-delivery contrast reaches tool use
+and source editing, but neither produces an evaluated candidate or complete
+research. The custom statistical profile has not yet completed a live comparison.
+This is not a standalone single-API implementation or publication evidence. The
 paper/code audit and its reading exclusions are in
 [the source review](../../docs/ai_scientist_v3_evidence_review_20261015.md).
 
@@ -64,11 +68,12 @@ the preview. The Python environment was installed from upstream's own lock file.
 | `src/scripts/paper.sh`, `src/orchestrator/paper_*` | Reuse grounded writing; add statistical main/appendix guidance now, journal venue/render QA later |
 
 - `prompts/investigate.md` replaces the upstream execution prompt through
-  `investigation.paths.instruct`. The stock prompt forbids exploratory execution;
-  the statistical prompt permits theory/diagnostic Python/R iteration while
-  keeping official evaluations, frozen confirmation and their budgets separate.
-  The preset explicitly uses upstream harness-owned evaluation: the author can
-  repeatedly revise/test `program_1/src/` before handoff, but cannot invoke the
+  `investigation.paths.instruct`. The revised default follows evaluator-owned
+  execution: the author prepares a complete theory, method and simulation
+  candidate; additional diagnostic execution requires explicit permission in
+  the public task contract. Small simulations are not a mandatory extra stage.
+  The preset uses upstream harness-owned evaluation: the author can
+  revise `program_1/src/` before handoff, but cannot invoke the
   official evaluator or write its result artifacts. The existing host performs
   that evaluation after author exit. No additional research scheduler is added.
 - Substantive mathematics stays in candidate-owned Markdown/LaTeX files under
@@ -116,23 +121,31 @@ Use upstream's existing `scientific-evidence` references and sidecars for report
 provenance rather than a second ledger. Its `resolved`/`anchored` links establish
 only their documented provenance scope, not mathematical truth or independent
 acceptance. Bind our reviewer/verifier findings to the exact scientific files.
-The six-phase preset is a full-report default, not a mandatory scientific order:
-theory and exploratory code iterate within investigation; select upstream phases
-according to task intent without bypassing required final evidence.
+The six-phase preset is a full-report default, not a mandatory scientific order.
+Select phases according to task intent without bypassing required final evidence.
+Complete deliverables do not imply one-shot generation; execution/review findings
+return to the source owner through upstream's existing attempt workflow. Full
+simulation requires an evaluator that actually runs that study, not only unit
+agreement or self-authored rubric checks. Mathematical assessment stays separate.
 
 ## Local Model And Execution Boundaries
 
 The preset selects OpenCode with the existing local Qwen model. The checked-in
 OpenCode example enables only `local-qwen`, points at loopback and includes no
 credential. This follows the official [custom provider](https://opencode.ai/docs/providers/#custom-provider)
-and [configuration](https://opencode.ai/docs/config/) interfaces. It is not a
-verified installed OpenCode/Headless session or an isolation boundary. Config
+and [configuration](https://opencode.ai/docs/config/) interfaces. It is not an
+isolation boundary. Config
 precedence, effective requests and exact weights/runtime/template/decoding must
 be observed before a live scientific condition. Do not infer a working backend
-from a model name. The earlier owned Qwen server is closed, not silently reused.
+from a model name. The latest observation's owned Qwen server is closed.
 
 Upstream pins Headless at `93cd9b06b85f848af1308c41e018991b33907c5e`
-and documents OpenCode `1.18.29`. Those dependencies have not been executed here.
+and documents OpenCode `1.18.29`. Both executed in the separate native observation,
+with fresh HOME, pinned local model and recorded logs. Headless's build summaries
+omit host title calls; the observation records both. Exact request bodies and
+effective per-call sampling were not captured, so this is not yet a publication
+reproducibility condition. Stock OpenCode prompt delivery and the separate one-line
+transport contrast are documented; the canonical upstream submodule is unchanged.
 Its default cloud reviewer is not selected. Its concept-figure skill is excluded
 from the paper skill set and the manuscript brief requests local data-driven
 plots, not Autoillustrate or image APIs. No credentials or whole `.env` are
@@ -190,8 +203,9 @@ With the pinned upstream environment available: 22 passed, 5 existing opt-in hos
 checks skipped. Without it, the real-upstream conformance check explicitly skips;
 the preparer remains dependency-free. The failed native-full preview and the
 resolved real temporary-root requirement are development checks, not model draws.
-No model or evaluator was called. Full regression scope is recorded in the
-project status after completion.
+Those checks call no model or evaluator. The later developmental native runs are
+recorded separately and do not change the checks' scope. Full regression scope is
+recorded in the project status after completion.
 
 Upstream code remains unmodified under its own Apache-2.0 LICENSE in the submodule.
 Cite Lange et al., [The Agentic Scientist](https://arxiv.org/abs/2610.18933v1), and

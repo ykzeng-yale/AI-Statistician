@@ -103,6 +103,41 @@ changes future prompt conditions (preflight protocol 51), not consumed results.
 Availability in a prompt is not demonstrated uptake or scientific improvement;
 standalone complete-manuscript authoring remains unqualified.
 
+### October 15 Backbone And Lean Refresh
+
+The follow-up rechecked the official v3 repository and arXiv version history,
+Meta announcement, Statlib roadmap, GitHub commit/release APIs and selected
+versioned Lean files. It is a focused update, not a full new-paper census or an
+independent revalidation of every upstream proof. The detailed v3 reading scope
+and limitations remain in [its audit](ai_scientist_v3_evidence_review_20261015.md).
+
+| Resource observed on October 15 | Exact state and actionable reuse |
+| --- | --- |
+| [Agentic Scientist](https://github.com/SakanaAI/AI-Scientist-v3/tree/2b8aa39285c35aaca3b0e06dd121061ef8a2d854), [paper v1](https://arxiv.org/abs/2610.18933v1) | Upstream HEAD still matches our pin `2b8aa392`; paper history lists v1, October 13. Run its actual native investigation before further architecture changes. Preserve its candidate/memory/phase interfaces while measuring the statistical additions separately. |
+| [Meta health research](https://research.meta.ai/blog/accelerating-scientific-research-in-health-data-science-with-muse-models) | October 14 announcement still describes a human-led internal scaffold and expert-reviewed manuscripts. No full public health harness was established by this check. Retain versioned cohort/data definitions, intended-analysis-code correspondence and review-driven revision as task guidance; do not claim autonomous clinical validity or copy an unavailable implementation. |
+| [Lean releases](https://github.com/leanprover/lean4/releases/tag/v4.35.0), [Mathlib releases](https://github.com/leanprover-community/mathlib4/releases/tag/v4.35.0) | Release APIs report v4.35.0 dated October 12 and 13 respectively. Mathlib HEAD `cfc55fc58714a59dc06e6e79edc6d1d95140d3c2` declares Lean v4.35.0. These are observed versions, not tested local upgrades. |
+| [Statlib](https://github.com/stat-lib/statlib/tree/ee032e7f26852bf6abfa3b90dc1d9f13740734b8) | HEAD `ee032e7f`, October 14, declares Lean v4.35.0-rc4 and Mathlib `051bc081081f2bb77b81d47ee69146c4cef28bbe`. Its Lake configuration enables Mathlib standard linters. The [comparison since the October 1 inspected pin](https://github.com/stat-lib/statlib/compare/ca33ed483af50859be1681fc8181d97de1906c5b...ee032e7f26852bf6abfa3b90dc1d9f13740734b8) has 13 commits; inspected QMD, contiguity and extended-real integral patches include API compatibility changes. Do not label these changes as newly proved LAN/efficiency results or interpret its roadmap as completed coverage. |
+| [Prove2Me workspace](https://github.com/prove2me/prove2me_workspace/tree/c57bd127d5dbae88aa362e906482c4d461009562) | HEAD `c57bd127`, October 15, reports workspace 0.12.6. README and root inventory still separate definitions, theorem statements and solutions. No root license was present in the inspected inventory. Preserve our adopted local statement/read-back/axiom mechanisms; no remote account, upload or Formalpedia access was performed. |
+| [Anthropic proof-path release](https://github.com/anthropics/fermats-last-theorem/tree/6e837e75355538c7f80bab5b956861e86c4eacc2) | HEAD `6e837e75`, September 24. Reuse source-to-statement/dependency-path release conventions through our existing ledger. This is not a new prover dependency or an instruction to import its mathematical corpus. |
+| [Statistical learning formalization](https://github.com/YuanheZ/lean-stat-learning-theory/tree/d0f506f0a695018265dccb33bcb05e2f5ca1c876) | Observed HEAD remains `d0f506f0`, July 15. Retain version-labelled discovery and existing source/license boundaries; no new active-project compatibility or coverage is inferred. |
+
+The requested name "ProofMap" is not resolved to a unique Lean project in this
+check. Exact-name search returned unrelated software; an assumed
+`anthropics/proofmap` URL returned 404. Do not invent such an integration or
+conflate it with Prove2Me. The attributable proof-path convention above is the
+relevant previously supplied resource until a distinct project is identified.
+
+The active EmpericalProcessLEAN project remains `db6c7718`, Lean 4.30.0, Mathlib
+`81343555` and Statlib `6575d611`, verified from its current Lake files. Its prior
+[4.33 port failure](statlib_4_33_migration_audit_20260830.md) remains evidence;
+this check does not attempt or certify a 4.35 port. Keep active-project imports
+distinct from newer discovery sources. Next formal improvements are actual
+proof-state retrieval and incremental compile feedback through the new backbone,
+then source-faithful proof maps for the curated existing library. A dependency
+upgrade needs its own combined-project build and statement/axiom checks. It must
+not delay the user's immediate native v3 statistical benchmark observation or
+make optional Lean a universal research gate.
+
 ## Biostatistical Method Source Screen: 2026-10-15
 
 Purpose: investigate two method families relevant to longitudinal health research

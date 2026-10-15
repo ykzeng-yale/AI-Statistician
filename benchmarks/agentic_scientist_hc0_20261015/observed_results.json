@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-15",
+  "scope": "Exposed HC0 development observation of native v3 investigation; not an official study, full research-E2E result or matched statistical-profile comparison.",
+  "project_commit_before_work": "72cb77c61d37859bb42e1437aee4f1a6a35f0959",
+  "upstream_commit": "2b8aa39285c35aaca3b0e06dd121061ef8a2d854",
+  "host": "OpenCode 1.18.29, Headless 0.6.1 at 93cd9b06b85f848af1308c41e018991b33907c5e",
+  "model": {
+    "name": "Qwen3-4B-Instruct-2507 Q4_K_M",
+    "weights_sha256": "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
+    "llama_server_sha256": "f124807ba31de5a65ea22fd624f33fd4dfe3c837d1c014dcf4a516b66812ffd7",
+    "active_template_sha256": "c979e0e71a3e21b8f208e6ab120d5cb29327885f29d2a8b18fda67a723798e18",
+    "configured": {
+      "context": 131072,
+      "slots": 1,
+      "seed": 2026101506,
+      "temperature": 0.7,
+      "top_p": 0.8,
+      "top_k": 20,
+      "min_p": 0,
+      "host_output_limit": 16384
+    },
+    "qualification_limit": "Server props and host configuration were recorded; exact request bodies were not captured. Post-run host inventory reports temperature capability false. Configured settings are not proof of effective per-request sampling. Same server continued across conditions, so the contrast is not cold-start matched.",
+    "routing": "Observed title/build requests use local-qwen at loopback. Headless's normalized openai provider label denotes its compatibility adapter, not an OpenAI API call. Fresh HOME and env -i; no operator credentials loaded. Native execution is not OS isolation."
+  },
+  "observations": [
+    {
+      "condition": "stock_macos_bash3",
+      "exit_code": 2,
+      "model_generations": 0,
+      "outcome": "Two idea launch attempts failed with mapfile: command not found before inference. GNU Bash 5.3 was installed locally for the next launch; upstream source was unchanged."
+    },
+    {
+      "condition": "stock_bash5",
+      "exit_code": 2,
+      "build_turns": 2,
+      "title_generations": 2,
+      "tool_calls": 0,
+      "official_candidate_evaluations": 0,
+      "build_output_tokens": 68,
+      "title_output_tokens": 16,
+      "outcome": "Both idea attempts requested the contents of idea_prompt.md and produced no idea bundle. Upstream delivered a file-reference sentence rather than the full prompt to OpenCode. This does not establish that file tools were unavailable."
+    },
+    {
+      "condition": "transport_adapted_v3",
+      "patch": "opencode_prompt_file.patch",
+      "outer_exit_code": 0,
+      "idea_attempts": 1,
+      "idea_build_turns": 3,
+      "experiment_build_turns": 18,
+      "title_generations": 2,
+      "tool_calls": 23,
+      "official_candidate_evaluations": 0,
+      "build_output_tokens": 3693,
+      "title_output_tokens": 33,
+      "elapsed_seconds_console": 234,
+      "outcome": "Idea and one edited candidate produced. Model skipped the official evaluator, wrote unsupported completion claims in memory and final prose, and returned without metrics/correct/rubric files. Wrapper rejected missing rubric_status.json with process exit 1. Outer campaign finished its one cycle with score unavailable and correctness UNKNOWN; no candidate was accepted.",
+      "artifacts": "program_1/src/program.py exists; no theory.md, simulation study, evaluator output or final scientific conclusion. Original outputs retained without operator editing or execution.",
+      "budget": "No candidate evaluation allowance was consumed; no context truncation or output-limit termination observed. This was not a demonstrated compute-budget exhaustion."
+    }
+  ],
+  "aggregate": {
+    "server_generations": 27,
+    "server_output_tokens": 3810,
+    "official_candidate_evaluations": 0,
+    "accepted_research_results": 0
+  },
+  "adapter_limitation": "The public six-design statsmodels scorer measures implementation agreement only. It cannot assess the task's requested full simulation, theory or model-generated coverage/bias rubrics. This is our developmental adapter's scope mismatch, not evidence that Sakana cannot perform statistical research. It was disclosed in the brief and was never invoked on a candidate.",
+  "comparison_limit": "Stock and transport-adapted observations differ in prompt delivery and have no replication or effective-wire sampling capture. No causal efficacy claim, model-capacity ceiling, hidden-gold score or comparison with the complete statistical profile follows.",
+  "records": {
+    "local_root": "runs/agentic_scientist_live_20261015",
+    "index": "runs/agentic_scientist_live_20261015/frozen_record_index.json",
+    "indexed_files": 146,
+    "index_sha256": "25cab61f0b84288acfe2c7b8f0ebb86244074315bee639b05d7d71630cf1177e",
+    "archive_scope": "Task, prompts, skills, native logs, sources, wrapper outputs, host config/logs, environment and server record; node_modules caches excluded. Full trajectories remain local, not a public release.",
+    "consumption": "All terminal observations immutable; no candidate repair, resumed inference or post-run evaluation. Only scaffold NotImplemented behavior was checked before inference."
+  },
+  "next": "Use upstream's existing harness-owned evaluation for complete candidate handoff; qualify a full-study evaluator and separate theoretical assessment before a matched fresh statistical-profile condition. Do not add an evaluator-repair agent, mandatory diagnostic loop or topic-specific source patch."
+}
