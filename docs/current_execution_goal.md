@@ -121,6 +121,20 @@ or presume that extending
 the timeout establishes scientific capability. The StepMix paper family is now
 exposed development material, not an official held-out task.
 
+The [post-handoff StepMix condition](../benchmarks/publication_development/stepmix_post_handoff_20261015/observed_results.json)
+has now also ended `BLOCKED`: 41 calls in 29.9 minutes. It reached a structurally
+valid handoff but never called the commit tool. The terminal response was
+repetitive completion prose ending at 16,384 output tokens, not a rejected
+JSON packet. Seven edit failures were identical-text replacements, not hash
+mismatches. No review, source execution, generated method, simulation or
+application occurred. Its [terminal analysis](../benchmarks/publication_development/stepmix_post_handoff_20261015/terminal_analysis.md)
+separates the observed model behavior from the old generic runtime label and
+the requested versus effective provider contract. Do not continue changing the
+estimator interface on the assumption that this terminal event was another
+identity failure. Preserve the entire failed draw and qualify the actual local
+model/tool protocol before another full condition. No stronger model, new output
+limit or automatic submission is authorized by this observation.
+
 The immediate priority is a complete methods-research workflow, with the same
 estimand, assumptions, algorithm and interpretation followed across artifacts.
 Broader comparisons follow qualification of that workflow. Repeated installation
@@ -141,10 +155,14 @@ scientific gaps.
    The [LMTP/JointAI source screen](publication_sources_20261001.md#biostatistical-method-source-screen-2026-10-15)
    supplies two deferrals, not qualified replacements: toy clinical data and
    model-usage examples cannot stand in for full application or simulation evidence.
-2. **Use the simpler handoff in a prospectively declared scientific condition.**
-   The demonstrated ID/document coupling is removed and regression-tested; further
-   interface work requires another concrete defect. Do not launch more families
-   merely to search for a passing handoff or replace either consumed failure.
+2. **Qualify effective model/tool behavior, then complete the scientific workflow.**
+   The simpler ID/document binding has now operated in a live draw, without a
+   committed theory or completed science. Address the observed tool-action and
+   terminal-response behavior through a prospectively chosen provider/model
+   condition, not another statistical-interface patch. A requested `required`
+   tool policy is not proof that a finite response contains a usable action.
+   Further interface work requires another concrete defect. Do not launch more
+   families merely to search for a pass or replace any consumed failure.
    Use the existing retained workspaces and pinned local Qwen, with the question,
    resources and data-use plan recorded before calls. The research agents perform
    source work, theory,

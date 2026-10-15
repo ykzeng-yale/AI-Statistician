@@ -485,6 +485,14 @@ conditions and incomplete mathematical authority. Those outcomes are preserved,
 not resumed, rescored or used as publication efficacy evidence. Haiku development
 records likewise remain outside official results and baselines.
 
+Three later, prospectively declared integrated development conditions also
+returned no final submission. In the post-handoff StepMix condition, a valid
+structural index was followed by a prose-only response that exhausted the output
+allowance without a commit action. This separates successful artifact binding
+from completed scientific work. The condition is a development observation,
+not a controlled architecture comparison or a mathematical verdict.
+[Exact condition and terminal record](../benchmarks/publication_development/stepmix_post_handoff_20261015/observed_results.json)
+
 Mechanism tests cover artifact identity, observations, owner iteration and
 evaluation boundaries. They do not establish derivation correctness or autonomous
 research capability. Selected library checks are not an agent proof success

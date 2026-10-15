@@ -1,7 +1,8 @@
 # Publication Programme
 
 Updated: 2026-10-15. Status: scientific workflow qualification in progress;
-two fresh integrated development draws terminated without final submissions.
+the ebnm and two distinct StepMix development conditions terminated without
+final submissions.
 The native chat goal is active and covers
 both publications.
 
@@ -28,9 +29,10 @@ Official H/S comparisons, full assessed case arguments, confirmatory simulations
 results sections and release rights are not complete. No publication readiness
 percentage is computed from this map.
 
-**Next executable deliverable:** qualify a complete methods-research workflow
-under the corrected family split, then produce a fresh development study whose theory,
-implementation, simulation and application answer the same question. Its research
+**Next executable deliverable:** qualify effective tool-action/completion behavior
+of the chosen local model/provider, then a complete methods-research workflow
+under the corrected family split. A fresh declared development study's theory,
+implementation, simulation and application must answer the same question. Its research
 artifacts may await independent assessment; this does not turn them into accepted
 results. Finish independent authority and actual comparative conditions before
 freezing and running the official study. Preserve unsuccessful draws; a negative
@@ -57,6 +59,14 @@ claim IDs: the author selects an existing mathematical file, which is retained i
 coding, scoped review, revision and evaluator inputs. This removes a redundant
 identity requirement, not a scientific obligation. Deterministic verification does
 not complete a checklist item or alter either consumed result.
+
+The separately declared [post-handoff StepMix condition](../benchmarks/publication_development/stepmix_post_handoff_20261015/observed_results.json)
+reached a structurally valid handoff, then ended without a commit after a long
+prose-only response hit its output limit. It supplies no final scientific artifact
+or comparative effect. Its source-owner continuation worked, but further provider
+and model qualification is needed; the failure does not justify adding another
+estimator/claim special case or converting completion prose into a submission.
+All three integrated development conditions remain preserved failures.
 
 The minimum scientific scope is a justified comparison of the implemented
 intervention on the declared roster/model, not universal research automation.
