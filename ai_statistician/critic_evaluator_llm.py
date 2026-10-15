@@ -47,8 +47,7 @@ from .theory_workspace import (
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     load_theory_workspace_document_rows,
-    read_theory_document_lines,
-    search_theory_document_lines,
+    execute_theory_document_client_tool,
     theory_document_client_tools,
 )
 
@@ -453,37 +452,14 @@ def _run_critic_client_tool_review(
     def execute_tool(
         call: ClientToolCall, context: ClientToolExecutionContext
     ) -> ClientToolExecutionResult:
-        if call.name == CRITIC_EVIDENCE_READ_TOOL:
-            if set(call.input) != {"path", "line_start", "line_end"}:
-                raise ClientToolInputError(
-                    "critic evidence read requires path, line_start, and line_end"
-                )
-            observation, inspection = read_theory_document_lines(
-                documents,
-                path=call.input["path"],
-                line_start=call.input["line_start"],
-                line_end=call.input["line_end"],
+        if call.name in {CRITIC_EVIDENCE_READ_TOOL, CRITIC_EVIDENCE_SEARCH_TOOL}:
+            observation, inspection = execute_theory_document_client_tool(
+                documents, tool_name=call.name, tool_input=call.input,
             )
             document_accesses.append(inspection)
             return ClientToolExecutionResult(
                 content=observation,
-                observation_key="critic-evidence-read:" + stable_hash(inspection),
-            )
-        if call.name == CRITIC_EVIDENCE_SEARCH_TOOL:
-            if not set(call.input) <= {"query", "document_paths", "max_results"}:
-                raise ClientToolInputError(
-                    "critic evidence search accepts query, document_paths, and max_results"
-                )
-            observation, inspection = search_theory_document_lines(
-                documents,
-                query=call.input.get("query"),
-                document_paths=call.input.get("document_paths", ()),
-                max_results=call.input.get("max_results", 20),
-            )
-            document_accesses.append(inspection)
-            return ClientToolExecutionResult(
-                content=observation,
-                observation_key="critic-evidence-search:" + stable_hash(inspection),
+                observation_key="critic-evidence:" + stable_hash(inspection),
             )
         if call.name == CRITIC_SOURCE_RESULT_READ_TOOL:
             if set(call.input) != {

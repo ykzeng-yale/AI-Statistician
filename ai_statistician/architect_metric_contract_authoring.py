@@ -25,6 +25,7 @@ from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS,
     ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
     LLMArchitectMetricSemanticReviewerAgent,
+    _compact_theory_material,
     architect_metric_review_material_with_runtime_evaluator_certificate,
     bind_architect_metric_finding_evidence_identities,
 )
@@ -68,6 +69,13 @@ from .metric_protocol_finding_ledger import (
     update_metric_protocol_finding_ledger,
 )
 from .research_schema import OpenResearchQuestion, research_question_payload
+from .theory_workspace import (
+    THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+    execute_theory_document_client_tool,
+    load_theory_workspace_documents,
+    theory_document_client_tools,
+)
 
 
 ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 7
@@ -592,6 +600,7 @@ def _run_metric_protocol_workspace(
     session_id: str = "",
     revision_index: int = 0,
     source_acceptance_mode: bool = False,
+    theory_documents: Mapping[str, str] | None = None,
 ) -> MetricProtocolWorkspaceResult:
     """Let one model own an editable protocol document and its validation loop."""
 
@@ -670,8 +679,10 @@ def _run_metric_protocol_workspace(
             else {}
         )
 
-    tools = _metric_protocol_workspace_tools(
-        source_acceptance_mode=source_acceptance_mode
+    readonly_documents = dict(theory_documents or {})
+    tools = (
+        *(theory_document_client_tools() if readonly_documents else ()),
+        *_metric_protocol_workspace_tools(source_acceptance_mode=source_acceptance_mode),
     )
     messages = [deepcopy(dict(message)) for message in prior_messages]
     messages.append({"role": "user", "content": normalized_user_message})
@@ -703,6 +714,11 @@ def _run_metric_protocol_workspace(
             "its exact current hash. Never place document content in the commit call. "
             "Do not ask Architect or runtime to repair "
             "content, claim that execution occurred, or treat this as proof."
+            + (
+                " The theory catalog is an index, not a derivation. Inspect its "
+                "hash-bound documents with the supplied read-only tools as needed."
+                if readonly_documents else ""
+            )
         ),
         messages=tuple(messages),
         tools=tools,
@@ -731,6 +747,17 @@ def _run_metric_protocol_workspace(
         _context: ClientToolExecutionContext,
     ) -> ClientToolExecutionResult:
         nonlocal document, latest_submission_metadata
+        if readonly_documents and call.name in {
+            THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+            THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        }:
+            observation, inspection = execute_theory_document_client_tool(
+                readonly_documents, tool_name=call.name, tool_input=call.input
+            )
+            return ClientToolExecutionResult(
+                content=observation,
+                observation_key="metric-author-theory:" + stable_hash(inspection),
+            )
         payload = dict(call.input)
 
         def require_fields(*names: str) -> None:
@@ -1146,6 +1173,10 @@ def _compact_metric_authoring_prompt_payload(
             "non_authority_review_context": non_authority_review_context,
         }
     )
+    if semantic_material.get("theory_workspace_manifest"):
+        payload["theory_developer_protocol_material"]["theory_semantic_material"] = (
+            _compact_theory_material(theory)["theory_semantic_material"]
+        )
     payload["accepted_implementation_interface_handoff"] = (
         _metric_authoring_interface_prompt_projection(
             payload.get("accepted_implementation_interface_handoff", {})
@@ -1571,8 +1602,6 @@ def author_reviewed_architect_metric_requirements(
         runtime_contract.get("research_evaluation_requires_typed_metric_contracts")
         is not True
         or runtime_contract.get("empirical_metric_requirements")
-        or str(getattr(provider, "provider_name", config.provider_name)).lower()
-        != "anthropic"
     ):
         return {}
     if (
@@ -2555,6 +2584,9 @@ def author_reviewed_architect_metric_requirements(
                 session_id=metric_workspace_session_id,
                 revision_index=revision_index,
                 source_acceptance_mode=not bool(frozen_rebinding),
+                theory_documents=load_theory_workspace_documents(
+                    theory_material.get("theory_semantic_material", {})
+                ),
             )
         loop = workspace_result.loop
         metric_workspace_messages = loop.messages

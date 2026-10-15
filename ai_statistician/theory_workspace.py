@@ -4179,9 +4179,9 @@ def execute_theory_document_client_tool(
             )
         return read_theory_document_lines(documents, **dict(tool_input))
     if tool_name == THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL:
-        if set(tool_input) - {"query", "document_paths", "max_results"}:
+        if "query" not in tool_input or set(tool_input) - {"query", "document_paths", "max_results"}:
             raise ClientToolInputError(
-                "search_theory_documents accepts query, document_paths, and max_results"
+                "search_theory_documents requires query; document_paths and max_results are optional"
             )
         return search_theory_document_lines(documents, **dict(tool_input))
     raise ClientToolInputError("unsupported Theory document client tool")

@@ -157,6 +157,62 @@ certify no previous exposure. A final family decision is still required. These
 source-level deferrals preserve the full scientific obligation instead of
 lowering it to whatever code is easiest to execute. No checklist item is closed.
 
+### GRF Source Correspondence Follow-Up
+
+A further read-only screen considered Athey, Tibshirani and Wager's
+[Generalized Random Forests](https://doi.org/10.1214/18-AOS1709), not a selected
+task or new model draw. A bounded search of current public question metadata,
+source manifests and exclusion records found no exact paper/family match; it
+did not open sealed gold or certify all historical exposure. The readable
+[arXiv v4, 5 April 2018](https://arxiv.org/pdf/1610.01271v4) is 49 pages with
+Appendices A--C. Selected theory and experiment sections were inspected, not
+every proof. Initial journal and
+[supplement](https://doi.org/10.1214/18-AOS1709SUPP) requests returned access
+interstitials. A subsequent
+[academic-hosted journal PDF](https://faculty.ist.psu.edu/vhonavar/Courses/causality/GRF.pdf)
+supplies 31 pages (1148--1178), SHA-256
+`a8bc7762930412c98aba6a45453857d53fff8c47f8d5885e8f74a46085365f50`.
+Its title/DOI and printed Figure 3 parameters on page 1174 were visually verified;
+this is selected-page inspection, not a full proof read or byte-equivalence check
+against the publisher. The DOI's Crossref metadata identifies the original
+[supplement endpoint](https://projecteuclid.org/journals/supplementalcontent/10.1214/18-AOS1709/suppdf_1.pdf),
+but that download returned 1162 bytes of interstitial HTML, not a PDF. Exact
+arXiv/journal/supplement correspondence remains unresolved. Local source/render
+artifacts stay under ignored `runs/grf_source_qualification_20261015/`.
+
+The authors' paper-specific
+[`experiments/aos19`](https://github.com/grf-labs/grf/tree/5bee99b51471f76cb2d63acbc8a9b0ffec408ba0/experiments/aos19)
+was inspected at `5bee99b51471f76cb2d63acbc8a9b0ffec408ba0`: all 13 R files in
+that subtree, not every repository branch. Its local-moment targets, forest
+weights, honesty/subsampling, nuisance adjustment, inference and conditional-IV
+interpretation provide substantive obligations, not an accepted argument.
+The causal-MSE producer runs 60 repetitions but only the C.GRF comparator;
+the full four-method Table 1 producer is not established. The IV stress-test
+producer/parser covers 64 settings and 100 repetitions; the interval producer
+covers 48 settings and 20 datasets, each with 1000 fixed test points. Aggregation
+distinguishes coverage against truth from coverage against mean predictions;
+the stress parser also selects among four kNN variants. These are inspected
+source settings, not executed results or independent repetitions of our agent.
+
+The application scripts use an Angrist--Evans derivative CSV with 396192 input
+rows and 11 columns, not the final analysis count. The original
+[dataset V1](https://doi.org/10.7910/DVN/4W9GW2) has CC0 metadata and unrestricted
+files; the exact transformation to the repository CSV is unverified. The
+[author archive](https://economics.mit.edu/people/faculty/josh-angrist/angrist-data-archive)
+permits attributed research/teaching use. Repository GPL-3, dataset permissions
+and arXiv's publication license are distinct; no third-party bytes are copied here.
+
+**Defer exact published-paper replication.** The inspected manuscript uses
+instrument probability 1/3 while the IV producers use 2/3; Figure 3 describes
+sampling fraction 0.05 / leaf size 800, also visually confirmed in the journal
+Figure 3, while `grow_forest.R`, labelled grf 1.2.0,
+uses 0.2 / 600. These are unresolved edition/source correspondences, not proved
+scientific errors or repaired gold. Complete comparators, historical environment
+and CSV derivation remain unresolved, and the replication README warns of removed
+options. No source execution, installation, model call, mathematical acceptance
+or task activation occurred. A different prospective scope is not silently
+substituted for the full published result.
+
 ## Closest Research Harness And Evaluation Work
 
 | Primary source | What matters for our papers | Adoption boundary |

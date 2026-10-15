@@ -38,14 +38,21 @@ from .research_schema import OpenResearchQuestion, research_question_payload
 from .packet_validation import PacketValidationError
 from .theory_workspace import (
     THEORY_SCRATCHPAD_TOOL,
+    THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     TheoryScratchpadConfig,
+    execute_theory_document_client_tool,
     execute_theory_scratchpad_tool,
+    externalize_theory_document_rows,
+    load_theory_workspace_document_rows,
+    load_theory_workspace_documents,
+    theory_document_client_tools,
     theory_scratchpad_client_tool,
 )
 
 
 ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 22
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 22
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 23
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -66,7 +73,9 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
     (
         "Review only the supplied pre-execution artifacts. Do not use observed "
         "results, invent thresholds, select a repair owner, write implementation "
-        "code, or claim proof."
+        "code, or claim proof. The document catalog is an index, not the mathematics; "
+        "use the supplied read-only tools to inspect relevant derivations and cite "
+        "their paths and lines in your rationale."
     ),
     (
         "Reconstruct each frozen requirement from its cited scientific target. Check "
@@ -244,6 +253,8 @@ def _compact_theory_material(value: Any) -> dict[str, Any]:
             "problem_card",
             "estimator_specs",
             "simulation_ademp_spec",
+            "theory_content_authority",
+            "structured_handoff_role",
         )
         if semantic.get(key) not in (None, "", [], {})
     }
@@ -254,11 +265,18 @@ def _compact_theory_material(value: Any) -> dict[str, Any]:
             for key in (
                 "derivation_summary",
                 "assumption_ledger",
+                "claim_index",
+                "sanity_check_index",
             )
             if derivation.get(key) not in (None, "", [], {})
         }
         if compact_derivation:
             compact_semantic["theory_derivation_packet"] = compact_derivation
+    document_catalog, _ = externalize_theory_document_rows(
+        load_theory_workspace_document_rows(semantic)
+    )
+    if document_catalog:
+        compact_semantic["authoritative_theory_documents"] = document_catalog
     projected["theory_semantic_material"] = compact_semantic
     return projected
 
@@ -1603,6 +1621,11 @@ class LLMArchitectMetricSemanticReviewerAgent:
                 review_material
             )
         )
+        documents = load_theory_workspace_documents(
+            review_material.get("theory_developer_protocol_material", {}).get(
+                "theory_semantic_material", {}
+            )
+        )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
             requested_model=self.config.model,
@@ -1615,6 +1638,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
         schema = architect_metric_semantic_review_json_schema(review_material)
         schema.pop("$schema", None)
         scratch_refs: list[dict[str, Any]] = []
+        document_inspections: list[dict[str, Any]] = []
         validation_history: list[dict[str, Any]] = []
         last_invalid_packet: dict[str, Any] | None = None
         system_prompt = (
@@ -1625,6 +1649,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             "prescribe a repair, or claim proof."
         )
         tools = (
+            *(theory_document_client_tools() if documents else ()),
             *((theory_scratchpad_client_tool(),) if theory_scratchpad else ()),
             ClientToolDefinition(
                 name=ARCHITECT_METRIC_SEMANTIC_REVIEW_SUBMIT_TOOL,
@@ -1706,6 +1731,18 @@ class LLMArchitectMetricSemanticReviewerAgent:
             call: ClientToolCall, context: ClientToolExecutionContext
         ) -> ClientToolExecutionResult:
             nonlocal last_invalid_packet
+            if documents and call.name in {
+                THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+            }:
+                observation, inspection = execute_theory_document_client_tool(
+                    documents, tool_name=call.name, tool_input=call.input
+                )
+                document_inspections.append(inspection)
+                return ClientToolExecutionResult(
+                    content=observation,
+                    observation_key="metric-review-theory:" + stable_hash(inspection),
+                )
             if call.name == THEORY_SCRATCHPAD_TOOL and theory_scratchpad:
                 result, execution_ref = execute_theory_scratchpad_tool(
                     tool_input=call.input,
@@ -1822,6 +1859,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             "strict_terminal_tool_schema": True,
             "validation_submission_history": list(validation_history),
             "scratch_execution_refs": scratch_refs,
+            "theory_document_inspection_refs": document_inspections,
             "full_packet_regeneration_used": False,
         }
         return packet

@@ -155,11 +155,14 @@ dependencies, frozen intent and estimator interface. Legacy structured packet
 validation remains separate. A question-derived placeholder goal is now labelled
 with its actual source instead of claiming theory-index provenance. These are
 shared interface/evidence changes; no scientific success follows from them.
-An identified remaining gap is the older typed-metric authoring/reviewer path:
-its compaction can omit document mathematics. Qualify exact source access there
-before relying on that path for document-backed judgments; retaining redundant
-claim lists would not resolve it. The canonical preflight and executable-evaluator
-research path retain their existing independent document checks.
+Metric authoring and its independent reviewer now retain the same compact
+claim/file catalog and expose the existing read-only document tools. This fixes
+compaction that previously dropped mathematical files from both fresh protocol
+authoring and frozen-row review. The authoring entry no longer silently skips
+non-Anthropic providers; local Qwen uses the same native-tool path and independent
+review requirement. Scripted composition verifies file/hash access, not scientific
+judgment. Preflight and executable evaluation remain separate existing stages;
+no old outcome is rerun or accepted by this mechanism change.
 
 Local derivation and manuscript skills are now selectively adapted into the
 existing shared reasoning prompt and portable workspace reference; the
@@ -183,6 +186,9 @@ source-grounded argument and report quality under its prospective conditions.
    The [LMTP/JointAI source screen](publication_sources_20261001.md#biostatistical-method-source-screen-2026-10-15)
    supplies two deferrals, not qualified replacements: toy clinical data and
    model-usage examples cannot stand in for full application or simulation evidence.
+   A further [GRF correspondence check](publication_sources_20261001.md#grf-source-correspondence-follow-up)
+   likewise defers exact published replication: historical environment, complete
+   comparators, paper edition and application-data transformation remain unresolved.
 2. **Complete the declared scientific workflow and observe its actual tool use.**
    The simpler ID/document binding has now operated in a live draw, without a
    committed theory or completed science. Address the observed tool-action and

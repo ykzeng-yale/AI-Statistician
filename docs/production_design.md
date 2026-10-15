@@ -242,12 +242,9 @@ Simulation owner writes and runs source on non-confirmatory diagnostics
   -> outcome is terminal evidence; it cannot trigger source revision
 ```
 
-The reviewer may read/search hash-bound exact source and Theory documents and use isolated
-Python/R/SymPy probes, but must judge semantics, pre-outcome independence, and diagnostic
-sufficiency rather than trust a returned Boolean. A rejection returns exact findings to the same source owner. Frozen
-legacy metric packets remain reconstructable for old evidence only; they are not a fresh
-authoring path. There is no prose-to-source translator, packet repair worker, result-informed
-revision, or routine Architect hop.
+Protocol authors and reviewers share the compact Theory claim/file catalog and existing read-only document tools. Reviewers may inspect exact source and use isolated Python/R/SymPy probes, but judge semantics, pre-outcome independence and diagnostic sufficiency rather than trust a returned Boolean.
+Native tool capability, not provider brand, controls this path; local Qwen cannot silently bypass independent review. Rejections return exact findings to the same source owner. Frozen legacy metric packets remain reconstructable for old evidence only, not fresh authoring.
+There is no prose-to-source translator, packet repair worker, result-informed revision or routine Architect hop.
 
 ## Lean formalization workspace
 

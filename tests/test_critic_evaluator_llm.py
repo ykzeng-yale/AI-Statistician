@@ -2435,3 +2435,47 @@ def test_failed_critic_session_preserves_last_submission_and_exact_errors() -> N
         assert "theory" in feedback_history and "INCONCLUSIVE" in feedback_history
     else:
         raise AssertionError("invalid repeated Critic submissions must fail closed")
+
+
+def test_local_critic_recovers_missing_query_and_reads_character_range() -> None:
+    class LocalBackend:
+        provider_name = "local"
+
+        def __init__(self):
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                name, arguments = CRITIC_EVIDENCE_SEARCH_TOOL, {}
+            elif len(self.requests) == 2:
+                assert request.messages[-1]["content"][0]["is_error"] is True
+                path = re.search(r'"path":"(evidence/[^\"]+)"', request.messages[0]["content"]).group(1)
+                name, arguments = CRITIC_EVIDENCE_READ_TOOL, {
+                    "path": path, "line_start": 1, "line_end": 1,
+                    "character_start": 0, "character_end": 7,
+                }
+            else:
+                observation = json.loads(request.messages[-1]["content"][0]["content"])
+                assert observation["content"] == "PREFIX|"
+                name, arguments = CRITIC_EVALUATION_SUBMIT_TOOL, _critic_submission()
+            call = ClientToolCall(f"local-{len(self.requests)}", name, arguments)
+            return ClientToolTurnResponse(
+                content_blocks=({"type": "tool_use", "id": call.call_id, "name": name, "input": arguments},),
+                tool_calls=(call,), text="", provider="local", model=request.model,
+            )
+
+    backend = LocalBackend()
+    packet = LLMCriticEvaluatorAgent(
+        provider=backend,
+        config=CriticEvaluatorConfig(model="Qwen3-4B-Instruct-2507", model_tier="local", provider_name="local"),
+    ).propose(
+        question=OpenResearchQuestion(id="critic-slice", title="Transport fixture", description="No scientific assessment."),
+        retrieval_manifest={}, theory_packet={}, simulation_manifest={}, algorithm_manifest={}, formalization_manifest={},
+        canonical_evidence_view={
+            "view_hash": "synthetic-evidence-view",
+            "theory": {"authoritative_documents": [{"relative_path": "source.md", "content": "PREFIX|" + "detail " * 1000}]},
+        },
+    )
+    assert len(backend.requests) == 3
+    assert packet["client_tool_loop"]["document_access_count"] == 1

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import re
 from copy import deepcopy
 from dataclasses import replace
 from types import SimpleNamespace
@@ -3201,3 +3202,51 @@ def test_independent_receipt_still_requires_lineage_after_valid_raw_judgment():
     assert len(backend.requests) == 1
     assert set(error.value.errors) == {"semantic review missing trusted lineage field: " + field
                                        for field in ("work_order_id", "work_order_hash", "source_manifest_id", "source_manifest_hash")}
+
+
+def test_local_code_reviewer_recovers_missing_query_and_reads_character_range() -> None:
+    material = _review_material()
+    source = "#SRC|" + "detail " * 1000
+    artifact = material["exact_executed_artifacts"][0]
+    artifact["exact_source_code"] = source
+    artifact["exact_source_hash"] = stable_hash(source)
+
+    class LocalBackend:
+        provider_name = "local"
+
+        def __init__(self):
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                name, arguments = THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL, {}
+            elif len(self.requests) == 2:
+                assert request.messages[-1]["content"][0]["is_error"] is True
+                path = re.search(r'"path":"(generated_code_review_evidence/[^\"]+)"', request.messages[0]["content"]).group(1)
+                name, arguments = "read_theory_document", {
+                    "path": path, "line_start": 1, "line_end": 1,
+                    "character_start": 0, "character_end": 5,
+                }
+            else:
+                observation = json.loads(request.messages[-1]["content"][0]["content"])
+                assert observation["content"] == "#SRC|"
+                name, arguments = "submit_generated_code_semantic_review", {
+                    "prior_finding_reviews": [], "overall_verdict": "ACCEPT",
+                    "review_document": "# Synthetic review\n\nTransport fixture, not scientific acceptance.",
+                    "findings": [],
+                    "source_revision_assessment": {"resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT", "rationale": "Synthetic."},
+                }
+            call = ClientToolCall(f"local-{len(self.requests)}", name, arguments)
+            return ClientToolTurnResponse(
+                content_blocks=({"type": "tool_use", "id": call.call_id, "name": name, "input": arguments},),
+                tool_calls=(call,), text="", provider="local", model=request.model,
+            )
+
+    backend = LocalBackend()
+    packet = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(model="Qwen3-4B-Instruct-2507", model_tier="local", provider_name="local"),
+    ).review(question=_question(), review_material=material, trusted_lineage=_trusted_lineage())
+    assert len(backend.requests) == 3
+    assert packet["client_tool_loop"]["evidence_document_access_count"] == 1

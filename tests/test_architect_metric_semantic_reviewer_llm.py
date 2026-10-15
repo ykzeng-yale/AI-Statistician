@@ -1,10 +1,21 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
+from ai_statistician.architect_metric_contract_authoring import (
+    ArchitectMetricContractAuthoringConfig,
+    METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
+    METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
+    METRIC_PROTOCOL_WORKSPACE_READ_TOOL,
+    METRIC_PROTOCOL_WORKSPACE_SOURCE_INITIAL_DOCUMENT,
+    _compact_metric_authoring_prompt_payload,
+    author_reviewed_architect_metric_requirements,
+)
 from ai_statistician.architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA,
     ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE,
@@ -17,6 +28,7 @@ from ai_statistician.architect_metric_semantic_reviewer_llm import (
     validate_architect_metric_semantic_review_packet,
 )
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.metric_protocol_stage import METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED
 from ai_statistician.generated_metric_contract import (
     generated_metric_evaluation_semantics_contract,
     generated_metric_requirement_set_id,
@@ -26,11 +38,17 @@ from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.packet_validation import PacketValidationError
 from ai_statistician.theory_workspace import (
     THEORY_SCRATCHPAD_TOOL,
+    THEORY_WORKSPACE_CONTENT_AUTHORITY,
+    THEORY_WORKSPACE_HANDOFF_ROLE,
+    THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     TheoryScratchpadConfig,
+    theory_workspace_document_manifest,
 )
 
 
 TEST_HAIKU_MODEL = "claude-haiku-4-5-20251001"
+TEST_LOCAL_MODEL = "Qwen3-4B-Instruct-2507"
 
 
 def _requirement(
@@ -942,3 +960,204 @@ def test_base_schema_stays_generic() -> None:
         "required": [],
         "properties": {},
     }
+
+
+def _document_material(tmp_path: Path) -> tuple[dict, dict[str, str]]:
+    documents = {
+        "C1.md": "# C1\n\nSOURCE-LINE:" + "candidate detail " * 3000 + "\n",
+        "C1.tex": "Separate exact source.\n",
+    }
+    for path, content in documents.items():
+        (tmp_path / path).write_text(content, encoding="utf-8")
+    material = _material()
+    semantic = material["theory_developer_protocol_material"]["theory_semantic_material"]
+    semantic["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
+    semantic["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
+    semantic["theory_workspace_manifest"] = theory_workspace_document_manifest(
+        documents, workspace_dir=tmp_path
+    )
+    semantic["theory_derivation_packet"] = {
+        "claim_index": [{"id": "C1", "document_path": "C1.md", "anchor": "C1"}]
+    }
+    return material, documents
+
+
+class _LocalToolBackend:
+    provider_name = "local"
+
+    def __init__(self, actions):
+        self.actions = iter(actions)
+        self.requests = []
+
+    def generate_client_tool_turn(self, request):
+        assert request.model == TEST_LOCAL_MODEL
+        self.requests.append(request)
+        name, payload = next(self.actions)
+        payload = payload(request) if callable(payload) else payload
+        call = ClientToolCall(f"local-{len(self.requests)}", name, payload)
+        return ClientToolTurnResponse(
+            content_blocks=({"type": "tool_use", "id": call.call_id,
+                             "name": name, "input": payload},),
+            tool_calls=(call,), text="", provider="local", model=request.model,
+        )
+
+
+@pytest.mark.parametrize("rejected_call", [
+    (THEORY_WORKSPACE_READ_DOCUMENT_TOOL, {"path": "outside.md", "line_start": 1, "line_end": 1}),
+    (THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL, {}),
+])
+def test_metric_roles_receive_one_exact_catalog_and_reviewer_reads_source(tmp_path: Path, rejected_call) -> None:
+    material, documents = _document_material(tmp_path)
+    theory = material["theory_developer_protocol_material"]
+    prompt = build_architect_metric_semantic_review_prompt(
+        question=OpenResearchQuestion(id="q_metric_review", title="Generic", description="Review."),
+        review_material=material,
+    )
+    projected, _ = _compact_metric_authoring_prompt_payload(material)
+    reviewer_view = json.loads(prompt.split("\n\n", 1)[1])["review_material"]
+    author_theory = projected["theory_developer_protocol_material"]["theory_semantic_material"]
+    reviewer_theory = reviewer_view["theory_developer_protocol_material"]["theory_semantic_material"]
+    assert author_theory == reviewer_theory
+    assert author_theory["theory_derivation_packet"]["claim_index"][0]["id"] == "C1"
+    catalog = author_theory["authoritative_theory_documents"]
+    assert {row["path"] for row in catalog} == set(documents)
+    assert catalog[0]["byte_size"] == len(documents["C1.md"].encode())
+    assert documents["C1.md"] not in prompt
+    assert documents["C1.md"] not in json.dumps(projected)
+
+    backend = _LocalToolBackend([
+        rejected_call,
+        (THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL, {"query": "# C1", "document_paths": ["C1.md"]}),
+        (THEORY_WORKSPACE_READ_DOCUMENT_TOOL, {"path": "C1.md", "line_start": 3, "line_end": 3,
+                                             "character_start": 0, "character_end": 24}),
+        ("submit_architect_metric_semantic_review", _payload(material["empirical_metric_requirements"])),
+    ])
+    packet = LLMArchitectMetricSemanticReviewerAgent(
+        provider=backend,
+        config=ArchitectMetricSemanticReviewerConfig(
+            provider_name="local", model=TEST_LOCAL_MODEL, model_tier="local"
+        ),
+    ).review(
+        question=OpenResearchQuestion(id="q_metric_review", title="Generic", description="Review."),
+        review_material=material,
+        trusted_lineage={
+            "authoring_packet_id": "author:synthetic",
+            "authoring_packet_hash": stable_hash({"synthetic": True}),
+            "empirical_metric_requirement_set_id": generated_metric_requirement_set_id(material["empirical_metric_requirements"]),
+            "source_agent": "MetricProtocolSourceOwner", "source_model": TEST_LOCAL_MODEL,
+            "source_model_tier": "local",
+            "source_theory_packet_id": theory["source_theory_packet_id"],
+            "source_theory_packet_hash": theory["source_theory_packet_hash"],
+            "acceptance_authority_catalog_id": material["acceptance_authority_catalog_id"],
+            "acceptance_authority_catalog_fingerprint": stable_hash(material["acceptance_authority_catalog"]),
+        },
+    )
+    assert backend.requests[1].messages[-1]["content"][0]["is_error"] is True
+    observation = json.loads(backend.requests[3].messages[-1]["content"][0]["content"])
+    assert observation["content"] == documents["C1.md"].splitlines()[2][:24]
+    inspections = packet["client_tool_loop"]["theory_document_inspection_refs"]
+    assert len(inspections) == 2
+    assert inspections[-1]["document_sha256"] == catalog[0]["sha256"]
+    assert all((tmp_path / path).read_text() == content for path, content in documents.items())
+
+
+def test_metric_source_owner_reads_the_same_frozen_theory(tmp_path: Path) -> None:
+    material, documents = _document_material(tmp_path)
+    theory = material["theory_developer_protocol_material"]
+    protocol = "# Synthetic protocol\n\nRetain the declared diagnostic before outcomes.\n"
+
+    def review_submission(request):
+        prompt_json = request.messages[0]["content"].split("\n\n", 1)[1]
+        projected = json.JSONDecoder().raw_decode(prompt_json)[0]["review_material"]
+        payload = _payload(projected["empirical_metric_requirements"])
+        for row in payload["requirement_reviews"].values():
+            row["semantic_positive_control"]["raw_comparison_value"] = True
+        return payload
+
+    backend = _LocalToolBackend([
+        (THEORY_WORKSPACE_READ_DOCUMENT_TOOL, {"path": "C1.tex", "line_start": 1, "line_end": 1}),
+        (METRIC_PROTOCOL_WORKSPACE_READ_TOOL, {}),
+        (METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL, {
+            "expected_parent_sha256": hashlib.sha256(METRIC_PROTOCOL_WORKSPACE_SOURCE_INITIAL_DOCUMENT.encode()).hexdigest(),
+            "edits": [{"old_text": METRIC_PROTOCOL_WORKSPACE_SOURCE_INITIAL_DOCUMENT, "new_text": protocol}],
+        }),
+        (METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL, {
+            "expected_sha256": hashlib.sha256(protocol.encode()).hexdigest(),
+            "required_runtime_replicates": 20, "evaluator_id": "synthetic-evaluator",
+            "scientific_rationale": "Synthetic transport fixture, not scientific acceptance.",
+        }),
+        (THEORY_WORKSPACE_READ_DOCUMENT_TOOL, {"path": "C1.tex", "line_start": 1, "line_end": 1}),
+        ("submit_architect_metric_semantic_review", review_submission),
+    ])
+    preflight = {"packet_id": "preflight:synthetic", "overall_verdict": "ACCEPT"}
+    acceptance = {
+        "artifact_kind": "RuntimeArchitectTheoryExecutionPreflightAcceptance",
+        "execution_results_observed": False, "full_metric_authoring_completed": False,
+        "source_theory_packet_id": theory["source_theory_packet_id"],
+        "source_theory_packet_hash": theory["source_theory_packet_hash"],
+        "theory_execution_preflight_packet": preflight,
+        "preflight_packet_id": preflight["packet_id"], "preflight_packet_hash": stable_hash(preflight),
+    }
+    acceptance["acceptance_id"] = "architect_theory_execution_preflight_acceptance:" + stable_hash(acceptance)[:20]
+    reviewer = LLMArchitectMetricSemanticReviewerAgent(
+        provider=backend,
+        config=ArchitectMetricSemanticReviewerConfig(
+            provider_name="local", model=TEST_LOCAL_MODEL, model_tier="local"
+        ),
+    )
+    result = author_reviewed_architect_metric_requirements(
+        provider=backend,
+        config=ArchitectMetricContractAuthoringConfig(provider_name="local", model_tier="local"),
+        request_model=TEST_LOCAL_MODEL, semantic_reviewer=reviewer,
+        question=OpenResearchQuestion(id="q_metric_review", title="Synthetic", description="Transport only."),
+        theory_protocol_material=theory, accepted_theory_preflight_context=acceptance,
+        metric_protocol_workspace_root=tmp_path / "metric",
+        runtime_contract={
+            "research_evaluation_requires_typed_metric_contracts": True,
+            "empirical_metric_requirements": [],
+            "empirical_metric_protocol_phase": METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
+            "generated_sandbox_runtime_replicates": 20,
+        },
+    )
+    observation = json.loads(backend.requests[1].messages[-1]["content"][0]["content"])
+    assert observation["content"] == documents["C1.tex"].rstrip("\n")
+    assert result["semantic_review_status"] == "ACCEPT"
+    assert len(backend.requests) == 6
+    assert result["provider_name"] == "local"
+    assert result["semantic_review_packet"]["client_tool_loop"]["theory_document_inspection_refs"][0]["document_sha256"] == observation["document_sha256"]
+    assert "read_metric_protocol" not in {tool.name for tool in backend.requests[4].tools}
+    assert all((tmp_path / path).read_text() == content for path, content in documents.items())
+
+
+def test_stale_metric_theory_fails_before_any_local_request(tmp_path: Path) -> None:
+    material, _ = _document_material(tmp_path)
+    (tmp_path / "C1.md").write_text("Changed after the frozen handoff.\n")
+    backend = _LocalToolBackend([])
+    with pytest.raises(ValueError, match="document hash mismatch"):
+        LLMArchitectMetricSemanticReviewerAgent(
+            provider=backend,
+            config=ArchitectMetricSemanticReviewerConfig(
+                provider_name="local", model=TEST_LOCAL_MODEL, model_tier="local"
+            ),
+        ).review(
+            question=OpenResearchQuestion(id="q_metric_review", title="Generic", description="Review."),
+            review_material=material, trusted_lineage={},
+        )
+    with pytest.raises(ValueError, match="document hash mismatch"):
+        _compact_metric_authoring_prompt_payload(material)
+    assert backend.requests == []
+
+
+def test_local_metric_authoring_cannot_silently_skip_independent_review() -> None:
+    with pytest.raises(ValueError, match="requires an independent"):
+        author_reviewed_architect_metric_requirements(
+            provider=_LocalToolBackend([]),
+            config=ArchitectMetricContractAuthoringConfig(provider_name="local", model_tier="local"),
+            request_model=TEST_LOCAL_MODEL, semantic_reviewer=None,
+            question=OpenResearchQuestion(id="q_metric_review", title="Generic", description="Review."),
+            runtime_contract={
+                "research_evaluation_requires_typed_metric_contracts": True,
+                "empirical_metric_requirements": [],
+                "empirical_metric_protocol_phase": METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
+            },
+        )

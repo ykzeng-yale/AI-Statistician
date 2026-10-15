@@ -65,8 +65,7 @@ from .scientific_project import (
 from .theory_workspace import (
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
-    read_theory_document_lines,
-    search_theory_document_lines,
+    execute_theory_document_client_tool,
     theory_document_client_tools,
 )
 
@@ -1176,49 +1175,21 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             context: ClientToolExecutionContext,
         ) -> ClientToolExecutionResult:
             nonlocal last_errors, last_invalid_packet
-            if call.name == THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
-                if set(call.input) != {"path", "line_start", "line_end"}:
-                    raise ClientToolInputError(
-                        "generated-code evidence read requires path, line_start, and line_end"
-                    )
-                observation, inspection = read_theory_document_lines(
-                    evidence_documents,
-                    path=call.input["path"],
-                    line_start=call.input["line_start"],
-                    line_end=call.input["line_end"],
+            if call.name in {
+                THEORY_WORKSPACE_READ_DOCUMENT_TOOL, THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+            }:
+                observation, inspection = execute_theory_document_client_tool(
+                    evidence_documents, tool_name=call.name, tool_input=call.input,
                 )
                 evidence_document_accesses.append(inspection)
-                accessed_evidence_document_paths.add(str(inspection["path"]))
+                if call.name == THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
+                    accessed_evidence_document_paths.add(str(inspection["path"]))
+                else:
+                    accessed_evidence_document_paths.update(inspection["document_hashes"])
                 return ClientToolExecutionResult(
                     content=observation,
                     observation_key=(
-                        "generated-code-evidence-read:" + stable_hash(inspection)
-                    ),
-                )
-            if call.name == THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL:
-                if not set(call.input) <= {
-                    "query",
-                    "document_paths",
-                    "max_results",
-                }:
-                    raise ClientToolInputError(
-                        "generated-code evidence search accepts query, document_paths, and max_results"
-                    )
-                observation, inspection = search_theory_document_lines(
-                    evidence_documents,
-                    query=call.input.get("query"),
-                    document_paths=call.input.get("document_paths", ()),
-                    max_results=call.input.get("max_results", 20),
-                )
-                evidence_document_accesses.append(inspection)
-                accessed_evidence_document_paths.update(
-                    str(path)
-                    for path in inspection.get("document_hashes", {})
-                )
-                return ClientToolExecutionResult(
-                    content=observation,
-                    observation_key=(
-                        "generated-code-evidence-search:" + stable_hash(inspection)
+                        "generated-code-evidence:" + stable_hash(inspection)
                     ),
                 )
             if call.name in {
