@@ -6652,7 +6652,7 @@ def _theory_developer_gap_result(
     question: OpenResearchQuestion,
     exc: TheoryWorkspaceGapError,
 ) -> AgentStepResult:
-    """Preserve an intentional model-owned theory gap as a terminal block."""
+    """Preserve a model-reported blocker without adopting its diagnosis."""
 
     gap = deepcopy(dict(exc.theory_gap))
     workspace_evidence = deepcopy(dict(exc.evidence))
@@ -6685,9 +6685,9 @@ def _theory_developer_gap_result(
             "MODEL_REPORTED_THEORY_GAP_NOT_PROOF_EVIDENCE"
         ),
         "boundary": (
-            "This is the TheoryDeveloper model's explicit unresolved blocker. It "
-            "terminates the current source workspace without promoting an incomplete "
-            "theory packet, empirical result, or proof claim."
+            "This model-reported blocker is not an independently established "
+            "mathematical gap. It stops the workspace without accepting theory, "
+            "empirical results or proof claims."
         ),
     }
     evidence = EvidenceLedgerEntry(
@@ -6707,9 +6707,9 @@ def _theory_developer_gap_result(
     return AgentStepResult(
         status="BLOCKED",
         rationale=(
-            "TheoryDeveloper intentionally stopped with an explicit unresolved "
-            "mathematical gap; runtime preserved the model-authored blocker and did "
-            "not route or invent a repair."
+            "TheoryDeveloper stopped with a model-reported blocker. Runtime "
+            "preserved the report without endorsing its diagnosis as a mathematical "
+            "gap or inventing a repair."
         ),
         produced_artifacts={
             workspace_evidence_id: workspace_evidence,

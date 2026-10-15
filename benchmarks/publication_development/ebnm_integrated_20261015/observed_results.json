@@ -1,0 +1,88 @@
+{
+  "study_id": "ebnm_integrated_development_20261015",
+  "scope": "One prospectively declared full-collaboration development draw, not an official comparison, capability estimate or independent mathematical assessment.",
+  "product_commit": "b7da4d774a310abfc05d38a655287ff509534d52",
+  "question_id": "ebnm_prior_families_source_assisted_candidate_v3",
+  "model": "Qwen3-4B-Instruct-2507 Q4_K_M",
+  "status": "BLOCKED",
+  "final_material_ref": null,
+  "runtime_steps_executed": 2,
+  "model_requests": 28,
+  "denied_model_requests": 0,
+  "request_limit": 256,
+  "maximum_request_input_tokens": 53233,
+  "context_tokens": 131072,
+  "maximum_request_output_tokens": 5131,
+  "output_token_limit": 16384,
+  "process_elapsed_seconds": 1357.6301429169253,
+  "transport_elapsed_seconds": 1355.1849779135082,
+  "reported_usage_totals": {
+    "input_tokens": 813664,
+    "output_tokens": 19911,
+    "total_tokens": 833575,
+    "cache_read_input_tokens": 774541
+  },
+  "usage_boundary": "Cached input is a subset of reported input, not an additional token total. All 28 requests completed; no request was denied. Termination was model-selected report_theory_gap, not a call/context/output/wall exhaustion.",
+  "tool_counts": {
+    "read_theory_workspace": 1,
+    "search_research_sources": 2,
+    "read_research_source": 4,
+    "discover_research_sources": 2,
+    "read_discovered_research_source": 4,
+    "write_theory_document": 8,
+    "write_theory_workspace": 2,
+    "edit_theory_document": 3,
+    "report_theory_gap": 1
+  },
+  "observed_source_access": "Three successful local reads repeated lines 34-38 of package/vignettes/extending_ebnm.Rmd. A requested 799-line package/R/ebnm.R read was rejected with the existing 240-line tool limit. Four successful network reads were Crossref metadata, not full article or original TeX reads. Search snippets also entered context. The supplied journal paper, replication code and preprint TeX were not read in full.",
+  "termination": "The author reported unresolved handoff/interface validation: a self-dependent claim, missing claim references, unsupported or missing ABI fields and prose placed in reference-only cards. The runtime preserved the stop, but its fixed rationale incorrectly called it an unresolved mathematical gap. No external adjudication validated that diagnosis.",
+  "reached": {
+    "architect_planning": true,
+    "theory_workspace": true,
+    "theory_markdown_files": 6,
+    "independent_theory_review": false,
+    "author_source_execution": false,
+    "generated_scientific_execution": false,
+    "simulation": false,
+    "application_execution": false,
+    "final_critic": false,
+    "lean_requested": false
+  },
+  "read_only_draft_inspection": "Unselected, unassessed drafts retain undefined correction terms, an unestablished point-normal posterior expression, and posterior-versus-confidence-interval conflation. These are concerns in failed drafts, not externally scored final results or operator-corrected answers. Markdown transport alone did not produce a complete argument.",
+  "operator_intervention": "Prepared exact inputs, enabled existing public discovery and native R, verified local deployment, monitored and read artifacts without feedback to the author. No generated artifact was edited, no correct formula supplied, no run resumed or repeated, no reference experiment rerun, and no score calculated.",
+  "followup_boundary": "Future source changes do not alter this consumed result. The immediate observed defect is unsupported runtime diagnosis of a model-reported blocker. The larger design issue is repeated frozen-ABI reauthoring in a different internal handoff schema; simplify shared interfaces and verify them deterministically before any separately declared future condition. Do not add statistical answer rules, source-specific retries or another agent.",
+  "official_study_activated": false,
+  "scientific_acceptance": "UNASSESSED_NO_FINAL_SUBMISSION",
+  "held_out_exclusion": "Exposed ebnm/normal-means family",
+  "cleanup": "Owned server exited after SIGTERM with return code 0. Port 8081 had no listener after termination. No model service or draw process was left running.",
+  "records": [
+    {
+      "path": "runs/ebnm_integrated_development_20261015/observation.json",
+      "sha256": "8fabd28374b633733458b658520122f3f70e13c640fc09c05a18d41bf98aa28c"
+    },
+    {
+      "path": "runs/ebnm_integrated_development_20261015/config.json",
+      "sha256": "2c9e51a401f84eb1d40a5f84113c4a484d3369fbc257304ea6e463984f030ae7"
+    },
+    {
+      "path": "runs/ebnm_integrated_development_20261015/execution/terminal.json",
+      "sha256": "a75e2f0039fc964999ae7883bfe8df643fe58cffd311acfcd351bba878d1aee1"
+    },
+    {
+      "path": "runs/ebnm_integrated_development_20261015/execution/stdout.log",
+      "sha256": "1c58c72015b03f904c5b3f6c610787d4e200509c410d0958bd0e58e17717d980"
+    },
+    {
+      "path": "runs/ebnm_integrated_development_20261015/execution/draw/frozen_draw.json",
+      "sha256": "718225eb427ffbab862f1e558d869c0eb1fdc01db0c3d23b88377819f16a4588"
+    },
+    {
+      "path": "runs/ebnm_integrated_development_20261015/execution/draw/author/runtime_progress.jsonl",
+      "sha256": "6d11ee3865aec7ab509571fb03d94d27e3c355c4bad5509f20d549613f4699eb"
+    },
+    {
+      "path": "runs/ebnm_integrated_development_20261015/execution/draw/author/ebnm_prior_families_source_assisted_candidate_v3_runtime_result.json",
+      "sha256": "c5eb557edf5414c953323d2377a9f1c17ce5a0dede9127b7f2c447061ed0af5f"
+    }
+  ]
+}

@@ -2371,7 +2371,11 @@ def test_theory_packet_exhaustion_blocks_without_architect_routing() -> None:
     assert "Architect routing loop" in result.rationale
 
 
-def test_model_reported_theory_gap_blocks_without_validation_or_repair_route() -> None:
+@pytest.mark.parametrize("summary", [
+    "The requested estimand is not identified.",
+    "I cannot encode the executable handoff fields.",
+])
+def test_model_reported_theory_gap_blocks_without_validation_or_repair_route(summary) -> None:
     question = OpenResearchQuestion(
         id="honest-theory-gap",
         title="Preserve an unresolved mathematical blocker",
@@ -2379,7 +2383,7 @@ def test_model_reported_theory_gap_blocks_without_validation_or_repair_route() -
     )
     error = runtime_module.TheoryWorkspaceGapError(
         theory_gap={
-            "summary": "The requested estimand is not identified.",
+            "summary": summary,
             "blocking_claims": ["identification"],
             "evidence_refs": ["workspace:problem_card"],
             "next_step": "Supply an identifying restriction.",
@@ -2405,6 +2409,7 @@ def test_model_reported_theory_gap_blocks_without_validation_or_repair_route() -
 
     assert result.status == "BLOCKED"
     assert result.next_task is None
+    assert "without endorsing its diagnosis" in result.rationale
     assert result.failure_classification == "theory_developer_reported_gap"
     artifact = next(
         value
@@ -2415,6 +2420,9 @@ def test_model_reported_theory_gap_blocks_without_validation_or_repair_route() -
     assert artifact["model_owned_theory"] is True
     assert artifact["runtime_edited_theory"] is False
     assert artifact["kernel_verified"] is False
+    assert artifact["theory_gap"]["summary"] == summary
+    assert "not an independently established" in artifact["boundary"]
+    assert result.observations[0].summary == summary
     assert "workspace_evidence" not in artifact
     assert artifact["workspace_evidence_id"] in result.produced_artifacts
     assert runtime_module.stable_hash(

@@ -130,7 +130,7 @@ class TheoryWorkspaceResult:
 
 
 class TheoryWorkspaceGapError(RuntimeError):
-    """Intentional model-owned stop for an unresolved mathematical gap."""
+    """Intentional model-owned stop; its diagnosis is not independently verified."""
 
     def __init__(
         self,
@@ -3757,10 +3757,10 @@ def _theory_workspace_tools(
         ClientToolDefinition(
             name=THEORY_WORKSPACE_GAP_TOOL,
             description=(
-                "Stop with an explicit unresolved mathematical gap after inspecting "
-                "the current workspace. Use this when you cannot make the authoritative "
-                "artifacts coherent within the available evidence and budget. Report "
-                "your own blocker and evidence; this is a non-success, non-proof result."
+                "Report your blocker and observed evidence after inspecting the workspace. "
+                "Distinguish a mathematical claim from an interface or source-access "
+                "failure. This stops the workspace without accepting theory or "
+                "establishing your diagnosis."
             ),
             input_schema={
                 "type": "object",

@@ -1,7 +1,8 @@
 # Publication Programme
 
 Updated: 2026-10-15. Status: scientific workflow qualification in progress;
-no new scientific benchmark result. The native chat goal is active and covers
+one fresh integrated development draw terminated without a final submission.
+The native chat goal is active and covers
 both publications.
 
 ## Execution Roadmap
@@ -34,6 +35,13 @@ artifacts may await independent assessment; this does not turn them into accepte
 results. Finish independent authority and actual comparative conditions before
 freezing and running the official study. Preserve unsuccessful draws; a negative
 effect is reportable without redefining success.
+
+The [October 15 ebnm development record](../benchmarks/publication_development/ebnm_integrated_20261015/observed_results.json)
+does not complete an item: the author stopped over handoff validation after 28
+calls, before independent review or computation. Neither resource ceilings nor
+Lean caused that stop. Reduce duplicated public/internal interface authoring and
+verify source access before another prospectively declared condition. Keep this
+failed run and the exposed family out of official held-out comparisons.
 
 The minimum scientific scope is a justified comparison of the implemented
 intervention on the declared roster/model, not universal research automation.

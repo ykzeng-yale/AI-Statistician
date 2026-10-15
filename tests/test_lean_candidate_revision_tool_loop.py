@@ -5412,26 +5412,52 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
             harness_events.append({"event": "model_turn"})
             return super().generate_client_tool_turn(request)
 
-    def fake_local_check(**kwargs):
-        submitted = Path(kwargs["artifact_path"]).read_text(encoding="utf-8")
-        compiled = submitted == authored
+    checked_sources = []
+
+    def fake_compile_result(source):
+        compiled = source == authored
         return {
             "local_lean_attempted": True,
             "local_lean_compiled": compiled,
             "local_lean_source_compiled": compiled,
             "local_lean_exit_status": "0" if compiled else "1",
-            "local_lean_stdout": (
-                "Exact.target : True" if compiled else "type mismatch"
-            ),
+            "local_lean_stdout": "Exact.target : True" if compiled else "type mismatch",
             "local_lean_stderr": "",
             "candidate_identity_lean_checked": compiled,
             "candidate_identity_lean_verified": compiled,
         }
 
+    def fake_project_check(executor, *, target_source, candidate_lean_declaration,
+                           project_files, support_build_order):
+        checked_sources.append(target_source)
+        project = model_authored_lean_project(
+            target_source=target_source, project_files=project_files,
+            support_build_order=support_build_order,
+        )
+        executor.workspace_root.mkdir(parents=True, exist_ok=True)
+        target_path = executor.workspace_root / "Main.lean"
+        target_path.write_text(target_source, encoding="utf-8")
+        return {
+            "source_hash": stable_hash(target_source),
+            "candidate_lean_declaration": candidate_lean_declaration,
+            "compiled": target_source == authored,
+            "artifact_path": str(target_path),
+            "proof_state_artifact_path": str(target_path),
+            "proof_state_search_root": str(executor.workspace_root),
+            "lean_project": project,
+            "lean_project_hash": project["project_hash"],
+            **fake_compile_result(target_source),
+        }
+
     monkeypatch.setattr(
         runtime_module,
         "_run_formalizer_lean_candidate_local_check",
-        fake_local_check,
+        lambda **kwargs: fake_compile_result(Path(kwargs["artifact_path"]).read_text(encoding="utf-8")),
+    )
+    monkeypatch.setattr(
+        runtime_module.LeanProjectExecutor,
+        "check_target",
+        fake_project_check,
     )
     backend = FormalizerBackend()
     agent = LLMFormalizerProofEngineerAgent(
@@ -5476,6 +5502,7 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
         for row in result.produced_artifacts.values()
     )
     assert len(backend.requests) == 4
+    assert checked_sources == [draft, authored]
     assert harness_events[0] == {"event": "model_turn"}
     assert formal_source_retriever.calls == [
         {"query": "Project.Source", "k": 8},

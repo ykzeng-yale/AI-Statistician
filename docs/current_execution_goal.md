@@ -74,6 +74,23 @@ exposed substantive case with missing source/aggregation/data-rights dependencie
 Historical Haiku and consumed Qwen outcomes stay unchanged. Exact records belong
 in [main_worker_status.json](main_worker_status.json).
 
+The fresh October 15 ebnm integrated development draw has now terminated
+`BLOCKED`, with 28 local Qwen calls in 22.6 minutes and no final submission.
+It produced six theory drafts but reached neither independent review nor R,
+simulation or application execution. The author stopped over handoff validation,
+not a resource limit; the drafts also lack adequate source-grounded arguments.
+See the [immutable outcome record](../benchmarks/publication_development/ebnm_integrated_20261015/observed_results.json).
+This is failure evidence, not a completed workflow or evidence that its mathematical
+question is unsolvable. The immediate follow-up is to remove unnecessary frozen-ABI
+reauthoring across mismatched public/internal schemas and make source access clear,
+using shared mechanisms and deterministic tests. Do not repair or rerun this draw,
+raise limits as the presumed solution, or turn its formulas into runtime rules.
+For a task with a frozen executable contract, the owner should reference its fixed
+identity and author only genuinely new mathematical meanings or derivation links.
+It should not recopy request names, binding rules and output shapes into another
+schema. Preserve the original contract and independent semantic review while
+reducing this representation burden; do not add a new repair layer.
+
 The immediate priority is a complete methods-research workflow, with the same
 estimand, assumptions, algorithm and interpretation followed across artifacts.
 Broader comparisons follow qualification of that workflow. Repeated installation
