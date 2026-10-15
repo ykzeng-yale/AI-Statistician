@@ -1,8 +1,8 @@
 # Independent Assessment Protocol: Draft
 
-2026-10-04. Prospective draft for Q05/A01, **not qualified or frozen authority**.
-No assessors are appointed, candidate is activated, mathematical verdict is
-issued or numerical acceptance threshold is set by this document.
+Original draft: 2026-10-04. Status corrected: 2026-10-15. Draft for Q05/A01,
+**not qualified or frozen authority**. No assessors are appointed, official study
+is activated, mathematical verdict is issued or numerical threshold is set here.
 
 ## Scope and Inputs
 
@@ -12,8 +12,14 @@ unchanged in the input-preparation records. This prospective draft now refers to
 the three v3 tasks in [execution_questions.json](execution_questions.json),
 whose exact identity is bound by [prospective_conditions_followup.json](prospective_conditions_followup.json).
 The new edition supplies public estimator transport metadata, not a mathematical
-solution, numerical endpoint or acceptance threshold. It has not been consumed or
-frozen. Final authority must bind the selected edition before official calls.
+solution, numerical endpoint or acceptance threshold. StepMix and ebnm have since
+been consumed in separately precommitted development draws, both without final
+submissions; their complete families are excluded from official held-out testing.
+Their [current dispositions](README.md#background-and-consumed-family-boundaries)
+and immutable outcomes remain authoritative. Bizicount remains unconsumed but
+unqualified. The original three-task edition is not a fresh official roster.
+Final authority must bind an eligible roster and selected edition before official
+calls; this status correction does not revise, assess or rescore either failure.
 The preceding unactivated v2 proposal required an unsupported `unresolved_gaps`
 score; that preparation defect is recorded, not hidden or rescored. Current
 metadata leaves gap reporting in the scientific obligations below rather than

@@ -317,7 +317,7 @@ and analysis must be frozen prospectively. Family-level paired effects and
 uncertainty, rather than rubric-item counts treated as independent samples, will
 support the comparison.
 
-The current [candidate task definitions](../benchmarks/publication_case_candidates/published_methods/README.md)
+The original [candidate task definitions](../benchmarks/publication_case_candidates/published_methods/README.md)
 cover [StepMix](https://www.jstatsoft.org/article/view/v113i08) external-variable
 methods, [ebnm](https://www.jstatsoft.org/article/view/v114i03) prior-family comparison
 and [bizicount](https://www.jstatsoft.org/article/view/v109i01) joint count regression.
@@ -328,6 +328,9 @@ unknown-theorem discovery. Existing EM/normal-means exposure and the common
 software-journal source channel remain limitations. Independent argument authority,
 input/ABI and arm qualification, rights and the roster/precision freeze are still
 pending; these definitions provide no collaborative effect estimate.
+Subsequent development draws consumed the StepMix and ebnm families without
+final submissions. They are excluded from official held-out comparisons;
+bizicount remains unconsumed but unqualified. The official roster is still open.
 
 The unactivated [condition follow-up](../benchmarks/publication_case_candidates/published_methods/prospective_conditions_followup.json)
 binds public estimator transport metadata and all twelve proposed configurations

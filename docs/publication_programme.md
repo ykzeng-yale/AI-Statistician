@@ -28,8 +28,8 @@ Official H/S comparisons, full assessed case arguments, confirmatory simulations
 results sections and release rights are not complete. No publication readiness
 percentage is computed from this map.
 
-**Next executable deliverable:** qualify one complete methods-research workflow
-from the existing candidates, then produce a fresh development study whose theory,
+**Next executable deliverable:** qualify a complete methods-research workflow
+under the corrected family split, then produce a fresh development study whose theory,
 implementation, simulation and application answer the same question. Its research
 artifacts may await independent assessment; this does not turn them into accepted
 results. Finish independent authority and actual comparative conditions before
@@ -407,22 +407,27 @@ principle as an independent test or excluding all of statistics.
 | --- | --- | --- |
 | TSCI invalid instruments | Separate JSS package example is numerically qualified; final JMLR B1/Card source inputs are prepared | Retain the substantive case. Missing B1 comparator helper, Card Table 15 aggregation/seed specification, exact case reference and independent theory assessment remain unresolved. |
 | Zero-inflated copula count regression, bizicount | Full unchanged main script executed, including 4,000 simulation slots | Discrepant standard errors, missing fits, optimizer codes and the source BIC convention prevent automatic use as scientific truth. Qualify a stated literal-reproduction or discrepancy-detection endpoint and rights separately. |
-| Empirical-Bayes normal means, ebnm | Unchanged default main-text run and exact finite numerical agreement within its inspected scope | Numerical-only reference exists; full timing/licensed appendix and independent theory do not. Existing James-Stein/Tweedie development exposure prevents calling a generic normal-means rederivation untouched. Exact source-task grouping still needs an explicit decision. |
-| Latent-class/profile models with external variables, StepMix | All six planned unchanged Python invocations finished, including the three full grids and GSS; Table 3 differs, selected other tables agree at displayed precision | Preserve emitted/suppressed convergence warnings, deleted extreme fits and absent per-repetition exports as limits. Existing Gaussian-mixture EM exposure excludes a generic EM rediscovery claim. Any distinct misclassification-correction task, rights, reference acceptance and split must still be qualified. |
+| Empirical-Bayes normal means, ebnm | Unchanged default main-text run and exact finite numerical agreement within its inspected scope | Consumed development family after the October 15 failure; excluded from official held-out comparisons. Numerical-only reference remains bounded; full timing/licensed appendix and independent theory remain unqualified. |
+| Latent-class/profile models with external variables, StepMix | All six planned unchanged Python invocations finished, including the three full grids and GSS; Table 3 differs, selected other tables agree at displayed precision | Consumed development family after the October 15 failure; excluded from official held-out comparisons. Retain convergence warnings, deleted extreme fits and absent per-repetition exports as reference limitations. |
 | RepliSims propensity-score matching, meta-analysis, ordinal factor analysis and mediation | Partial probes or discovery only; some source identities/rights unresolved | Do not present a human reimplementation as original author code or a narrow successful probe as a full reference. These are deferred, not selected primary tasks. |
 
 The [earlier qualification record](../benchmarks/publication_reference_qualification_20261002/README.md)
 and [new StepMix record](../benchmarks/publication_reference_qualification_20261003/README.md)
 bind these limits. DoubleML, CORE Type-M/Type-S, scikit-fda and fixed-K L2
 segmentation remain excluded from the fresh test pool because their development
-draws were consumed. None of the rows above is a new model result, official draw,
-independent mathematical acceptance or a reason to mark Q02/Q04 complete.
+draws were consumed. The October 15 ebnm/StepMix outcomes likewise are development
+failures, not official draws or independent mathematical acceptance. They do not
+close Q02/Q04. Bizicount is the sole unconsumed original candidate and remains
+unqualified; apply the [scientific eligibility criteria](publication_experiments.md#scientific-eligibility-before-agent-runs)
+before selecting a new roster. The [bounded biostatistical source screen](publication_sources_20261001.md#biostatistical-method-source-screen-2026-10-15)
+defers LMTP and JointAI as full-task replacements. Neither is activated.
 
 The [exact-task selection follow-up](../benchmarks/publication_case_candidates/published_methods/README.md)
-now supplies three loader-readable integrated candidates for StepMix external
+originally supplied three loader-readable integrated candidates for StepMix external
 variables, ebnm prior-family comparison and bizicount reconstruction/assessment.
 All use declared paper/code access, not blind rediscovery. Background EM and
-normal-means exposure remains explicit; TSCI stays an exposed case/illustration.
+normal-means exposure remains explicit; the later StepMix/ebnm draws supersede
+their original candidate dispositions. TSCI stays an exposed case/illustration.
 The source records support only their qualified numerical scope. The
 [input preparation](../benchmarks/publication_case_candidates/published_methods/input_preparation.json)
 now supplies three existing-format model-visible snapshots with exact original
@@ -438,8 +443,9 @@ now connect the unchanged input documents to pinned local interpreters and adapt
 libraries. Configuration loading is not full execution: a synthetic native R
 two-worker fixture failed to open its local server socket, and StepMix's generated
 Python environment is not the native author environment. Resolve these shared
-execution/access gaps before Q06/Q07; do not add another candidate or substitute
-serial toy computation for the declared study. No author script or model ran.
+execution/access gaps before Q06/Q07; a new candidate does not fix them, and serial
+toy computation cannot replace the declared study. No author script or model ran
+in that preparation check.
 The [native-resource follow-up](../benchmarks/publication_execution_resources_20261003/README.md)
 adds an explicit shared local-port capability; synthetic FORK/PSOCK workers now
 execute. Its inbound-listener limitation is disclosed. This does not change the
@@ -632,7 +638,7 @@ names the required tables, figures and supplements without inventing their value
 
 ### Immediate Execution Order
 
-Finish Q02/Q04 for the existing candidates at the complete methods-research scope.
+Finish Q02/Q04 under the corrected exposure split and complete methods scope.
 Produce a fresh, prospectively declared development study through the existing
 workspaces; report unresolved theory and missing outputs without acceptance
 credit. Resolve Q05 without exposing evaluation findings to authors, qualify Q06,

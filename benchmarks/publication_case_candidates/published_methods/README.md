@@ -1,12 +1,14 @@
 # Published-Method Task Candidates
 
-2026-10-03 selection decision. No model call, experiment activation, reference
-rerun, mathematical acceptance or publication effect is recorded here.
+Original selection: 2026-10-03. Current disposition: 2026-10-15. StepMix and ebnm
+were subsequently consumed in development; neither is an official held-out task.
+Their original preparation files and unsuccessful outcome records are unchanged.
+No official experiment, mathematical acceptance or publication effect is claimed.
 
 The original [public questions](questions.json) use the existing `OpenResearchQuestion`
 format and remain unchanged at their input-preparation identity. The prospective
 [execution edition](execution_questions.json) supplies explicit public estimator
-transport metadata for the same three tasks. Neither edition is an activated
+transport metadata for the same three tasks. These are not an activated official
 study or a version reset of a consumed family. They require theory, scientific source, empirical work and source
 reconstruction together. They are not source-only tasks relabelled as a
 multi-agent comparison. These files are research intent, not a runtime recipe or
@@ -14,8 +16,9 @@ an answer key. Mathematical content remains model-authored Markdown/LaTeX.
 
 ## Selection and Access
 
-Use three distinct published software/method studies already inspected, rather
-than add another reference panel. The intended access condition is **paper plus
+The original proposal selected three inspected software/method studies. Only
+bizicount remains an unconsumed candidate in this set; its eligibility is not yet
+qualified. The intended access condition is **paper plus
 original code and data**, excluding cached outputs and operator/evaluator findings.
 Both papers may use the same qualified questions with distinct frozen draws:
 host bare/package for H, four existing standalone modes for S. A shared question
@@ -23,8 +26,8 @@ does not make their experiments independent; task overlap is disclosed.
 
 | Family and domain | Exact candidate deliverable | Numerical reference scope | Current disposition |
 | --- | --- | --- | --- |
-| [StepMix, JSS 113(8)](https://www.jstatsoft.org/article/view/v113i08); latent classes and external variables; Python | Argument for external-variable estimation/correction; all three simulation grids and GSS; reusable estimators and empirical source; scientific report | Six unchanged Python invocations in the [bound reference record](../../publication_reference_qualification_20261003/stepmix_results.json) | Integrated main-study candidate, conditional on authority, rights and arm qualification. Not generic EM rediscovery. |
-| [ebnm, JSS 114(3)](https://www.jstatsoft.org/article/view/v114i03); empirical Bayes; R | Prior-fitting/posterior argument; complete default main-text script, simulation and wOBA; reusable estimators and empirical source; report | One unchanged default run in the [bound reference record](../../publication_reference_qualification_20261002/ebnm_results.json) | Integrated main-study candidate, conditional on authority, rights and arm qualification. Not untouched normal-means theory. |
+| [StepMix, JSS 113(8)](https://www.jstatsoft.org/article/view/v113i08); latent classes and external variables; Python | Argument for external-variable estimation/correction; all three simulation grids and GSS; reusable estimators and empirical source; scientific report | Six unchanged Python invocations in the [bound reference record](../../publication_reference_qualification_20261003/stepmix_results.json) | Consumed development, BLOCKED with no final submission; excluded from official held-out comparisons. |
+| [ebnm, JSS 114(3)](https://www.jstatsoft.org/article/view/v114i03); empirical Bayes; R | Prior-fitting/posterior argument; complete default main-text script, simulation and wOBA; reusable estimators and empirical source; report | One unchanged default run in the [bound reference record](../../publication_reference_qualification_20261002/ebnm_results.json) | Consumed development, BLOCKED with no final submission; excluded from official held-out comparisons. |
 | [bizicount, JSS 109(1)](https://www.jstatsoft.org/article/view/v109i01); joint count regression; R | Joint-model/likelihood argument; complete eight-setting simulation and Nigeria analysis; reusable estimators and empirical source; discrepancy report | Full unchanged scientific script in the [bound source record](../../publication_reference_qualification_20261002/sources.json), entry `jss_bizicount_2024` | Integrated reconstruction/assessment candidate, not an automatically correct software oracle. |
 
 These are candidate inclusion decisions, not the official test split, a random
@@ -43,6 +46,11 @@ inputs; a report containing remembered values is not a reproduced computation.
 
 ## Background and Consumed-Family Boundaries
 
+- The [StepMix outcome](../../publication_development/stepmix_integrated_20261015/observed_results.json)
+  and [ebnm outcome](../../publication_development/ebnm_integrated_20261015/observed_results.json)
+  supersede the original unconsumed-candidate descriptions, not the immutable
+  preparation records. Do not retry either draw or rehabilitate its family by
+  changing the task edition, access condition, host or model.
 - StepMix's selected obligations concern external-variable correction, the
   associated simulations and application. Previously exposed two-component
   Gaussian EM monotonicity remains background, not a fresh theorem or separate
@@ -50,12 +58,13 @@ inputs; a report containing remembered values is not a reproduced computation.
 - ebnm's selected obligations concern the published prior-family study and
   application. James-Stein, SURE, conjugacy and Tweedie development exposure is
   disclosed; no such known-result task is reopened under a new paper title.
-- The current exact-name/DOI scan of 134 top-level public benchmark question lists
+- The original exact-name/DOI scan of 134 top-level public benchmark question lists
   and example files found no match for these three papers/packages. It excluded
   sealed/held-out paths and did not inspect nested histories or raw chats. Previous
   qualification records have the same bounded exact-paper finding. This is not
   a certificate that no older exposure exists. Check the final exclusion ledger
-  before freezing, without opening sealed old gold.
+  before freezing, without opening sealed old gold. That historical scan predates
+  the October 15 draws and cannot establish current eligibility.
 - TSCI B1/Card is assigned to exposed preparation/illustration, not an untouched
   main-study test. Its failed Theory preparation remains consumed. These three
   candidates neither replace its substantive case obligations nor permit rerun.
@@ -120,6 +129,12 @@ answer, actual access in all arms and the complete native execution path. An
 installed author reference environment is not automatically the model workspace
 environment.
 No new adapter, scheduler, repair loop or model call is justified by this document.
+
+The original three-family panel is no longer available for official testing.
+Use the [scientific eligibility criteria](../../../docs/publication_experiments.md#scientific-eligibility-before-agent-runs)
+to qualify a new roster without selection on model outcomes. The
+[bounded biostatistical source screen](../../../docs/publication_sources_20261001.md#biostatistical-method-source-screen-2026-10-15)
+does not yet qualify a replacement or authorize a model draw.
 
 Next finish the independent claim/implementation rubrics and rights, then common
 assessment and actual arm/input/resource conditions. Choose the study's primary

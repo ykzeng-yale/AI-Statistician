@@ -38,6 +38,60 @@ outcomes. Same-model findings remain limited to the tested configuration.
 This follow-up changes the execution goal and paper positioning. It supplies no
 new model run, clinical result, mathematical verdict or qualified benchmark.
 
+## Biostatistical Method Source Screen: 2026-10-15
+
+Purpose: investigate two method families relevant to longitudinal health research
+and incomplete data. The
+[eligibility criteria](publication_experiments.md#scientific-eligibility-before-agent-runs)
+were documented alongside this exploratory screen, not preregistered before it.
+This is a purposive, bounded screen, not a systematic census, a new benchmark or
+an exhaustive reading. Neither family is selected for a model run. No source was
+executed, copied into the product or used to write an agent's research answer.
+
+**Longitudinal modified treatment policies (LMTP).** Inspected the abstract,
+section inventory and selected passages from Sections 5.3--6 and the simulation supplement of
+[arXiv:2006.01366v4](https://arxiv.org/html/2006.01366v4), not all proofs or the
+edited journal edition. It connects identification/estimation theory, numerical
+comparisons and an ICU application. Its discussion distinguishes robustness of
+consistency from inference under misspecification, an important assessment
+distinction rather than a runtime rule. The HTML's displayed 2026 title date
+disagrees with the [version record](https://arxiv.org/abs/2006.01366v4)'s July 2021
+date; bind the actual source edition before use.
+
+The package's observed `master` is
+[`f04a2b47f46debc515ce4ae778e05ebfde922c44`](https://github.com/nt-williams/lmtp/tree/f04a2b47f46debc515ce4ae778e05ebfde922c44).
+README and filename inventory were inspected; this is not a paper-era reference
+pin or a complete implementation review. Do not equate the package's simulated
+datasets with the original simulation producer.
+The separate tutorial's observed `main` is
+[`afdb8548038ce8d20c391ec208542d1c267cc722`](https://github.com/kathoffman/lmtp-tutorial/tree/afdb8548038ce8d20c391ec208542d1c267cc722).
+Its complete [run_lmtp.R](https://github.com/kathoffman/lmtp-tutorial/blob/afdb8548038ce8d20c391ec208542d1c267cc722/R/run_lmtp.R)
+explicitly uses toy data because original patient data cannot be shared; the
+script cannot reproduce the paper's clinical results. **Defer the complete
+application benchmark:** exact paper/code/simulation correspondence, original
+data access and rights are unresolved. Theory/simulation qualification may proceed
+separately, without relabelling a toy analysis as EHR validation.
+
+**JointAI.** Inspected the [JSS paper](https://www.jstatsoft.org/article/view/v100i20)'s
+introduction, selected theoretical background, example-data description and
+assumptions/computational details (Sections 1--2, 4 and 8), plus the complete
+[journal replication script](https://www.jstatsoft.org/article/download/v100i20/4216).
+The joint analysis/imputation argument and NHANES/PBC examples are relevant to
+incomplete health data. The script primarily demonstrates models and MCMC
+diagnostics; several examples intentionally take no MCMC samples. It does not
+provide a repeated-dataset method-comparison study. **Defer as a complete methods
+benchmark:** qualify a corresponding methodological paper and simulation source,
+or explicitly design a new experiment rather than call it published replication.
+Software examples retain a narrower component role. Exact environments,
+data/redistribution rights and numerical authority remain unqualified.
+
+An exact-name/identifier search of public `docs`, `manuscripts` and question/Markdown
+files under `benchmarks` found no prior LMTP/JointAI match before this addition;
+sealed and held-out paths were excluded. This does not inspect raw histories or
+certify no previous exposure. A final family decision is still required. These
+source-level deferrals preserve the full scientific obligation instead of
+lowering it to whatever code is easiest to execute. No checklist item is closed.
+
 ## Closest Research Harness And Evaluation Work
 
 | Primary source | What matters for our papers | Adoption boundary |

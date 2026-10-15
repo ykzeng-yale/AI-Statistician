@@ -68,8 +68,11 @@ theory, Python/R execution and optional Lean. Current execution is serial or
 interleaved; concurrent research speedup has not been shown. Installation fixtures
 on two Macs establish a limited release mechanism, not research efficacy.
 
-StepMix, ebnm and bizicount remain prepared source-assisted candidates. Their
-scientific obligations and numerical authority are unfinished. TSCI remains the
+StepMix and ebnm are now consumed development families, excluded from official
+held-out comparisons. Bizicount is the only unconsumed candidate in the original
+three-family set; its scientific obligations and numerical authority are still
+unfinished. The original preparations remain historical records, not a qualified
+current roster. TSCI remains the
 exposed substantive case with missing source/aggregation/data-rights dependencies.
 Historical Haiku and consumed Qwen outcomes stay unchanged. Exact records belong
 in [main_worker_status.json](main_worker_status.json).
@@ -122,15 +125,21 @@ scientific gaps.
 
 ## Next Work
 
-1. **Finish scientific task qualification (Q02/Q04, T02--T04, E01).** Use the
-   existing candidates first. Bind the actual paper edition, central inferential
+1. **Finish scientific task qualification (Q02/Q04, T02--T04, E01).** Correct the
+   current development/test split before further execution. Qualify the remaining
+   candidate and any new families using the
+   [source-based eligibility criteria](publication_experiments.md#scientific-eligibility-before-agent-runs),
+   not model outcomes. Bind the actual paper edition, central inferential
    claim, theory and code obligations, baseline comparison, simulation design
    and application scope. Resolve the recorded mathematical-source ambiguities
    through source access; do not hand-author the agents' answers. If an existing
    task cannot support a methods claim, state its narrower role before execution.
-2. **Resolve the observed handoff obstacle, then produce a complete fresh study.**
-   First simplify only demonstrated shared interface duplication, with deterministic
-   coverage of file references and retained revision. Do not launch more families
+   The [LMTP/JointAI source screen](publication_sources_20261001.md#biostatistical-method-source-screen-2026-10-15)
+   supplies two deferrals, not qualified replacements: toy clinical data and
+   model-usage examples cannot stand in for full application or simulation evidence.
+2. **Use the simpler handoff in a prospectively declared scientific condition.**
+   The demonstrated ID/document coupling is removed and regression-tested; further
+   interface work requires another concrete defect. Do not launch more families
    merely to search for a passing handoff or replace either consumed failure.
    Use the existing retained workspaces and pinned local Qwen, with the question,
    resources and data-use plan recorded before calls. The research agents perform

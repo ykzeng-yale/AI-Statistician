@@ -171,8 +171,8 @@ analysis are resolved or declared during qualification, not removed after observ
 agent performance. The selected population and exclusions determine the scope
 of the eventual claim; a reproducible-source subset is not all statistical research.
 
-The current [qualification candidates](../benchmarks/publication_case_candidates/published_methods/README.md)
-are source-assisted integrated reconstructions of
+The original [qualification candidates](../benchmarks/publication_case_candidates/published_methods/README.md)
+were source-assisted integrated reconstructions of
 [StepMix](https://www.jstatsoft.org/article/view/v113i08) external-variable methods,
 [ebnm](https://www.jstatsoft.org/article/view/v114i03) prior-family comparison and
 [bizicount](https://www.jstatsoft.org/article/view/v109i01) joint count regression.
@@ -181,6 +181,9 @@ proof or blind-rediscovery tasks. The software-article source channel and prior
 EM/normal-means development exposure limit interpretation. Numerical reference
 execution does not qualify their arguments, rights or final assessment. No official
 roster, sample size or result is established by these candidate definitions.
+Subsequent development draws consumed the StepMix and ebnm families without
+final submissions; both are excluded from official held-out comparisons. Bizicount
+remains unconsumed but unqualified. The original panel is not the official roster.
 
 For a separately qualified broader study, replication tasks permit author code.
 Paper-to-code tasks hide it and the target

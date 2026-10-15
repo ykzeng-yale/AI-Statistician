@@ -388,6 +388,9 @@ treating these declarations as qualified scientific conditions.
 Current prospective metadata removes an unsupported gap-reporting outcome axis,
 not the obligation to report gaps or any substantive task instruction. Earlier
 proposal identities and consumed evaluations are preserved at their recorded pins.
+The October 15 StepMix and ebnm development draws consumed those families;
+the original proposal is not a current held-out roster. Its preparation files
+remain historical records, with no revised outcome or acceptance rule.
 For H, all files in predeclared final directories are selected through the
 unchanged native snapshot collector, allowing arbitrary local helpers. Missing
 directories stay empty; no intermediate selection or content repair is performed.

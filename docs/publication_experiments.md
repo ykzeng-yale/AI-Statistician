@@ -107,6 +107,37 @@ claim needs a specified target population and defensible sampling design. If
 the comparison or its precision is not qualified, report exploratory evidence
 rather than declare a convenience panel definitive.
 
+### Scientific Eligibility Before Agent Runs
+
+Apply these criteria before selecting any replacement for an exposed family.
+Keep a source-based inclusion, deferral or exclusion reason for every screened
+candidate. Neither a model's success nor an attractive reference number is a
+selection criterion. Qualification by the operator is not an agent achievement.
+
+- **Scientific content:** a precise inferential question, load-bearing argument,
+  implementable method, relevant method comparators and a performance question.
+  Software usage examples alone do not qualify a complete methods task.
+- **Assessment:** exact source editions and substantive obligations that an
+  independent assessor can judge, including valid alternatives, failures and
+  justified negative findings. Executable reference agreement is not proof.
+- **Computation and application:** identified producers, inputs, aggregation and
+  dependencies for the declared scope. MCMC iterations are not repeated-dataset
+  simulations. A toy replacement for unavailable patient data cannot qualify
+  reproduction of the original clinical result; another application is a distinct
+  prospective task, with its own provenance and scientific question.
+- **Access and family:** explicit source visibility, rights and development
+  exposure. Related variants stay together. Available source does not imply
+  redistribution rights, complete reference qualification or absence of prior
+  model exposure.
+- **Design:** choose a coherent scope before calls, then qualify matched arms,
+  independent assessment, family weights and repeated-run precision. Do not
+  shrink a failed task, substitute a successful family or drop a failed draw.
+
+The October 15 StepMix and ebnm draws leave only bizicount unconsumed in the
+original three-candidate set; even that task remains unqualified. The
+[source screen](publication_sources_20261001.md#biostatistical-method-source-screen-2026-10-15)
+adds no eligible task, fixed roster, official activation or performance result.
+
 ## Baselines And Interventions
 
 | Study | Arms | Attribution |
