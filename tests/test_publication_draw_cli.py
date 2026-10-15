@@ -167,7 +167,6 @@ def test_cli_projects_only_observed_selected_markdown_not_the_latest_working_fil
     requests, freezes = wire(monkeypatch, tmp_path, [
         ("theory__write_theory_document", {"path": "claim.md", "content": document}),
         ("theory__write_theory_workspace", {"writes": [
-            {"artifact_name": "problem_card", "value": {"claim_ids": ["C"]}},
             {"artifact_name": "theory_derivation_packet", "value": {"claim_index": [{
                 "id": "C", "kind": "definition", "document_path": "claim.md", "anchor": "C", "depends_on": [], "status": "OPEN"}]}}]}),
         ("theory__commit_theory_checkpoint", {"readiness_rationale": "Checkpoint for independent review only."}),

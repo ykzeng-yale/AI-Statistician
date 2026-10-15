@@ -49,11 +49,6 @@ def _document_theory_packet(tmp_path: Path) -> tuple[dict, str]:
             "artifact_kind": "TheoryDerivationPacket",
             "packet_id": "theory:C1",
             "question": {"id": "question:C1"},
-            "problem_card": {
-                "estimand": "E[Z]",
-                "assumptions": ["integrability"],
-                "desired_theorem_type": "identity",
-            },
             "theory_derivation_packet": {
                 "derivation_summary": "The exact derivation is in C1.md.",
                 "claim_index": [
@@ -85,9 +80,8 @@ def _document_theory_packet(tmp_path: Path) -> tuple[dict, str]:
                 ],
             },
             "estimator_specs": [],
-            "theorem_cards": [{"id": "C1", "conclusion": "E[Z] = 0"}],
+            "theorem_cards": [{"id": "C1", "document_path": "derivations/C1.md"}],
             "lemma_cards": [],
-            "simulation_ademp_spec": {},
             "theory_workspace_manifest": theory_workspace_document_manifest(
                 documents,
                 workspace_dir=tmp_path,

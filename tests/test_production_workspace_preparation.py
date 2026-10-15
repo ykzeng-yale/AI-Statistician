@@ -80,7 +80,6 @@ def test_actual_theory_binding_keeps_its_validator_and_document_authority(tmp_pa
                                                  "empirical": "not_applicable", "formal": "not_applicable"})
     document = "# Opaque record\n\n## opaque_claim\n\nUnresolved placeholder, not an established result.\n"
     handoffs = {
-        "problem_card": {"claim_ids": ["opaque_claim"]},
         "theory_derivation_packet": {"claim_index": [{
             "id": "opaque_claim", "kind": "definition", "document_path": "claim.md",
             "anchor": "opaque_claim", "depends_on": [], "status": "OPEN",
@@ -89,7 +88,10 @@ def test_actual_theory_binding_keeps_its_validator_and_document_authority(tmp_pa
     calls = [
         ClientToolCall("document", THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL, {"path": "claim.md", "content": document}),
         ClientToolCall("bad-index", THEORY_WORKSPACE_WRITE_TOOL,
-                       {"writes": [{"artifact_name": "problem_card", "value": {"claim_ids": ["missing"]}}]}),
+                       {"writes": [{"artifact_name": "theory_derivation_packet", "value": {"claim_index": [{
+                           **handoffs["theory_derivation_packet"]["claim_index"][0],
+                           "document_path": "missing.md",
+                       }]}}]}),
         ClientToolCall("index", THEORY_WORKSPACE_WRITE_TOOL,
                        {"writes": [{"artifact_name": name, "value": value} for name, value in handoffs.items()]}),
         ClientToolCall("commit", THEORY_WORKSPACE_COMMIT_TOOL, {"readiness_rationale": "Checkpoint for review only."}),
@@ -133,7 +135,7 @@ def test_actual_theory_binding_keeps_its_validator_and_document_authority(tmp_pa
     assert validate_theory_packet(packet) == []
     assert load_theory_workspace_documents(packet) == {"claim.md": document}
     assert packet["theory_derivation_packet"]["claim_index"][0]["status"] == "OPEN"
-    assert "claim_index must be non-empty" in str(backend.requests[2].messages)
+    assert "references an unknown document" in str(backend.requests[2].messages)
     assert len(backend.requests) == (5 if driver == "shared" else 4)
 
 
@@ -282,8 +284,7 @@ def test_selected_upstream_context_reaches_the_actual_owner_before_source_author
                                  "context_hash": stable_hash(prepared_contexts[0])}
     assert initial["theory"] == theory.initial_context
     assert "opaque-input" not in joint.request.messages[-1]["content"]
-    handoffs = {"problem_card": {"claim_ids": ["opaque_claim"]},
-                "theory_derivation_packet": {"claim_index": [{"id": "opaque_claim", "kind": "definition",
+    handoffs = {"theory_derivation_packet": {"claim_index": [{"id": "opaque_claim", "kind": "definition",
                     "document_path": "claim.md", "anchor": "opaque_claim", "depends_on": [], "status": "OPEN"}]}}
     first = "# Opaque record\n\n## opaque_claim\n\nFirst unresolved input.\n"
     second = "# Opaque record\n\n## opaque_claim\n\nDifferent unresolved input.\n"
@@ -438,8 +439,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
                            "  extra_echo=estimators[['opaque_alt']](list(value=seed+replicates))$echo)\n")
     draft = {"language": language, "execution_profile": "scientific_wasm", "dependencies": [],
              "entrypoint": "run_sandbox", "code": code}
-    handoffs = {"problem_card": {"claim_ids": ["opaque_claim"]},
-                "theory_derivation_packet": {"claim_index": [{"id": "opaque_claim", "kind": "definition",
+    handoffs = {"theory_derivation_packet": {"claim_index": [{"id": "opaque_claim", "kind": "definition",
                     "document_path": "claim.md", "anchor": "opaque_claim", "depends_on": [], "status": "OPEN"}]}}
     backend.calls = [
         ClientToolCall("document", "theory__" + THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
@@ -949,8 +949,7 @@ def test_prepared_theory_referee_keeps_frozen_question_material_and_disposition(
     root.mkdir(parents=True)
     body = "# Opaque target\n\n## C\n\nThe claim is unresolved.\n"
     (root / "claim.md").write_text(body, encoding="utf-8")
-    core = {"problem_card": {"claim_ids": ["C"]},
-            "theory_derivation_packet": {"claim_index": [{"id": "C", "kind": "theorem", "status": "OPEN", "document_path": "claim.md"}]},
+    core = {"theory_derivation_packet": {"claim_index": [{"id": "C", "kind": "theorem", "status": "OPEN", "document_path": "claim.md"}]},
             "theory_workspace_manifest": theory_workspace_document_manifest({"claim.md": body}, workspace_dir=root)}
     material = build_theory_informed_metric_protocol_material(theory_packet=core, theory_packet_id="opaque-parent")
     contract = {"dimension_requirements": deepcopy(question.task_intent)}

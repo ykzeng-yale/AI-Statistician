@@ -322,11 +322,9 @@ def test_theory_handoff_requirements_follow_task_intent() -> None:
     )
 
     assert requirements == {
-        "problem_card": True,
         "theory_derivation_packet": True,
         "estimator_specs": False,
         "theorem_cards": False,
-        "simulation_ademp_spec": False,
         "formalization_requests": False,
     }
 
@@ -349,6 +347,11 @@ def test_theory_handoff_requirements_follow_task_intent() -> None:
 
     assert formal_requirements["theorem_cards"] is True
     assert formal_requirements["formalization_requests"] is True
+    legacy = theory_handoff_requirements(
+        question, formalization_authoring_required=False, document_authority=False,
+    )
+    assert legacy["problem_card"] is True
+    assert legacy["simulation_ademp_spec"] is False
 
 
 def test_explicit_task_prompt_contract_matches_writable_handoff_tools() -> None:
@@ -382,7 +385,6 @@ def test_explicit_task_prompt_contract_matches_writable_handoff_tools() -> None:
     )
 
     assert tuple(prompt_contract) == (
-        "problem_card",
         "theory_derivation_packet",
     )
     assert writable_fields == tuple(prompt_contract)
@@ -414,7 +416,7 @@ def test_nonformal_revision_keeps_inapplicable_legacy_handoff_read_only() -> Non
         artifacts=artifacts,
     )
 
-    assert writable == ("problem_card", "theory_derivation_packet")
+    assert writable == ("theory_derivation_packet",)
 
 
 def test_source_only_workspace_bypasses_full_theory_packet_contract(
@@ -1140,6 +1142,8 @@ def test_nonformal_document_theory_uses_claim_index_without_theorem_abi(
         }
     )
     packet["theory_derivation_packet"]["formalization_handoff"] = {}
+    packet.pop("problem_card")
+    packet.pop("simulation_ademp_spec")
     for estimator in packet["estimator_specs"]:
         estimator["estimator_interface_contract_id"] = (
             estimator_interface_contract_id(
@@ -1152,6 +1156,48 @@ def test_nonformal_document_theory_uses_claim_index_without_theorem_abi(
         for claim in packet["theory_derivation_packet"]["claim_index"]
     )
     assert validate_theory_packet(packet) == []
+
+
+def test_compact_theory_handoff_preserves_exact_documents_for_review(tmp_path: Path) -> None:
+    from ai_statistician.architect_theory_execution_preflight import build_architect_theory_execution_preflight_material
+
+    question = OpenResearchQuestion(
+        id="compact-document-review", title="Document review",
+        description="Review the submitted theory and design before execution.",
+        task_intent={"theory": "required", "scientific_code": "required",
+                     "empirical": "required", "formal": "not_applicable"},
+    )
+    packet, documents = _file_authority_theory_fixture(
+        _sample_response(), workspace_dir=tmp_path / "review-input",
+    )
+    packet.pop("problem_card")
+    packet.pop("simulation_ademp_spec")
+    material = build_theory_informed_metric_protocol_material(
+        theory_packet=packet, theory_packet_id="theory:compact-document-review",
+    )
+    review = build_architect_theory_execution_preflight_material(
+        question=question, theory_protocol_material=material,
+        upstream_research_contract={"dimension_requirements": question.task_intent},
+    )
+    anchors = {row["anchor_id"]: row for row in review["anchor_catalog"]}
+    assert "theory.problem_card" not in anchors
+    assert "theory.simulation_ademp_spec" not in anchors
+    for path, content in documents.items():
+        row = anchors[f"theory.document:{path}"]
+        assert row["content"] == content
+        assert row["content_sha256"] == hashlib.sha256(content.encode()).hexdigest()
+    assert anchors["theory.estimator_specs"]["content"]
+    assert anchors["question"]["content"]["task_intent"] == question.task_intent
+    assert packet["estimator_specs"] == material["theory_semantic_material"]["estimator_specs"]
+
+
+@pytest.mark.parametrize("field", ["problem_card", "simulation_ademp_spec"])
+def test_historical_reference_cards_cannot_replace_objects_with_other_types(tmp_path: Path, field: str) -> None:
+    packet, _ = _file_authority_theory_fixture(
+        _sample_response(), workspace_dir=tmp_path / field,
+    )
+    packet[field] = ["not a reference object"]
+    assert f"{field} must be an object" in validate_theory_packet(packet)
 
 
 @pytest.mark.parametrize("derivation", [{}, {"claim_index": []}, {
@@ -1304,7 +1350,6 @@ def test_theory_only_revision_prompt_exposes_only_task_intent_handoffs(
 
     assert payload["question"]["task_intent"] == question.task_intent
     assert payload["workspace_artifacts"] == [
-        "problem_card",
         "theory_derivation_packet",
     ]
     assert "The estimator interface contract is part" not in prompt
@@ -1632,7 +1677,6 @@ def test_optional_theory_prompt_does_not_invent_formalization_work() -> None:
     payload = artifacts["initial_authoring_context"]
 
     assert set(payload["required_output_contract"]) == {
-        "problem_card",
         "theory_derivation_packet",
     }
     assert "formalization_requests" not in payload["required_output_contract"]
@@ -2136,7 +2180,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     )
     assert "with no separate read or write quota" in initial_prompt
     assert question.description in str(provider.tool_requests[1].messages)
-    assert "claim_ids" in str(provider.tool_requests[1].messages)
+    assert "claim_index" in str(provider.tool_requests[1].messages)
     assert "desired_theorem_type" not in str(provider.tool_requests[1].messages)
     assert (
         "source_theorem_target must exactly match a theorem_cards id"
@@ -2148,8 +2192,8 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert "response field 0 missing normalization" in str(
         provider.tool_requests[-1].messages
     )
-    assert packet["problem_card"] == core_response["problem_card"]
-    assert "dgp" not in packet["problem_card"]
+    assert "problem_card" not in packet
+    assert "simulation_ademp_spec" not in packet
     evidence = packet["llm_client_tool_loop"]
     assert evidence["workspace_operation"] == "initial_discovery"
     assert evidence["write_transport"] == (
@@ -2242,7 +2286,6 @@ def test_nonformal_initial_workspace_checkpoints_without_theorem_abi() -> None:
                     name=THEORY_WORKSPACE_WRITE_TOOL,
                     input=_theory_artifact_writes(
                         {
-                            "problem_card": core_response["problem_card"],
                             "theory_derivation_packet": derivation,
                         }
                     ),
@@ -2295,11 +2338,11 @@ def test_nonformal_initial_workspace_checkpoints_without_theorem_abi() -> None:
     branches = write_tool.input_schema["properties"]["writes"]["items"]["anyOf"]
     assert len(branches) == 1
     assert branches[0]["properties"] == {
-        "artifact_name": {"type": "string", "enum": ["problem_card", "theory_derivation_packet"]},
+        "artifact_name": {"type": "string", "enum": ["theory_derivation_packet"]},
         "value": {"type": "object"},
     }
     initial_prompt = str(first_request.messages[0]["content"])
-    assert "required compact handoffs are: problem_card, theory_derivation_packet" in (
+    assert "required compact handoffs are: theory_derivation_packet" in (
         initial_prompt
     )
 
@@ -2329,7 +2372,6 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
     core_artifacts = {
         field: core_response[field]
         for field in (
-            "problem_card",
             "theory_derivation_packet",
             "estimator_specs",
         )
@@ -3470,7 +3512,7 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
     }
 
     feedback["findings"][0]["summary"] = "mutated after binding"
-    parent_artifact["problem_card"]["claim_ids"].append("mutated_after_binding")
+    parent_artifact["theory_derivation_packet"]["claim_index"][0]["id"] = "mutated_after_binding"
     revision_inputs = build_theory_developer_revision_inputs(
         context,
         question=question,
@@ -3484,9 +3526,11 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
     assert revision_inputs["feedback"]["findings"][0]["summary"] == (
         "The parent omits one independently identified premise."
     )
-    assert "mutated_after_binding" not in revision_inputs["base_core_payload"][
-        "problem_card"
-    ]["claim_ids"]
+    assert "mutated_after_binding" not in {
+        row["id"] for row in revision_inputs["base_core_payload"][
+            "theory_derivation_packet"
+        ]["claim_index"]
+    }
     parent_spec = revision_inputs["base_core_payload"]["estimator_specs"][0]
     assert parent_spec["estimator_interface_contract"] == (
         parent["estimator_specs"][0]["estimator_interface_contract"]

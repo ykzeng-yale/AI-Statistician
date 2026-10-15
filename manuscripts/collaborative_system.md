@@ -100,8 +100,10 @@ byte identity, not correctness or integrity against an adversarial host.
 ### 2.2. Theory and Scientific Source Ownership
 
 TheoryDeveloper maintains definitions, assumptions, equation chains and dependent
-claims in Markdown/LaTeX files. Compact handoffs identify claims and executable
-interfaces, not duplicated mathematical prose. The model can search permitted
+claims in Markdown/LaTeX files. One claim index locates those arguments and their
+dependencies. Problem setup and simulation design remain in the files rather
+than separate mandatory reference lists. Compact handoffs identify executable
+interfaces and intent-selected formal targets. The model can search permitted
 literature and code, inspect versioned source, edit a local derivation, run
 Python/R scratch work, commit a checkpoint or report a gap. Structural validity
 does not establish mathematical maturity or force a successful conclusion.

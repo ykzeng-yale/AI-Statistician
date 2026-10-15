@@ -263,17 +263,10 @@ def _bundle_from_theory_packet(
         required_primitives=required_primitives,
         document_authority=document_authority,
     )
+    theorem_goal_source = "theory_developer_theorem_cards"
     if not theorem_goals:
-        theorem_goals = (
-            _question_goal(
-                question,
-                source=(
-                    "TheoryDeveloperDocuments"
-                    if document_authority
-                    else "TheoryDeveloper"
-                ),
-            ),
-        )
+        theorem_goals = (_question_goal(question, source="OpenResearchQuestion"),)
+        theorem_goal_source = "open_research_question_fallback"
     return RuntimeResearchProblemBundle(
         problem=problem,
         theorem_goals=theorem_goals,
@@ -282,11 +275,7 @@ def _bundle_from_theory_packet(
             if document_authority
             else "theory_developer_structured_packet"
         ),
-        theorem_goal_source=(
-            "theory_developer_claim_index"
-            if document_authority
-            else "theory_developer_theorem_cards"
-        ),
+        theorem_goal_source=theorem_goal_source,
         legacy_baseline_skipped_reason=(
             "Agentic research authority is supplied by hash-bound TheoryDeveloper "
             "documents and their compact claim index."

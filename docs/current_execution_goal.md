@@ -61,6 +61,39 @@ A new dataset or regression table alone is not a methods contribution. Method
 selection and judgments about bias belong in research reasoning and review,
 without EHR-specific runtime branches. General statistical tasks remain in scope.
 
+## Immediate Scientific Milestone
+
+The next deliverable is one prospectively declared, source-grounded known-method
+investigation using the actual research workspaces. It must carry one estimand and
+inferential question through a reviewable argument, Python/R implementation,
+comparison with relevant statistical methods, simulations with Monte Carlo
+uncertainty, a justified application, and a consistent report with full supporting
+material. A submitted but unassessed argument remains unassessed. A runtime or
+model failure remains a failed draw; it is not replaced to obtain this milestone.
+
+This is workflow qualification, not a publication efficacy estimate or a claim of
+new statistical theory. A later unrelated method family tests transfer; a
+controlled extension follows adequate reconstruction evidence. Family selection
+uses the existing source/rights/assessment criteria, never which task the model
+appears likely to pass. Development exposure and official held-out access remain
+separate. The existing 40-item checklist records all completion credit.
+
+Meta's [companion report](https://research.meta.ai/static/observational-research-with-muse-models)
+reinforces a useful distinction: research speed is not scientific reliability.
+We adopt its emphasis on data meaning, traceable review and consistency across
+analysis and manuscript. In this project, dataset definitions and linkages belong
+in versioned research files, not another packet hierarchy. A reasoned stop when a
+question cannot be answered is retained as such, separately from a completed
+methods investigation. Human review/intervention is recorded; neither a human-led
+case nor internal model review establishes autonomous performance.
+
+Work on tool syntax, installation, networking or optional Lean is justified here
+only by a concrete obstacle to that scientific deliverable. The completed action
+schema observation stays experimental. Do not optimize it into a passing toy
+benchmark or introduce a second execution framework. Source availability and
+effective tool use are checked in the real research workflow, without quietly
+changing the model or repairing an agent's scientific output.
+
 ## Current Evidence And Priority
 
 The code already provides one outer graph, retained tool sessions, file-backed
@@ -81,76 +114,40 @@ exposed substantive case with missing source/aggregation/data-rights dependencie
 Historical Haiku and consumed Qwen outcomes stay unchanged. Exact records belong
 in [main_worker_status.json](main_worker_status.json).
 
-The fresh October 15 ebnm integrated development draw has now terminated
-`BLOCKED`, with 28 local Qwen calls in 22.6 minutes and no final submission.
-It produced six theory drafts but reached neither independent review nor R,
-simulation or application execution. The author stopped over handoff validation,
-not a resource limit; the drafts also lack adequate source-grounded arguments.
-See the [immutable outcome record](../benchmarks/publication_development/ebnm_integrated_20261015/observed_results.json).
-This is failure evidence, not a completed workflow or evidence that its mathematical
-question is unsolvable. The shared interface now permits the author to reference
-the frozen estimator by ID/name and select its mathematical file. Runtime binds
-the unchanged public ABI without requiring a second model-authored copy; it records
-the frozen contract identity rather than claiming autonomous interface invention.
-Executable IDs are separate from mathematical claim IDs; `document_path` identifies
-the author's existing Markdown/LaTeX file. Scoped review retains that file and any
-file-valued output references. Deterministic tests cover first submission, document
-revision, missing or modified files, conflicting interfaces and unfrozen
-model-owned interfaces. This is mechanism evidence only, not a new successful
-research run. Do not repair or rerun this draw,
-raise limits as the presumed solution, or turn its formulas into runtime rules.
-Mathematical definitions, arguments and source use still belong to the model's
-documents and independent assessment. The next scientific development must show
-that usable source access and this simpler handoff actually support a complete
-workflow. Do not substitute interface conformance for correct mathematics or add
-a new repair layer.
+The October 15 [ebnm draw](../benchmarks/publication_development/ebnm_integrated_20261015/observed_results.json),
+[StepMix draw](../benchmarks/publication_development/stepmix_integrated_20261015/observed_results.json)
+and [post-handoff StepMix condition](../benchmarks/publication_development/stepmix_post_handoff_20261015/observed_results.json)
+all ended without final submissions or computational research. Their different
+handoff, timeout and terminal-response failures are preserved in those records,
+not pooled as a causal comparison. The post-handoff draw reached valid structure
+but never committed; its [terminal analysis](../benchmarks/publication_development/stepmix_post_handoff_20261015/terminal_analysis.md)
+corrects the interpretation of the generic runtime label without altering it.
+No complete independently accepted methods investigation or official comparison
+has been established. Do not salvage intermediates, rerun consumed draws or turn
+their formulas into runtime rules.
 
-The subsequent, precommitted full StepMix development draw also terminated
-`BLOCKED`: 30 requests in 31.2 minutes, three rejected theory checkpoints, no
-final submission and no source execution, independent review, simulation or
-application. Request 30 exceeded its declared 900-second timeout while the server
-was still generating. The model read five original scripts but did not read the
-available primary article. See the [immutable outcome record](../benchmarks/publication_development/stepmix_integrated_20261015/observed_results.json).
-This is neither a successful test of frozen-ABI reuse nor a causal comparison with
-ebnm. Both results remain failures under their own conditions. Inspect and
-consolidate unnecessary handoff metadata before another full model draw. The
-executable-ID/claim-ID coupling is now removed through the existing file-reference
-boundary, with source/target identity intact; no fresh scientific success has been
-observed. Do not patch the generated derivation, add task-specific error handling,
-or presume that extending
-the timeout establishes scientific capability. The StepMix paper family is now
-exposed development material, not an official held-out task.
+The [server-schema action observation](../benchmarks/publication_tool_action_qualification_20261015/results.json)
+produced schema-valid responses but failed its artificial file task. Its restricted
+tool surface and feedback limit interpretation. Keep the adapter experimental;
+this result establishes neither scientific reasoning nor a model-capacity ceiling.
+Subsequent development must observe actual source access and scientific tool use.
+Model/provider conditions are prospective, never automatic escalation or an
+implicit retry. Repeated installation checks and more manifest fields do not
+resolve the current scientific gap.
 
-The [post-handoff StepMix condition](../benchmarks/publication_development/stepmix_post_handoff_20261015/observed_results.json)
-has now also ended `BLOCKED`: 41 calls in 29.9 minutes. It reached a structurally
-valid handoff but never called the commit tool. The terminal response was
-repetitive completion prose ending at 16,384 output tokens, not a rejected
-JSON packet. Seven edit failures were identical-text replacements, not hash
-mismatches. No review, source execution, generated method, simulation or
-application occurred. Its [terminal analysis](../benchmarks/publication_development/stepmix_post_handoff_20261015/terminal_analysis.md)
-separates the observed model behavior from the old generic runtime label and
-the requested versus effective provider contract. Do not continue changing the
-estimator interface on the assumption that this terminal event was another
-identity failure. Preserve the entire failed draw and qualify the actual local
-model/tool protocol before another full condition. No stronger model, new output
-limit or automatic submission is authorized by this observation.
-
-A [prospective server-schema action observation](../benchmarks/publication_tool_action_qualification_20261015/results.json)
-then produced 13 schema-valid action responses but failed its artificial file
-task: the model did not preserve input IDs and repeated actions until the
-declared no-progress stop. Its read/write-only tool surface, generic mismatch
-feedback and ordinary-action ceiling constrain that observation. Syntax control
-alone is not a complete workflow. Keep the adapter experimental and production
-unchanged; do not add another transport layer or tune this fixture into a pass.
-Further qualification should use actual research-workspace tools and distinguish
-model reasoning/source use from protocol errors. Local model choices remain
-prospective conditions rather than automatic escalation.
-
-The immediate priority is a complete methods-research workflow, with the same
-estimand, assumptions, algorithm and interpretation followed across artifacts.
-Broader comparisons follow qualification of that workflow. Repeated installation
-checks, more manifest fields and additional infrastructure do not resolve its
-scientific gaps.
+The canonical document workspace now exposes one claim index, estimator file/ABI
+references when code is required, and formal handoffs only when applicable.
+Duplicate problem/setup and simulation claim lists are removed from its writable
+contract. Cross-consumer checks retain the same exact mathematical files, claim
+dependencies, frozen intent and estimator interface. Legacy structured packet
+validation remains separate. A question-derived placeholder goal is now labelled
+with its actual source instead of claiming theory-index provenance. These are
+shared interface/evidence changes; no scientific success follows from them.
+An identified remaining gap is the older typed-metric authoring/reviewer path:
+its compaction can omit document mathematics. Qualify exact source access there
+before relying on that path for document-backed judgments; retaining redundant
+claim lists would not resolve it. The canonical preflight and executable-evaluator
+research path retain their existing independent document checks.
 
 ## Next Work
 
@@ -166,13 +163,15 @@ scientific gaps.
    The [LMTP/JointAI source screen](publication_sources_20261001.md#biostatistical-method-source-screen-2026-10-15)
    supplies two deferrals, not qualified replacements: toy clinical data and
    model-usage examples cannot stand in for full application or simulation evidence.
-2. **Qualify effective model/tool behavior, then complete the scientific workflow.**
+2. **Complete the declared scientific workflow and observe its actual tool use.**
    The simpler ID/document binding has now operated in a live draw, without a
    committed theory or completed science. Address the observed tool-action and
    terminal-response behavior through a prospectively chosen provider/model
    condition, not another statistical-interface patch. A requested `required`
    tool policy is not proof that a finite response contains a usable action.
-   Further interface work requires another concrete defect. Do not launch more
+   The artificial schema-action observation is complete and unsuccessful; it is
+   not another prerequisite campaign. Further interface work requires a concrete
+   defect in the actual research workflow. Do not launch more
    families merely to search for a pass or replace any consumed failure.
    Use the existing retained workspaces and pinned local Qwen, with the question,
    resources and data-use plan recorded before calls. The research agents perform

@@ -115,6 +115,7 @@ def theory_handoff_requirements(
     question: OpenResearchQuestion,
     *,
     formalization_authoring_required: bool,
+    document_authority: bool = True,
 ) -> dict[str, bool]:
     """Select only the compact handoffs required by the frozen task intent."""
 
@@ -130,13 +131,13 @@ def theory_handoff_requirements(
         )
     )
     return {
-        "problem_card": True,
+        **({} if document_authority else {
+            "problem_card": True,
+            "simulation_ademp_spec": dimensions.get("empirical") == "required",
+        }),
         "theory_derivation_packet": True,
         "estimator_specs": implementation_required,
         "theorem_cards": formal_handoff_required,
-        "simulation_ademp_spec": bool(
-            dimensions.get("empirical") == "required"
-        ),
         "formalization_requests": formal_handoff_required and formalization_authoring_required,
     }
 
@@ -1229,11 +1230,6 @@ del THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT["estimator_specs"][0][
 ]
 
 THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT: dict[str, Any] = {
-    "problem_card": {
-        "claim_ids": [
-            "claim_index ids that locate the load-bearing setup and research target"
-        ],
-    },
     "theory_derivation_packet": {
         "claim_index": [
             {
@@ -1272,11 +1268,6 @@ THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT: dict[str, Any] = {
             "target_theorem_card": "exact theorem_cards id",
         }
     ],
-    "simulation_ademp_spec": {
-        "claim_ids": [
-            "claim_index ids whose predictions the Simulation owner should investigate"
-        ],
-    },
 }
 
 
@@ -1588,6 +1579,7 @@ def _file_theory_handoff_reference_errors(
 
     def reject_extra(value: Any, label: str, allowed: set[str]) -> None:
         if not isinstance(value, Mapping):
+            errors.append(f"{label} must be an object")
             return
         unexpected = sorted(set(value) - allowed)
         if unexpected:
@@ -1651,7 +1643,7 @@ def _file_theory_handoff_reference_errors(
             reject_extra(row, f"{label}[{index}]", allowed)
 
     for field, value, required in (
-        ("problem_card", problem_card, handoff_requirements.get("problem_card", True)),
+        ("problem_card", problem_card, handoff_requirements.get("problem_card", False)),
         (
             "simulation_ademp_spec",
             simulation_spec,
@@ -1775,11 +1767,9 @@ def _validate_theory_packet(
         and raw_handoff_requirements
         else (
             {
-                "problem_card": True,
                 "theory_derivation_packet": True,
                 "estimator_specs": False,
                 "theorem_cards": formalization_authoring_required,
-                "simulation_ademp_spec": False,
                 "formalization_requests": formalization_authoring_required,
             }
             if document_authority
@@ -2070,6 +2060,7 @@ def _normalize_theory_packet(
     body["runtime_theory_handoff_requirements"] = theory_handoff_requirements(
         question,
         formalization_authoring_required=formalization_authoring_required,
+        document_authority=body.get("theory_content_authority") == THEORY_WORKSPACE_CONTENT_AUTHORITY,
     )
     normalize_theory_estimator_interface_contracts(
         body, frozen_contract=question.estimator_execution_contract,
@@ -3033,7 +3024,7 @@ def _prepare_initial_theory_artifact_workspace(
             ensure_ascii=False,
         )
         packet = _normalize_theory_packet(
-            artifacts,
+            {**artifacts, "theory_content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY},
             question=question,
             model=request_model,
             model_tier=model_tier,
@@ -3047,7 +3038,6 @@ def _prepare_initial_theory_artifact_workspace(
         packet["theory_workspace_manifest"] = deepcopy(
             dict(document_manifest)
         )
-        packet["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
         packet["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
         packet["theory_derivation_contract"] = {
             **dict(packet.get("theory_derivation_contract", {}) or {}),
@@ -3322,7 +3312,7 @@ def _prepare_theory_workspace_revision(
             ensure_ascii=False,
         )
         packet = _normalize_theory_packet(
-            artifacts,
+            {**artifacts, "theory_content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY},
             question=question,
             model=request_model,
             model_tier=model_tier,
@@ -3336,7 +3326,6 @@ def _prepare_theory_workspace_revision(
         packet["theory_workspace_manifest"] = deepcopy(
             dict(document_manifest)
         )
-        packet["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
         packet["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
         packet["theory_derivation_contract"] = {
             **dict(packet.get("theory_derivation_contract", {}) or {}),

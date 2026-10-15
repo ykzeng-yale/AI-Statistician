@@ -29,9 +29,11 @@ Official H/S comparisons, full assessed case arguments, confirmatory simulations
 results sections and release rights are not complete. No publication readiness
 percentage is computed from this map.
 
-**Next executable deliverable:** qualify effective tool-action/completion behavior
-of the chosen local model/provider, then a complete methods-research workflow
-under the corrected family split. A fresh declared development study's theory,
+**Next executable deliverable:** a complete methods-research workflow under the
+corrected family split, observing source use and tool/completion behavior in the
+actual scientific workspaces. The artificial action-schema observation has
+terminated unsuccessfully and is not a new infrastructure workstream. A fresh
+declared development study's theory,
 implementation, simulation and application must answer the same question. Its research
 artifacts may await independent assessment; this does not turn them into accepted
 results. Finish independent authority and actual comparative conditions before

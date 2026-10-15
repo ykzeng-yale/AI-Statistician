@@ -17,6 +17,17 @@ a separate official open-source product named "Biostat harness". This is an
 availability observation, not proof that no release exists elsewhere. Individual
 clinical manuscripts were not fully reviewed here.
 
+The linked [companion report](https://research.meta.ai/static/observational-research-with-muse-models),
+*Observational research with Muse models*, was inspected for its main narrative
+and relevant appendix examples of data definitions, review and publication.
+It describes a shared data contract and investigator-led checks, including
+question/data feasibility and agreement between the intended effect, implemented
+analysis and manuscript. This supports reusing the workflow principles through
+versioned data documentation and source-linked review, not copying an unavailable
+scaffold or treating its ten studies as autonomous methods-development evidence.
+Its reported acceleration is not our measured time saving or a randomized harness
+comparison. No Meta scaffold code was obtained or integrated.
+
 [MedicalHarness v1](https://arxiv.org/abs/2610.05778v1), by Wang, Zhao and Ding,
 is separate work. Its model/harness controls, mechanism interventions and execution
 diagnostics inform our comparisons; its medical workflow tasks do not assess

@@ -85,7 +85,6 @@ def test_document_theory_packet_projects_only_hash_bound_navigation() -> None:
         "packet_id": "theory:document-authority",
         "theory_content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
         "theory_workspace_manifest": {"document_set_hash": "document-set-hash"},
-        "problem_card": {"claim_ids": ["spectral_limit"]},
         "theory_derivation_packet": {
             "claim_index": [
                 {
@@ -121,7 +120,27 @@ def test_document_theory_packet_projects_only_hash_bound_navigation() -> None:
     assert bundle.problem_formalization_source == (
         "theory_developer_document_workspace"
     )
-    assert bundle.theorem_goal_source == "theory_developer_claim_index"
+    assert bundle.theorem_goal_source == "theory_developer_theorem_cards"
+
+
+def test_document_without_formal_handoff_keeps_question_goal_provenance() -> None:
+    question = _question()
+    packet = {
+        "packet_id": "theory:unformalized-documents",
+        "theory_content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
+        "theory_workspace_manifest": {"document_set_hash": "bound-documents"},
+        "theory_derivation_packet": {"claim_index": [{
+            "id": "C1", "kind": "definition", "document_path": "theory.md",
+            "status": "OPEN", "depends_on": [],
+        }]},
+    }
+    bundle = derive_runtime_research_problem(
+        question=question, architect_context={}, theory_packet=packet,
+    )
+    question_bundle = derive_runtime_research_problem(question=question, architect_context={})
+    assert bundle.theorem_goal_source == "open_research_question_fallback"
+    assert bundle.theorem_goals == question_bundle.theorem_goals
+    assert bundle.problem.extraction_evidence["document_set_hash"] == ("bound-documents",)
 
 
 def test_architect_plan_seeds_retrieval_without_task_family_classifier() -> None:
