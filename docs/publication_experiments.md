@@ -1,6 +1,6 @@
 # Publication Experiment Design
 
-2026-10-05 design and implementation status. NOT ACTIVATED: no task list, gold authority, sampling
+2026-10-15 design and implementation status. NOT ACTIVATED: no task list, gold authority, sampling
 schedule or resource envelope has been frozen. No result is claimed here.
 
 ## Questions And Units
@@ -13,6 +13,33 @@ agent with the same base model and tools at matched global resources?
 S2: What changes under shared-context workflow guidance and under the implemented
 policy that disables reverse author revision? These are operational contrasts,
 not separate estimates of review quality, memory, communication or Lean effects.
+
+The scientific target is a complete statistical-method investigation. Its inner
+experiment compares statistical procedures under stated estimands, assumptions
+and data-generating mechanisms. Its outer experiment compares research agents
+on the resulting theory, source, experimental design, outcomes and interpretation.
+Good coverage from one generated estimator cannot establish a harness effect;
+an externally accepted argument alone cannot establish empirical calibration.
+
+For the primary methods track, predeclare load-bearing theoretical obligations,
+implementation/reference checks, simulation scope and substantive interpretation.
+Include the application obligation when the task claims applied utility. Score
+each required dimension and their prespecified joint completion, keeping missing
+or unassessed dimensions visible. Do not average away incorrect theory with code
+success. A legitimate negative finding can satisfy a task explicitly asking for
+scientific investigation; it cannot be substituted for a missing requested result.
+
+Complete known-method work precedes claims about extensions or open discovery.
+An agent that can read the target theorem or author implementation is doing
+source-assisted work. A hidden-proof or hidden-implementation condition requires
+a separate clean run, fixed permitted sources and its own assessment. Existing
+prepared candidates are not retrospectively made blind or extended after results.
+
+Fresh development may produce arguments and experiments while expert assessment
+is pending. Declare that status before calls, retain all outputs, and keep exposed
+families outside the official test pool. Such development cannot supply accepted
+mathematical outcomes or a confirmatory comparative effect. Official activation
+still requires the complete prospective assessment and execution conditions.
 
 The unit of task selection and possible generalization is a paper/problem family,
 not a prompt, simulation repetition, lemma or agent call. Transformed variants

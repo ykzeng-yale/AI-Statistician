@@ -1,10 +1,42 @@
 # Publication Sources And Reuse Decisions
 
-Checked 2026-10-03. This is a focused continuation of the local collection and
+Checked 2026-10-15, with earlier inspections dated below. This is a focused
+continuation of the local collection and
 [previous reuse audit](research_harness_reuse_strategy.md), not an exhaustive
 survey of all publications. Read primary methods/limitations and inspect relevant
 code before adopting a component. Website claims and published scores are not our
 experimental results. Pins below are observed upstream HEADs, not dependencies.
+
+## October 15 Update: Health Research And Harness Comparisons
+
+[Meta's October 14 report](https://research.meta.ai/blog/accelerating-scientific-research-in-health-data-science-with-muse-models)
+describes a human-led internal Muse coding scaffold, retrospective health-data
+research and ten manuscripts with expert review. The inspected announcement links
+manuscripts but no downloadable EHR harness repository. Searches did not establish
+a separate official open-source product named "Biostat harness". This is an
+availability observation, not proof that no release exists elsewhere. Individual
+clinical manuscripts were not fully reviewed here.
+
+[MedicalHarness v1](https://arxiv.org/abs/2610.05778v1), by Wang, Zhao and Ding,
+is separate work. Its model/harness controls, mechanism interventions and execution
+diagnostics inform our comparisons; its medical workflow tasks do not assess
+statistical-method derivation. Inspected scope: abstract and selected passages from Sections 1--3,
+repository README/running instructions, and the opening component definitions
+of `scripts/harness/run_langgraph_harness.py` at
+[`8727186f04c25646e7ee1b9428f3b6dcd4239382`](https://github.com/REAL-Lab-NU/MedicalHarness/tree/8727186f04c25646e7ee1b9428f3b6dcd4239382).
+The documented verification switch checks file presence/nonemptiness, not scientific
+validity. No code was copied, installed or executed; no published score is our
+baseline. Its LangGraph loop is not an additional scheduler for this project.
+
+Our resulting research decision is to evaluate complete methods work: question,
+theory, exact implementation, simulation and application with traceable
+interpretation. Scientific guidance belongs in the model's working context;
+runtime owns execution and evidence. Keep portable-package and collaboration
+effects distinct, record actual intervention uptake, and assess all scheduled
+outcomes. Same-model findings remain limited to the tested configuration.
+
+This follow-up changes the execution goal and paper positioning. It supplies no
+new model run, clinical result, mathematical verdict or qualified benchmark.
 
 ## Closest Research Harness And Evaluation Work
 

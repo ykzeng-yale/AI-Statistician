@@ -1,6 +1,6 @@
 # AI-Statistician: Scoped Collaboration for Statistical Research Through a Single Model API
 
-Working methods draft, 2026-10-05. Not submission-ready. Authors and affiliations
+Working methods draft, 2026-10-15. Not submission-ready. Authors and affiliations
 are not yet supplied. Official comparative experiments have not been activated;
 this draft makes no claim that collaboration improves scientific correctness.
 
@@ -47,6 +47,16 @@ checkpoints, so its reported effects do not isolate our same-model question.
 LabAgent separately studies laboratory reproduction and memory. Neither supplies
 our independent statistical-derivation outcome. [VERITAS](https://arxiv.org/abs/2604.12144v1),
 [LabAgent](https://arxiv.org/abs/2609.13437v1)
+
+Meta's expert-led health-data research illustrates an applied use of a coding
+scaffold, with human scientific responsibility. Our system's proposed contribution
+requires evidence across the complete methods argument, implementation and
+empirical assessment. It cannot be inferred from the production of a manuscript.
+[Meta AI Research](https://research.meta.ai/blog/accelerating-scientific-research-in-health-data-science-with-muse-models)
+MedicalHarness reinforces the need to distinguish the model, harness and their
+interaction when interpreting outcomes. Its clinical workflow study is related
+evaluation work, rather than a measured baseline for our methods tasks.
+[MedicalHarness](https://arxiv.org/abs/2610.05778v1)
 
 The statistical task is defined by its inferential target and evidence needs.
 Identification, estimation, computation and inference are different obligations.

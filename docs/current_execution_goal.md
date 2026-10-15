@@ -1,8 +1,19 @@
 # Current Execution Goal
 
-Updated: 2026-10-05. The native chat goal remains active.
+Updated: 2026-10-15. The native chat goal is active. This revision responds to
+the request to focus on end-to-end statistical and biostatistical methods
+research after Meta's health-research announcement. It preserves both publication
+deliverables and every consumed experiment.
 
-## Outcome
+## Scientific Outcome
+
+Build and evaluate a research system that can take a statistical or biostatistical
+question through permitted literature and baseline reproduction, an explicit
+estimand and assumptions, reviewable theoretical development, Python/R method
+implementation, diagnostic and confirmatory simulations, a substantive application,
+and a coherent main paper with complete supporting arguments and experiments.
+Lean supplies additional evidence when requested. The scientific question and
+observations determine the next research action.
 
 Deliver two distinct, legitimate arXiv-first papers and usable releases:
 
@@ -11,218 +22,128 @@ Deliver two distinct, legitimate arXiv-first papers and usable releases:
 2. **Paper S:** the standalone collaborative AI-Statistician driven by one model
    API, compared with capable same-model controls under comparable conditions.
 
-Restore the [original product goal](goal-ai-statistician.md): investigate sources,
-reproduce appropriate baselines, develop reviewable theory, implement Python/R
-methods, validate empirically, and use Lean when task intent requires it.
-Do not substitute a toy demonstration, model agreement, test count or retrieved
-lemma for independently accepted statistical research.
+The system's intended scope includes new methods. Initial evidence must establish
+complete known-method reconstruction and derivation, then separately assess
+extensions and open questions. Running published software, writing a report or
+passing one theorem cannot establish that complete capability. Neither paper
+claims methodological novelty or general research autonomy before evidence exists.
 
-The single item-level roadmap is the [40-item publication checklist](publication_programme.md#delivery-checklist),
-with its [concrete deliverable and manuscript map](publication_programme.md#execution-roadmap).
-It covers scope/qualification Q01--Q07, theory T01--T06, experiments E01--E06,
-case C01--C05, main texts W01--W05, appendices A01--A06 and release R01--R05.
-Only Q01, T01, C01 and W01 currently close their explicitly limited drafting/scope
-deliverables. No official comparative scientific study is activated.
-The goal API cannot rewrite an unfinished objective; this document refines its
-execution contract, without falsely completing it.
+The [original product goal](goal-ai-statistician.md) remains authoritative. The
+[40-item publication checklist](publication_programme.md#delivery-checklist) is
+the sole item-level completion record. Q01/T01/C01/W01 retain their limited draft
+or scope status; no official comparison has started. The native goal interface
+cannot rewrite an unfinished objective, so this file refines its execution
+contract without falsely completing or replacing that objective.
 
-## Current Evidence
+## Scientific Work And Acceptance
 
-| Area | Established scope | Still missing |
+| Research activity | Required scientific artifact | What establishes its stated scope |
 | --- | --- | --- |
-| Architecture | Sole outer graph, shared retained loop, file-backed mathematics and same-source-owner feedback | Scientific efficacy and useful collaboration; execution is serial/interleaved, not independently concurrent |
-| Scientific execution | Shared native executors, exact final-file numerical transport and twelve prospective S configurations plus six H workspaces | Actual matched arm execution, qualified numerical interpretation/assessment and clean reconstruction |
-| Verification | Native Python/R project and result fixtures, prospective intent/final-tree checks and host mock activation/output-cap checks | Fixtures are not scientific results; skipped execution and the process-lifetime xfail remain unqualified |
-| Portable release | Fresh wheel/CLI and synthetic Python/R reconstruction on two existing Macs/version conditions; separately labelled host activation/compatibility observations | Qualified full researcher workflow, rights/public access, broader platform scope and Paper H efficacy |
-| Case and roster | Exposed TSCI B1/Card inputs; three source-assisted StepMix/ebnm/bizicount candidates with prepared inputs and source environments | Complete case/reference obligations, independent scientific authority, final roster and precision |
-| Manuscripts | Separate H/S methods masters, shared methods appendix and primary-verified version-bound bibliography | Assessed case arguments, fresh comparative results, final discussion and submission review |
-| Lean | Active 4.30.0 Mathlib/Statlib/StatInference pin db6c7718, candidate nine-theorem/eight-module import scope and selected checks | Independent source-fidelity/API review, rights and passing clean reconstruction; historical strict closure remains 0/2 |
+| Question and sources | Scientific motivation, estimand, population/design, closest method and precise unresolved issue; versioned sources and baseline record | Sources support the gap; actual reproduction is compared with its declared reference and discrepancies are retained |
+| Theory | Durable Markdown/LaTeX definitions, assumptions, claims and equation-level arguments, including dependencies and unresolved steps | Exact claims receive mathematical assessment; invoked published results have applicable conditions; numerical agreement alone is insufficient |
+| Algorithm | Executable Python/R project implementing the stated method and inferential procedure | Actual runs, relevant reference comparisons and exact theory/code correspondence |
+| Simulation | ADEMP design, diagnostic findings, frozen confirmation, competing methods, all failures and Monte Carlo uncertainty | Fresh outcomes under the specified design; inner simulation repetitions remain distinct from independent agent runs |
+| Application | A justified substantive example with data provenance, estimand, comparisons, uncertainty and consequential sensitivity analyses | Reproducible results answer the application question within the assumptions; synthetic data alone do not establish real EHR utility |
+| Report | Main text, complete theory/simulation appendix, source-to-result links and remaining gaps | Every claim is supported by the actual selected artifacts and its declared assessment |
+| Optional formal work | Stable statement, source correspondence and active-project proof record | Exact identity-bound, axiom-clean Lean kernel evidence for that statement |
 
-Detailed outcomes and immutable record links belong in
-[main_worker_status.json](main_worker_status.json), not a growing execution-goal
-chronicle. Historical Haiku scores are development records, not new baselines.
-Consumed Qwen evaluations are not reopened.
-The [native scientific verification](../benchmarks/publication_case_candidates/published_methods/native_scientific_execution.json)
-binds the code, configuration, raw fixture observations and unchanged Python environment.
-The [common assessment dispatch record](../benchmarks/publication_case_candidates/published_methods/common_assessment_execution.json)
-adds prospective profile propagation and exact observed backend/request identity,
-not a mathematical assessment or scientific result.
+This table defines evidence obligations, not mandatory tool calls or a fixed
+research sequence. Theory and exploratory code can advance together. A simulation
+or proof observation may send the author back to an assumption or definition.
+Deep Lean work can proceed after a stable claim and does not gate non-formal tasks.
+Runtime implements identities, execution, feedback and evidence boundaries; the
+model decides research content and authors every revision.
 
-## Dependency Order
+For EHR-motivated work, the model must connect the clinical question to the
+observed-data process: eligibility and time zero, measurement timing, treatment
+and follow-up, censoring, missingness and the independent sampling unit as relevant.
+A new dataset or regression table alone is not a methods contribution. Method
+selection and judgments about bias belong in research reasoning and review,
+without EHR-specific runtime branches. General statistical tasks remain in scope.
 
-| Stage | Checklist | Required deliverable before advancing |
-| --- | --- | --- |
-| Qualify the study | Q02--Q07, E01 | Exact questions/access, executable reference scope, independent assessment, actual arm conditions, precision and prospective freeze |
-| Develop and assess theory | T02--T05 | Agent-selected Markdown/LaTeX arguments, claim-level independent assessment and exact theory/code/report agreement |
-| Run comparisons and confirmation | E02--E06 | All fresh scheduled H/S draws, final-artifact adjudication, frozen method simulations and prespecified analysis |
-| Complete the substantive case | C02--C05 | Full declared B1/Card scopes, uncertainty/failures, scientifically bounded interpretation and traceable behavior |
-| Write results and appendices | W02--W05, A01--A06 | Complete main results/case, full assessed derivations, tasks, trajectories, simulations and reproduction commands |
-| Release and submit | R01--R05 | Rights, clean release, independent full-paper review, compiled/checked submission packages and verified goal closure |
+## Current Evidence And Priority
 
-Theory, exploratory coding and cheap simulations inform one another. Confirmation
-uses stabilized claims and frozen evaluation inputs; simulation is not a proof.
-Lean support T06/A05 is optional unless the task or a paper claim requires formal
-evidence. It does not gate non-formal study progress.
-The [candidate import scope](publication_lean_integration_20261002.md#candidate-import-scope-for-the-shared-appendix-2026-10-04)
-and S7 now state exact convergence modes, assumptions, upstream reuse and check
-identities. They do not close source fidelity, clean release or proving efficacy.
+The code already provides one outer graph, retained tool sessions, file-backed
+theory, Python/R execution and optional Lean. Current execution is serial or
+interleaved; concurrent research speedup has not been shown. Installation fixtures
+on two Macs establish a limited release mechanism, not research efficacy.
 
-## Immediate Work
+StepMix, ebnm and bizicount remain prepared source-assisted candidates. Their
+scientific obligations and numerical authority are unfinished. TSCI remains the
+exposed substantive case with missing source/aggregation/data-rights dependencies.
+Historical Haiku and consumed Qwen outcomes stay unchanged. Exact records belong
+in [main_worker_status.json](main_worker_status.json).
 
-Native execution and common assessment dispatch are regression-verified. The
-[current condition follow-up](../benchmarks/publication_case_candidates/published_methods/prospective_conditions_followup.json)
-binds corrected prospective task metadata, twelve S configurations and six H
-workspaces. The earlier proposal required an unsupported gap-reporting score;
-that error is now rejected before calls, not converted into invented authority.
-Scientific instructions and consumed records are unchanged. The
-[native final-view follow-up](../benchmarks/publication_case_candidates/published_methods/native_final_projection.json)
-now carries exact selected projects and empirical/reconstruction files through the
-existing evaluator; it supplies no parser, confirmation or scientific credit.
-The [native access observation](../benchmarks/publication_case_candidates/published_methods/native_access_observation.json)
-now checks the planned text/source reads, actual CSV/RDA data parsing and opaque
-Python/R failure/edit/rerun through both H arms in six disposable copies. It uses
-scripted responses, not model inference; original sources and studies are unchanged.
-PDF `Read` fails, and paired text does not establish extraction fidelity or model
-understanding. Native manual approvals/unrestricted shell differ from S's sandbox.
-The [selected-source result follow-up](../benchmarks/publication_case_candidates/published_methods/source_final_projection.json)
-now gives the common evaluator complete selected runtime/control result and
-execution-stream bytes, instead of only manifests/summaries. Missing results and
-failed selections remain explicit; earlier runs cannot replace their bytes.
-Opaque WASM/native Python checks and the full regression verify this mechanism,
-not scientific assessment. The numerical protocol draft distinguishes computation, source
-reconstruction, stochastic uncertainty and discrepancy interpretation; exact
-task-specific parsers, endpoints/tolerances and authority remain unfrozen.
-The [native R artifact follow-up](../benchmarks/publication_case_candidates/published_methods/r_artifact_assessment.json)
-now dispatches a frozen R evaluator through the existing native executor. Fresh
-opaque RDS checks preserve object types and missing/nonfinite values; corrupt or
-missing selections and nonmatching expectations fail. No author output is parsed
-or scientifically judged. The current webR profile lacks `jsonlite` and reports
-that limitation without backend fallback. The assessment draft now binds each
-candidate reference channel to its scientific coordinates and missingness limits;
-actual method-specific numerical authority remains unfinished.
-The assessment-only [R reader](../benchmarks/publication_case_candidates/published_methods/read_submitted_simulation.R)
-and [StepMix printed-channel reader](../benchmarks/publication_case_candidates/published_methods/stepmix_reader_verification.json)
-preserve declared keys/slots, raw locations/precision, nonfinite values and missing
-sections. Fresh serialization, CLI and actual pandas-format fixtures pass without
-reading old author outcomes or entering model tools/context. Source-defined
-quantities are explicit in the assessment draft; numerical agreement, complete
-stage/grid scope, tolerances, independent authority and new confirmation remain
-unfinished. Production graph/loop and scientific sources are unchanged.
-The same assessment draft now binds literal stage/grid accounting, raw versus
-display labels, timing multiplicities and application/simulation model distinctions.
-It is not yet an executable accuracy criterion or qualified mathematical rubric.
-Its [six-page source-presentation observation](../benchmarks/publication_case_candidates/published_methods/assessment_protocol.md#paper-input-fidelity-observation-2026-10-04)
-now identifies fraction/script/layout ambiguities in the original text views,
-without changing capsules or manually reconstructing mathematics. Earlier arXiv
-source editions are not replacements for the selected journal versions. Qualify
-the actual model-accessible mathematical source before official calls; this
-bounded visual check is not full-paper fidelity or model comprehension.
-The same shared discovery read tool now exposes model-selected original arXiv
-source files with fixed versions/hashes and offline observation reuse. Two real
-source archives are byte-verified; bounded edition differences prohibit silently
-replacing the journal inputs. No new scheduler, content repair or scientific
-result is introduced. Full-paper input and comparative conditions still need qualification.
-The [actual batching/action review](../benchmarks/publication_case_candidates/published_methods/assessment_protocol.md#actual-batching-and-action-allowances-2026-10-05)
-also corrects an experimental premise: disable-parallel is a request hint, not a
-single-call rule. The shared loop executes returned batches serially; ordinary
-action allowances differ across prepared workspaces. Freeze actual opportunities
-and resources, not parity inferred from flags or model-call counts.
-Shared component checkpoints spend ordinary actions; isolated workspace terminal
-actions do not. The first real source-owner observation was incorrectly assembled
-with a native callback but no native option in the actual tool schema. It is
-preserved, not a native-capacity result or a reason to rerun the failed condition.
-A separately verified standard stop-state adapter fix preserves raw `length`
-while exposing `max_tokens` to the existing loop; no research content or retry
-mechanism is added. No scientific checklist item closes from these checks.
-Next resolve these declared access/authority differences and long-session scope,
-qualify numerical interpretation/endpoints, independent assessment and the freeze.
-Do not open another reference panel, repeat
-package/version probes or build a new execution framework.
+The immediate priority is a complete methods-research workflow, with the same
+estimand, assumptions, algorithm and interpretation followed across artifacts.
+Broader comparisons follow qualification of that workflow. Repeated installation
+checks, more manifest fields and additional infrastructure do not resolve its
+scientific gaps.
 
-- **TSCI:** retain the exposed substantive case. Missing
-  `Source-otherRF-hetero.R`, Card Table 15 aggregation and original-data rights
-  remain unresolved. Do not implement a replacement comparator, infer aggregation
-  from cached numbers, salvage the failed theory preparation or call an example
-  the full case. Original seeds are required for exact historical replay, not
-  every prospectively scheduled stochastic reproduction.
-  The bounded 2026-10-04 fork/issue/local-copy follow-up recovered no missing
-  implementation. Further resolution needs original material or an explicitly
-  qualified reconstruction decision, not another repeat of the same searches.
-- **Published-method candidates:** preserve the prepared paper/code/data capsules,
-  exact author files and all declared background exposure. StepMix's journal/source
-  differences, ebnm's bounded default scope and bizicount's failure/numerical
-  conventions are not automatically correct scientific gold. Qualify stated
-  reproduction/assessment endpoints; do not rerun consumed references.
-- **Assessment:** executable references can assess specified numerical endpoints.
-  Substantive mathematics needs qualified independent assessment of exact selected
-  arguments, including valid alternatives and unresolved claims. Assessor
-  appointment and release rights require owner decisions; missing authority is
-  not replaced by Qwen voting.
-  The [Markdown assessment draft](../benchmarks/publication_case_candidates/published_methods/assessment_protocol.md)
-  states public obligations and outstanding decisions; it is not frozen authority.
-- **Arms:** verify actual tool/source/PDF/data access, effective requests,
-  environment, revision and confirmation exposure. Freeze all differences and
-  global resources before official calls; equal call caps alone are not fairness.
-  H's host contrast and S's four standalone modes must remain distinct.
-- **Model:** use the retained local Qwen weights only. Record endpoint/runtime,
-  template, decoding, hardware, schedule and randomness. A short deployment probe
-  is not long-session qualification. Do not repeat the completed setup check or
-  resume consumed research runs.
-  The [pinned sampling-source inspection](publication_experiments.md#model-randomness-and-the-prospective-schedule)
-  identifies fixed startup seeds reused per request, not an advancing role-call
-  stream. Freeze the proposed per-draw startup seeds and pairing through the
-  existing launcher; qualify actual host overrides separately. Executor seeds
-  do not provide this randomness, and source inspection alone proves no independence.
-  The separate [first long-input observation](../benchmarks/publication_deployment_qualification_20261003/retained_session_results.json)
-  processed 58134 input tokens but ended without the requested files. Its `auto`
-  choice differs from the product's `any`/`required`; actual batches were 8/16 calls
-  despite a false parallel flag. Preserve the failed condition, no text salvage or
-  retry. It qualifies neither scientific reasoning nor actual product/host contracts.
+## Next Work
 
-Next substantive deliverable: one executable prospective study package, not
-another scorecard. It must bind public tasks, private evaluation authority,
-actual configurations and analysis. Advance unblocked work while external
-decisions are pending; do not invent those decisions or knowingly launch an
-unqualified official comparison.
+1. **Finish scientific task qualification (Q02/Q04, T02--T04, E01).** Use the
+   existing candidates first. Bind the actual paper edition, central inferential
+   claim, theory and code obligations, baseline comparison, simulation design
+   and application scope. Resolve the recorded mathematical-source ambiguities
+   through source access; do not hand-author the agents' answers. If an existing
+   task cannot support a methods claim, state its narrower role before execution.
+2. **Produce one complete fresh development study.** Use the existing retained
+   workspaces and pinned local Qwen, with the question, resources and data-use
+   plan recorded before calls. The research agents perform source work, theory,
+   implementation, simulation and reporting. Record all attempts and human
+   interventions. An unresolved argument stays unresolved; neither an attractive
+   intermediate nor a later rerun replaces the final artifact. Development and
+   all exposed family material stay outside official held-out comparisons.
+3. **Qualify and execute the official comparisons (Q05--Q07, E02--E06).** Freeze
+   independent assessment, actual access/resources, task-family splits and
+   precision. Run every planned H and S condition with common final-artifact
+   assessment. Report the complete outcome distribution, including invalid,
+   incomplete and unsuccessful research. Compare each method on its own scientific
+   estimand, and compare agents on their full research deliverables.
+4. **Complete the case and manuscripts (C02--C05, W02--W05, A01--A06).** Resolve
+   TSCI's original-material dependencies in parallel. Fill main results and
+   appendices from assessed artifacts, including failed conditions and limitations.
+   Distinguish the portable package's contribution from the collaboration effect.
+5. **Finish releases and submission QA (R01--R05).** Resolve rights and authorship,
+   verify the delivered researcher workflow and obtain full-paper review. Keep
+   the Lean foundation's exact mathematical scope and attribution explicit.
 
-Execution thereafter is finite: finish Q06/Q05/Q07/E01; run every scheduled H/S
-draw; independently adjudicate exact final theory/source/results; complete frozen
-method simulations and the declared case; write W02--W05 and A01--A06 from those
-records; clear R01--R05. No phase is closed by preparing its inputs. Missing case
-sources and owner decisions remain explicit dependencies, not reasons to open
-another task panel, redesign the graph or add repair layers.
+The complete requirements and placement map remain in
+[publication_programme.md](publication_programme.md), and experimental controls
+remain in [publication_experiments.md](publication_experiments.md). This update
+does not activate a study, select a new test family or alter an old protocol.
 
-## Scientific and Delivery Rules
+## Dependencies Without A Global Stop
 
-Product agents author derivations, methods and revisions. Codex as operator
-improves shared context, tools, feedback and evidence mechanisms, not benchmark
-answers. Theory records definitions, assumptions, equation chains, dependencies,
-counterexamples and honest gaps. Independent assessment localizes consequential
-errors; numerical checks never certify a general theorem.
+Independent mathematical assessor arrangements are still unresolved. They block
+claims of externally accepted mathematics and the currently planned official
+comparison. They do not block source qualification, model-authored development,
+diagnostic experiments, draft arguments or preparation of reviewable submissions.
+Such outputs retain an explicit unassessed status; Qwen agreement is not a
+substitute. An official run cannot be retrospectively designated development.
 
-Retain every scheduled draw, absent final, failure, intervention and unknown
-usage. Never resume, salvage, retry, reassess or rescore consumed evaluations.
-Distinguish outer agent-run variation from inner simulation Monte Carlo variation.
-Do not use a universal 100-repetition rule or claim population efficacy from a
-purposive small roster.
+TSCI's missing helper, aggregation and data rights affect that case. Root and
+third-party licenses affect release. Neither dependency justifies stopping
+otherwise authorized work on the system's scientific workflow. Preserve consumed
+records and do not replace their sources, retry failures or rescore them.
 
-Keep one outer graph and one loop. Tasks carry references. Ordinary diagnostics
-return directly to the source owner. No second scheduler, content-repair agent,
-task-family patch, Lean grammar rule, VM/proxy campaign or automatic fallback.
-Defer concurrency, learning and new retrieval providers unless required evidence
-identifies a blocker.
+## Model And Delivery Policy
 
-Scientific model calls use Qwen3-4B-Instruct-2507 Q4_K_M, GGUF SHA-256
-`3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597`.
-Confirm exact availability before calls. No Anthropic tests, Opus or cloud escalation.
-Local Claude Code compatibility remains separate from scientific comparisons.
+Scientific model calls use the existing local Qwen3-4B-Instruct-2507 Q4_K_M,
+GGUF SHA-256 `3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597`.
+Confirm availability and record the actual runtime, template, decoding, context,
+hardware and randomness before calls. A small quantized model is a development
+condition, not a demonstrated ceiling on the architecture. Changing the model
+requires a separately authorized, prospective condition. No Anthropic scientific
+tests, Opus or automatic cloud escalation. Claude Code compatibility stays separate.
 
-Use the existing [two manuscript masters and supplement placement map](publication_programme.md#5-main-papers-and-appendices).
-Resolve root/third-party/data rights and authorship, then obtain full-paper review.
-Optional Lean describes only its reviewed source/proof scope, not three complete
-textbooks. Push tested shared changes directly under
-[main-worker ownership](main_worker_ownership.md).
+Keep one graph and one retained loop. Improve shared prompts, source access,
+tools and raw feedback when observed failures identify a harness defect. Do not
+add answer rules, a repair agent, another scheduler or an unrelated infrastructure
+campaign. Use [main-worker ownership](main_worker_ownership.md) for direct delivery.
 
-**Done means:** two independently reviewed, evidence-backed arXiv-ready packages,
-usable releases and reproducible comparative results. Drafts, fixtures and internal
-acceptance alone cannot close the goal.
+**Done means:** both independently reviewed, evidence-backed arXiv-ready packages,
+usable releases and reproducible comparative results. Complete statistical claims
+need the corresponding theory and empirical evidence; optional Lean and historical
+mechanism tests do not redefine that obligation.

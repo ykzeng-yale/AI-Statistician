@@ -1,6 +1,6 @@
 # A Portable Harness for Reviewable Statistical Research with Coding Agents
 
-Working methods draft, 2026-10-04. Not submission-ready. Authors and affiliations
+Working methods draft, 2026-10-15. Not submission-ready. Authors and affiliations
 are not yet supplied. Comparative results, installation qualification and release rights
 remain unresolved; this draft does not claim an efficacy result.
 
@@ -55,6 +55,16 @@ reference-driven code use, while LabAgent connects executable laboratory skills
 to reproduction experience. Our package does not claim to invent either route
 or adopt their task-specific execution recipes. [FUSION](https://arxiv.org/abs/2609.04742v1),
 [LabAgent](https://arxiv.org/abs/2609.13437v1)
+
+Meta's health-research report describes expert-led work using an internal coding
+scaffold. This motivates support for scientific judgment throughout an analysis,
+while our evaluation asks whether a portable package supports the linked theory,
+implementation and validation of statistical methods.
+[Meta AI Research](https://research.meta.ai/blog/accelerating-scientific-research-in-health-data-science-with-muse-models)
+MedicalHarness provides a separate controlled comparison of model/harness pairs
+and component interventions. Its medical workflow outcomes have a different scope
+from the method-development outcomes proposed here.
+[MedicalHarness](https://arxiv.org/abs/2610.05778v1)
 
 The proposed contribution is a statistical operating package and an evaluation
 of its incremental value within a fixed coding host. Native skills, file-backed

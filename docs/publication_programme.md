@@ -1,7 +1,8 @@
 # Publication Programme
 
-Updated: 2026-10-05. Status: design and release work in progress; no new scientific
-benchmark result. The native chat goal is active and covers both publications.
+Updated: 2026-10-15. Status: scientific workflow qualification in progress;
+no new scientific benchmark result. The native chat goal is active and covers
+both publications.
 
 ## Execution Roadmap
 
@@ -26,12 +27,13 @@ Official H/S comparisons, full assessed case arguments, confirmatory simulations
 results sections and release rights are not complete. No publication readiness
 percentage is computed from this map.
 
-**Next executable deliverable:** finish the selected tasks' access/reference and
-numerical endpoint qualification, resolve independent assessment, and freeze one
-study package. Then execute its entire scheduled comparison and adjudication,
-instead of alternating indefinitely between new task panels, architecture changes
-and unselected numerical checks. Preserve unsuccessful draws; a negative effect
-is reportable without redefining success.
+**Next executable deliverable:** qualify one complete methods-research workflow
+from the existing candidates, then produce a fresh development study whose theory,
+implementation, simulation and application answer the same question. Its research
+artifacts may await independent assessment; this does not turn them into accepted
+results. Finish independent authority and actual comparative conditions before
+freezing and running the official study. Preserve unsuccessful draws; a negative
+effect is reportable without redefining success.
 
 The minimum scientific scope is a justified comparison of the implemented
 intervention on the declared roster/model, not universal research automation.
@@ -43,6 +45,37 @@ theory, independent parallel execution, learned policies and complete textbook
 formalization require their own evidence and are deferred unless explicitly made
 part of a prospectively qualified claim. Do not turn them into mandatory side
 projects for these two papers.
+
+## Methods Research Focus: 2026-10-15
+
+The intended product develops and evaluates statistical and biostatistical
+methods. The research record must connect the motivation and estimand to an
+argument, computational procedure, inferential guarantee, simulation and
+substantive interpretation. Literature/code reproduction can establish a baseline;
+it does not complete those obligations by itself. Initial known-method work must
+be labelled reconstruction or rederivation according to actual source access.
+Extensions and open questions require separate evidence of their contribution.
+
+For an EHR application, ask what methodological difficulty the data create and
+which claim addresses it. Relevant issues can include observation timing,
+confounding, censoring, missingness and dependence. The model and reviewers select
+the applicable reasoning; this is not a new runtime taxonomy or a compulsory
+causal-analysis pipeline. Keep non-EHR statistical research in the task scope.
+
+The [October source update](publication_sources_20261001.md#october-15-update-health-research-and-harness-comparisons)
+distinguishes Meta's human-led health-research report from the separately authored
+MedicalHarness evaluation. Neither supplies our statistical-method benchmark or
+establishes a benefit for our implementation. Existing source-assisted candidates
+remain useful preparation; the primary methods claim requires complete scientific
+deliverables and matched within-model comparisons.
+
+No new checklist is added. Q02/Q04 qualify scientific scope and references;
+T02--T04 cover the argument and its implementation; E01/E04 cover simulations;
+C02--C05 cover the application; W/A items assemble the corresponding main text and
+appendices. Missing external assessment keeps acceptance open while authorized
+development proceeds. Release rights and optional formal work remain scoped
+dependencies. The new development work cannot reopen a consumed evaluation or
+be relabelled as a held-out result after its outcome is known.
 
 ## Two Research Questions
 
@@ -284,6 +317,8 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   The [public-obligation assessment draft](../benchmarks/publication_case_candidates/published_methods/assessment_protocol.md)
   now specifies exact-final review scope and unresolved decisions without giving
   agents mathematical answers or numerical gold. It does not close Q05/A01.
+  Pending appointment blocks formal external acceptance and official study
+  activation, not the production of explicitly unassessed development artifacts.
 - [ ] **Q06. Comparable actual conditions.** Verify tool/source/data access,
   execution profiles, effective model requests, revision opportunities, confirmation
   exposure and resources across H's two arms and S's four. Record irreducible
@@ -574,9 +609,12 @@ names the required tables, figures and supplements without inventing their value
 
 ### Immediate Execution Order
 
-For selected primary tasks, finish Q02/Q04 reference/access scope and Q05 assessor
-decisions without exposing evaluation findings to authors. Qualify Q06, freeze
-Q07/E01 and execute E02/E03. The exposed TSCI case's missing inputs are separate
+Finish Q02/Q04 for the existing candidates at the complete methods-research scope.
+Produce a fresh, prospectively declared development study through the existing
+workspaces; report unresolved theory and missing outputs without acceptance
+credit. Resolve Q05 without exposing evaluation findings to authors, qualify Q06,
+then freeze Q07/E01 and execute E02/E03. The exposed TSCI case's missing inputs
+are separate
 Q03/C02/C03 dependencies: advance them in parallel, rather than hold every
 otherwise qualified primary comparison for an unavailable case helper.
 Adjudicate before reporting an effect; assemble T02--T04, E04 and the case into
