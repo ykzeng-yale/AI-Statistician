@@ -1,0 +1,32 @@
+# @package _global_
+# Statistical research on the pinned upstream pipeline, without another graph.
+agent:
+  name: opencode
+  model: local-qwen/Qwen3-4B-Instruct-2507
+
+container:
+  # Upstream drafting/final verification require this existing backend.
+  # A native-only replacement is not implemented; do not bypass its validators.
+  enabled: true
+  auth_root: ${oc.env:AI_STATISTICIAN_AUTH_ROOT}
+  env_file: ""
+  gpu_count: 0
+
+execution:
+  phases: task_drafting,investigation,ablations,final_evaluation,posthoc,paper
+  no_winner_policy: best_available
+
+investigation:
+  execution:
+    harness_evaluated_attempts: true
+  paths:
+    instruct: ${oc.env:AI_STATISTICIAN_ROOT}/integrations/agentic-scientist/prompts/investigate.md
+  paper:
+    ai_review: disabled
+
+paper:
+  venue_file: ${oc.env:AI_STATISTICIAN_ROOT}/integrations/agentic-scientist/prompts/manuscript.md
+  contributions_file: ${oc.env:AI_STATISTICIAN_ROOT}/integrations/agentic-scientist/prompts/contributions.md
+  skills: retrieve-references,scientific-evidence,write-paper-standalone,validate-paper,memory-log
+  standalone_paper: true
+  final_outcome_policy: allow_not_qualified

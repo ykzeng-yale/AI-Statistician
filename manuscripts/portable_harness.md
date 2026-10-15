@@ -4,6 +4,11 @@ Working methods draft, 2026-10-15. Not submission-ready. Authors and affiliation
 are not yet supplied. Comparative results, installation qualification and release rights
 remain unresolved; this draft does not claim an efficacy result.
 
+Backbone revision: the new integration builds on Sakana's Agentic Scientist,
+rather than claiming a new general scientist controller. The comparison must
+include matched unmodified v3 as well as the bare host. The current source/task/
+prompt integration and dry-run are not live efficacy or a completed release.
+
 ## Abstract
 
 Statistical methods research requires more than executable code. The inferential
@@ -20,6 +25,13 @@ and use pinned open-weight models; their results are not yet available. Native
 compatibility observations alone do not establish improved research performance.
 
 ## 1. Scientific Purpose and Related Work
+
+Agentic Scientist is now the implementation backbone and a required comparator,
+not merely related work. It already supplies coding-host orchestration, shared
+research memory, ablations and evidence-grounded writing. Our proposed additions
+must demonstrate statistical-method value beyond that machinery; its AI-review
+scores and human-assisted acceptance case are not our scientific outcomes.
+[Lange et al.](https://arxiv.org/abs/2610.18933v1)
 
 A statistical research claim concerns an estimand under explicit assumptions.
 Correct program execution does not establish identification, a valid asymptotic
@@ -152,11 +164,14 @@ the model and that relative references and requested tools work. Discovery or
 exit zero alone is insufficient. Version-dependent activation failures stay in
 the record rather than being silently excluded.
 
-The prospective scientific comparison is paired within an exact open-weight
-host/model configuration: bare host versus the same host with the unchanged
-package. Both arms receive the same scientific material, allowed sources,
-environment, output contract and global resource condition. Only package
-availability and its declared activation differ. Separate clean workspaces avoid
+The prospective scientific comparison is matched within an exact open-weight
+host/model configuration: bare host, unmodified v3 with a common task bridge,
+and v3 with the statistical package. All receive the same scientific material,
+allowed sources, environment, output contract and global resource condition.
+Full minus bare measures the bundle; full minus v3 measures incremental statistical
+customization. Common task/access interfaces must not supply the added skill or
+custom prompts to the v3-only control. The arm assembly and confirmatory contrast
+hierarchy remain to be qualified before calls. Separate clean workspaces avoid
 cross-arm state. All scheduled draws, including missing outputs and timeouts,
 remain in the denominator; an earlier draft cannot replace a missing final result.
 

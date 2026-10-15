@@ -6,6 +6,12 @@ below are standard evaluation and Monte Carlo methods, not new statistical
 theory or proof of an agent's scientific argument. Independent review and a
 prospectively fixed roster, authority and execution design remain necessary.
 
+The 2026-10-15 backbone revision adds matched unmodified v3 to H's bare-host/full
+comparison and requires requalification of S's single-API arms. The pairwise
+targets below apply to each prospectively selected contrast; they do not resolve
+contrast hierarchy or multiplicity. Prior task/draw assemblies are historical,
+not frozen arms of the revised study, and no result is rescored.
+
 ## S1. Units, Interventions and Evidence
 
 A paper/problem family is the selection unit. A scheduled agent draw is one

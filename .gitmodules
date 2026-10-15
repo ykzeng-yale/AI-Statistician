@@ -1,3 +1,6 @@
 [submodule "external/EmpericalProcessLEAN-main"]
 	path = external/EmpericalProcessLEAN-main
 	url = https://github.com/ykzeng-yale/EmpericalProcessLEAN.git
+[submodule "third_party/ai-scientist-v3"]
+	path = third_party/ai-scientist-v3
+	url = https://github.com/SakanaAI/AI-Scientist-v3.git

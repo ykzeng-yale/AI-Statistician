@@ -10,6 +10,14 @@ report-level examination remain [available](../benchmarks/publication_assessment
 The native chat goal is active and covers
 both publications.
 
+The latest user instruction selects [Agentic Scientist as the main backbone](../integrations/agentic-scientist/README.md).
+The pinned initial integration is implemented and its actual CLI preview is
+verified, not research-E2E or the promised single-API migration. H now needs an
+unmodified-v3 comparator alongside the bare host; S's control assembly must be
+rebuilt and requalified. The [source audit](ai_scientist_v3_evidence_review_20261015.md)
+limits novelty claims and separates self-review from scientific acceptance.
+The existing 40 checklist states do not change.
+
 ## Execution Roadmap
 
 The checklist below is the single source of completion status. This map connects
@@ -21,7 +29,7 @@ what the research agents delivered from operator preparation and assessment.
 | --- | --- | --- | --- |
 | Scientific contribution and qualification | Q01--Q07 | Distinct H/S questions; exact task/access roster; executable reference scope; independent assessment protocol; actual arm conditions; prospective code/model/resource/schedule freeze | Both Sections 1--4 and A01/A03. A dated, hash-bound protocol precedes official calls; candidate configurations and mock tests alone do not complete this package. |
 | Theory and agreement | T01--T05 | Reviewed evaluation mathematics plus complete selected agent-authored Markdown/LaTeX case arguments, claim-level assessment, and theory/code/data/report correspondence | Both theory appendices and the essential claims in Section 5. Full definitions, assumptions, derivations and invoked-result conditions are supplied; a missing or rejected argument remains visible. |
-| Harness comparison | E02, E05--E06 | All scheduled within-host bare/package draws; actual uptake; exact final-artifact adjudication; prespecified contrasts and complete cost/failure accounting | H main outcome table and resource figure, W02, A03/A06. Cross-host compatibility is reported separately, not pooled as efficacy. |
+| Harness comparison | E02, E05--E06 | All scheduled matched bare-host, unmodified-v3 and statistically customized draws; actual uptake; common final-artifact assessment; frozen contrasts and cost/failure accounting | H main outcome table and resource figure, W02, A03/A06. Cross-host compatibility is reported separately, not pooled as efficacy. |
 | Collaboration comparison | E03, E05--E06 | All scheduled free-planning, shared-workflow, no-reverse-revision and full-collaboration draws under the frozen conditions; common external adjudication and bundle-specific contrasts | S main four-arm outcome table and resource/behavior figure, W03, A03/A06. Role names or internal acceptance do not establish collaboration benefit. |
 | Statistical-method simulations | E01, E04 | Per-task ADEMP design; frozen method/source and comparators; fresh datasets; every replication and failure; estimand-aligned summaries and Monte Carlo uncertainty | Main scientific summaries and A04/A06. Inner datasets are not additional agent draws; finite simulation does not prove a theorem. |
 | Substantive application | Q03--Q04, C01--C05 | Declared complete B1 reconstruction and Card E.1 analyses, exact aggregation, uncertainty, assumptions/sensitivity, assessed theory and traceable agent behavior | Both Section 5 drafts completed under W04, with full A02/A04 material. Missing TSCI helper/data/aggregation cannot be replaced silently; this case dependency does not halt otherwise qualified primary comparisons. |
@@ -33,7 +41,9 @@ Official H/S comparisons, full assessed case arguments, confirmatory simulations
 results sections and release rights are not complete. No publication readiness
 percentage is computed from this map.
 
-**Next executable deliverable:** a complete methods-research workflow under the
+**Next executable deliverable:** complete native execution/verifier and actual
+single-API stage boundaries on the pinned v3 controller, then demonstrate a
+complete methods-research workflow under the
 corrected family split, observing source use and tool/completion behavior in the
 actual scientific workspaces. The artificial action-schema observation has
 terminated unsuccessfully and is not a new infrastructure workstream. A fresh
@@ -131,11 +141,13 @@ Installing a skill alone does not establish either improvement or novelty.
 **Paper S: AI-Statistician, a Single-API Collaborative Statistical Research
 System.** Does scoped specialist collaboration improve externally verified
 statistical research outcomes over a single source-owning agent at comparable resources?
-The system supplies its own retained model/tool sessions and sole outer graph;
+The system must supply its single-API retained model/tool sessions through the
+new backbone's stage boundaries, without nesting the old outer graph;
 it does not invoke Codex or Claude Code to do the research. Separate theory,
 scientific-code, simulation and referee sessions use the same base model API.
 The research contribution must concern effective collaboration and evidence,
-not merely a diagram with more named agents.
+not merely a diagram with more named agents. That migration is not yet complete;
+the current v3 CLI integration is not System S evidence.
 
 Both papers disclose the shared implementation and cite each other. Paper H
 tests the portable layer added to a host; Paper S tests collaboration within

@@ -1,7 +1,8 @@
 # Current Execution Goal
 
 Updated: 2026-10-15. The native two-publication goal remains active. This file
-sets the next executable work, not another architecture programme or checklist.
+sets the next executable work, now using the user-selected Agentic Scientist
+backbone, not another parallel architecture programme or checklist.
 Historical observations remain in [the measured status](main_worker_status.json)
 and their original records; none is repaired, rescored or promoted here.
 
@@ -64,9 +65,11 @@ our benchmark nor evidence of this system's scientific benefit.
 
 ## Current Evidence
 
-- One outer graph, one retained tool loop, file-backed theory, Python/R execution
-  and optional Lean are implemented. Current research execution is serial or
-  interleaved; concurrent speedup has not been shown.
+- The legacy standalone system has one graph, retained tool loops, file-backed
+  theory, Python/R execution and optional Lean. Its research execution is serial
+  or interleaved; concurrent speedup has not been shown. The new upstream backbone
+  is pinned with statistical task/prompt integration and real dry-run conformance;
+  that does not transfer the legacy system's capabilities or prove live research.
 - The latest complete-scope development conditions produced no final submissions
   or computational research. The [bizicount record](../benchmarks/publication_development/bizicount_integrated_20261015/observed_results.json)
   ended in a 900-second request timeout, not mathematical rejection. That timeout
@@ -88,6 +91,33 @@ our benchmark nor evidence of this system's scientific benefit.
   narrower recorded scopes; they do not fill this gap.
 
 ## Immediate Execution
+
+**Adopt v3 as the main backbone, without stacking controllers.** The latest user
+request replaces the prior implementation direction. Use the pinned upstream
+task/phase controller, candidate lineage, memory, ablation, final-evaluation and
+writing interfaces. The [integration record](../integrations/agentic-scientist/README.md)
+and [paper/code audit](ai_scientist_v3_evidence_review_20261015.md) distinguish
+actual reuse from unfinished work. Do not continue legacy micro-fixes as the
+main workstream or claim generic upstream orchestration as our novelty.
+Replace only that coordinator: retain the validated statistical workspaces,
+source/reviewer authority, Python/R execution, simulation design, local Qwen and
+Statlib/RAG/Lean foundation. The integration's reuse map distinguishes retained
+assets from verified new-boundary use; generic co-scientist behavior is not a
+substitute for our statistical specialization.
+
+The first integration reuses the portable skill and supplies a statistical
+investigation prompt that permits theory/exploratory computation. Its full
+upstream CLI preview is verified without agent, evaluator or network execution.
+The native-full preview was rejected: upstream drafting/final verification
+require its container backend. Do not disable those checks. Next, integrate our
+existing local execution/verifier components at that boundary and implement the
+actual single-API specialist path without invoking the old outer graph. R/Lean
+use, exact scientific evidence joins and journal-format writing need integrated
+verification, not another generic agent framework or VM/network campaign.
+
+For H, add unmodified v3 under matched host/model conditions alongside the bare
+host. For S, rebuild actual same-model controls around the new implementation.
+Freeze these changes before official calls; no consumed study is reassessed.
 
 **Complete one coherent methods-research workflow qualification.** The research
 agents, not operator-written answers, must connect one inferential question to
@@ -112,10 +142,12 @@ overstated scratch corroboration in one completed report, distinct from its
 correct central analytic argument. No verdict, script or outcome was repaired;
 the pending session is not resumed and the owned server is closed.
 
-The next narrow shared-mechanism correction is to retain actual stop/usage
+One recorded shared-mechanism defect is loss of actual stop/usage
 metadata when tool-argument decoding fails: the raw wire reports truncation,
 while the generic incomplete-session row loses it. Preserve the original
-observation. Do not repair JSON, execute partial code, add a scientific rule or
+observation. Fix it if that transport is reused during migration; it is not a
+reason to postpone the new backbone. Do not repair JSON, execute partial code,
+add a scientific rule or
 increase limits to recover this consumed result. This is observability, not a
 solution to mathematical reasoning or research completion.
 
@@ -127,8 +159,8 @@ do not remove shared-model bias. One argument family cannot close Q05 for a
 multi-family study or qualify estimator/inference claims it did not test.
 
 Before further product calls, reconcile the actual task, local model resources and
-assessment in one prospective complete-workflow condition before further product
-calls. Do not substitute another family simply to obtain a pass. Paper/source,
+assessment in one prospective complete-workflow condition. Do not substitute
+another family simply to obtain a pass. Paper/source,
 code/data/environment, central argument, simulation/comparators and application
 must support that condition before execution. The existing LMTP/JointAI and GRF
 screens are deferrals, not qualified replacements. Do not turn unchanged-source
@@ -136,13 +168,17 @@ searches, toy tasks, optional Lean or infrastructure work into the next mileston
 
 ## Remaining Roadmap
 
-1. **Scientific qualification and workflow: Q02/Q04, T02--T04, E01.**
-   Correct the development/test split; qualify sources, rights for intended use,
+1. **Backbone migration and scientific workflow: Q02/Q04/Q06, T02--T04, E01.**
+   Complete the native/single-API boundaries and task-intent scientific tools on
+   the existing upstream controller, with upstream attribution and no nested
+   scheduler. Verify actual source, tool and feedback use. Then correct the
+   development/test split; qualify sources, rights for intended use,
    exact theoretical and numerical references and feasible resources. Freeze the
    coherent condition and observe the complete agent-authored workflow. Arguments
    without assessment remain unassessed; negative findings and honest gaps stay
    visible. Establish unrelated-family transfer and extensions separately.
 2. **Official comparisons: Q05--Q07, E02--E06.**
+   Add the matched v3 comparator for H; reassemble S's actual same-API controls.
    Finish calibrated assessment, matched actual access/tools/resources, family
    splits, schedule and precision before calls. Execute every planned H/S arm
    with common exact-final-artifact assessment. Preserve invalid, incomplete,
@@ -175,7 +211,9 @@ separately authorized prospective condition. No Anthropic scientific tests,
 Opus, automatic model escalation or cloud fallback. Claude Code host
 compatibility remains separate from scientific comparisons.
 
-Keep one graph and one retained loop. Improve shared prompts, context, tools or
+Use the upstream backbone as the new outer workflow; do not call the legacy graph
+inside it. Reuse suitable source tools/retained components rather than a second
+controller. Improve shared prompts, context, tools or
 raw feedback only where observed failures identify a harness defect. The source
 owner writes every revision; no statistical answer rule, Lean grammar patch,
 repair agent, new scheduler or unrelated network/VM campaign is added.

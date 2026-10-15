@@ -4,6 +4,13 @@ Working methods draft, 2026-10-15. Not submission-ready. Authors and affiliation
 are not yet supplied. Official comparative experiments have not been activated;
 this draft makes no claim that collaboration improves scientific correctness.
 
+Backbone revision: the latest design adopts Sakana's Agentic Scientist as the
+outer controller. The legacy standalone implementation described below is a
+pre-migration baseline. The current CLI/prompt integration does not implement
+the promised single-API specialist path or requalify these four arms. Methods
+and results must be rewritten against that actual completed implementation before
+submission; no generic upstream orchestration is claimed as new.
+
 ## Abstract
 
 Statistical research joins theoretical reasoning, implementation and experimental
@@ -21,6 +28,14 @@ does not use the system's internal acceptance as scientific truth. Comparative
 effects and their uncertainty remain to be measured.
 
 ## 1. Research Question
+
+Agentic Scientist supplies the selected research-controller foundation. Its
+coding-host execution, parallel search, shared memory, ablations and writing are
+reused infrastructure, not this paper's contribution. The scientific question
+is the incremental statistical collaboration/evidence design at matched actual
+conditions. CLI-backed examples cannot establish a standalone API result, and
+upstream AI manuscript scores are not our correctness endpoint.
+[Lange et al.](https://arxiv.org/abs/2610.18933v1)
 
 The relevant question is not whether several named agents can produce a report.
 It is whether scoped collaboration improves independently accepted statistical
@@ -72,7 +87,7 @@ Codex or Claude Code to conduct the research. Shared implementation and library
 artifacts are disclosed; the same experiment is not presented twice as independent
 evidence for these two questions.
 
-## 2. System Implementation
+## 2. Pre-Migration Implementation
 
 ### 2.1. One Graph and One Tool Loop
 

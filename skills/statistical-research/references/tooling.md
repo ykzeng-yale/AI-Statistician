@@ -5,13 +5,16 @@ Use the researcher's existing local Python/R environment. Installing the
 AI-Statistician application or Lean foundation is optional for this entry point.
 No API key is included or required by the skill.
 
-For the standalone application, locate the actual checkout and read its README
-setup and `ai-statistician --help`; do not guess a machine-specific path. The
-application supplies model-driven source workspaces and its own outer graph.
-Do not nest that graph inside a host-managed multi-agent graph and call it a
-single architecture. Current model tests use a separately pinned local Qwen
-endpoint. Hosting this skill in Codex/Claude Code/Kimi does not mean those hosts
-are interchangeable stateless model providers.
+Locate the actual checkout and read its README; do not guess a machine path.
+The integrated research workflow is migrating to the pinned Agentic Scientist
+backbone in `third_party/ai-scientist-v3`, with statistical customization under
+`integrations/agentic-scientist`. Use its pipeline directly, not a call to the
+legacy `research-agent-runtime` inside another graph. Existing standalone
+Python/R and Lean tools may be reused without invoking that old scheduler.
+The legacy application remains available for its recorded experiments. Current
+model tests use a separately pinned local Qwen endpoint. Hosting this skill in
+Codex/Claude Code/Kimi does not make those hosts stateless model providers or
+establish the new backbone's single-API implementation.
 
 For optional Lean work in EmpericalProcessLEAN:
 

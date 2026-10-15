@@ -1,5 +1,16 @@
 # AI Statistician
 
+**Backbone migration, 2026-10-15:** the user-selected new foundation is
+[Sakana AI's Agentic Scientist](https://github.com/SakanaAI/AI-Scientist-v3), pinned
+in `third_party/ai-scientist-v3`. The [statistical integration](integrations/agentic-scientist/README.md)
+provides source installation, task preparation, statistical prompts and a verified
+upstream dry-run. It does not nest the old runtime inside that pipeline. Native
+final verification, the single-API specialist path and live statistical capability
+are not yet migrated or demonstrated. The outer coordinator described below is
+the legacy baseline, not a completed v3 port. Its validated statistical workspaces,
+Python/R tools, reviewers and Lean/RAG foundation are retained for integration,
+not replaced by generic co-scientist prompts; see the integration's reuse map.
+
 AI Statistician is an in-progress autonomous statistical theory laboratory. Its
 target is to take a fresh research question or paper through rigorous theory,
 scientific Python/R implementation and simulation, plus Lean formalization and
@@ -24,7 +35,7 @@ The initial [portable skill installation](docs/portable_harness_installation.md)
 and [local Qwen testing](docs/local_qwen_testing.md) are available separately;
 neither is a claim of publication-ready scientific performance.
 
-## Architecture
+## Legacy Architecture
 
 There is one outer typed graph:
 

@@ -1,5 +1,7 @@
 # AI Statistician Production Design
 
+**2026-10-15 migration:** [Agentic Scientist is the new backbone](../integrations/agentic-scientist/README.md), replacing rather than nesting the outer graph. Below is the implemented legacy baseline, not a completed v3 port. Native verification, single-API specialists and integrated scientific capability remain unfinished; see the [source audit](ai_scientist_v3_evidence_review_20261015.md). Existing outcomes stay unchanged.
+
 ## Product target
 
 AI Statistician is an autonomous statistical theory laboratory. Given a fresh

@@ -3,10 +3,17 @@
 2026-10-15 design and implementation status. NOT ACTIVATED: no task list, gold authority, sampling
 schedule or resource envelope has been frozen. No result is claimed here.
 
+**Backbone revision, 2026-10-15:** the latest user instruction selects the pinned
+[Agentic Scientist](../integrations/agentic-scientist/README.md) as the new outer
+workflow. The prior draw assemblies below remain implementation history, not
+qualified arms of this revised study. Add a matched unmodified-v3 comparator for
+H and implement/requalify S's actual single-API arms. No old result is changed.
+
 ## Questions And Units
 
 H1: Does the portable package improve independently accepted scientific outputs
-over the same coding host without it? Installation qualification is reported
+over both the same bare coding host and unmodified v3 on that host/model?
+Installation qualification is reported
 separately; a researcher-effort effect is not a primary endpoint of this study.
 S1: Does specialist collaboration improve full-task acceptance over one general
 agent with the same base model and tools at matched global resources?
@@ -154,11 +161,29 @@ adds no eligible task, fixed roster, official activation or performance result.
 
 | Study | Arms | Attribution |
 | --- | --- | --- |
-| Portable H | Same host bare vs same host + package | Paired within host/model; separate installations across Codex, Claude Code and Kimi |
+| Portable H | Bare host; unmodified v3 with common task bridge; v3 plus statistical package | Matched within exact host/model; full-minus-bare is the bundle, full-minus-v3 is incremental statistical customization |
 | System S | Free-planning general agent; single-context workflow control; isolated roles without reverse author revision; full collaboration | Same Qwen and matched resource/access conditions; compare implemented bundles, not isolated reasoning mechanisms |
 | External scaffold | Minimal ResearchHarness or compatible open implementation | Pin code and report every provider/tool adaptation; no comparison with published scores |
 | Lean | Zero-shot source; compiler feedback; compiler feedback + scoped RAG | Same statements, model, project and total resources |
 | Foundation reuse | Pinned standard foundation vs standard + curated StatInference | Hold out target proof and dependent aliases; separately measure semantic fidelity |
+
+The common v3 bridge supplies the same scientific question, permitted sources,
+execution/output interfaces and external assessment. It must not leak the added
+statistical skill or custom investigation/writing prompts into the unmodified
+v3 arm. The new task preparer is the full-package entry, not a completed neutral
+control assembler. Native host compatibility does not establish any arm's efficacy.
+Upstream self-authored rubrics and its reviewer scores are not our common gold.
+Do not import published cloud scores as a local-Qwen baseline.
+Only hosts actually supported by the pinned v3 can enter that matched contrast.
+Kimi's existing portable-skill compatibility remains separate: the pin does not
+list Kimi as an agent backend. Do not invent a v3/Kimi condition, substitute a
+different host silently or discard the portable compatibility work.
+
+S must use one selected base-model API for its effective specialist/control
+conditions. Wrapping complete coding CLIs can serve the portable-host study;
+it cannot be relabelled the promised standalone API implementation. Reuse v3's
+stage boundaries rather than calling the old AgentRuntime from inside them.
+No generic orchestration, parallelism or no-winner feature is claimed as ours.
 
 The planned System S primary contrast is `full_collaboration` minus
 `free_planning`. It evaluates the implemented collaboration bundle, including
@@ -819,8 +844,11 @@ remains in the denominator under its predeclared handling.
 The complete fixed-benchmark target, weighting, estimator and expectation
 derivation now have one manuscript source in
 [Supplement S3](../manuscripts/supplementary_methods.md#s3-fixed-benchmark-target-and-conditional-uncertainty).
-Paper H's primary contrast is package minus bare host within the same host/model;
-Paper S's is full collaboration minus free planning. Freeze the roster, family
+Paper H retains package minus bare host and adds package minus unmodified v3
+within the same host/model as the required incremental-value contrast. Freeze
+their confirmatory hierarchy or multiplicity treatment before outcomes; this
+revision supplies no sample size or significance claim. Paper S's primary remains
+full collaboration minus free planning after requalification. Freeze the roster, family
 aggregation/weights, scheduled draws, assessment and resources before calls.
 Do not pool hosts/checkpoints or claim a population effect from a purposive roster.
 Report family-by-arm results before the aggregate. Inner datasets, rubric items

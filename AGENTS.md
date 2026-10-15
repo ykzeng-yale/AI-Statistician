@@ -11,13 +11,25 @@ the entire `docs/` directory as one prompt.
 - Current measured status: `docs/main_worker_status.json`
 - Delivery and Git ownership: `docs/main_worker_ownership.md`
 - Codex harness adoption boundary: `docs/openai_codex_harness_adoption_20260825.md`
+- New user-selected backbone and migration limits: `integrations/agentic-scientist/README.md`
+- Agentic Scientist source/evaluation audit: `docs/ai_scientist_v3_evidence_review_20261015.md`
 
 ## Architecture
 
-- `ai_statistician/agent_runtime.py` is the sole outer typed research graph.
-- `ai_statistician/client_tool_loop.py` is the shared retained model/tool loop.
-- Theory, Python/R, Simulation, Lean, and reviewers configure that loop with scoped
-  tools; do not add another scheduler, repair agent, or generic agent framework.
+- The 2026-10-15 user-selected new backbone is the pinned Sakana Agentic Scientist
+  in `third_party/ai-scientist-v3`. Use its existing task/config/prompt/stage
+  interfaces. The initial statistical integration is not completed research-E2E
+  or a completed single-API migration.
+- `ai_statistician/agent_runtime.py` remains the sole graph of the legacy
+  standalone implementation and its preserved experiments. Never call that graph
+  from the new backbone or run both as competing controllers.
+- Reuse suitable scientific/Lean tools and retained-session components without
+  adding another scheduler, repair agent, or generic agent framework. Do not keep
+  expanding the legacy controller instead of carrying out the requested migration.
+- Preserve validated statistical workspaces, source/reviewer authority, Python/R,
+  simulation and Statlib/RAG/Lean assets; only the outer coordinator is replaced.
+- Keep Paper S's single-model-API requirement: a CLI-backed upstream run is not
+  evidence that the standalone specialist implementation is complete.
 - Substantive mathematics and source live in hash-bound Markdown/LaTeX or source
   files. Tasks and traces carry references rather than recursive copies.
 - The same source owner receives raw environment or reviewer observations and authors
