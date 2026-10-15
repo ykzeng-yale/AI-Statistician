@@ -47,7 +47,7 @@ The existing loader validates every document identity. The original code commit
 and Git blob identities remain attached to each code file, now under
 `author_code/`; the composite capsule is not falsely labelled one upstream Git
 tree. The local capsule is not yet a redistribution release or complete author
-replication. Original survey-data rights remain unresolved.
+replication. Exact-derivative redistribution remains unqualified.
 
 [Source execution candidate](source_execution_candidate.json) uses the existing
 model-selected native source executor. Its final standard Rscript environment
@@ -59,12 +59,28 @@ The lock records the R engine hash; the execution candidate additionally binds
 Rscript and its launcher chain. Its machine-specific paths still need release
 reconstruction instructions.
 
+The [October 15 evaluator-side correspondence check](../../publication_reference_qualification_20261002/tsci_scientific_source_review.md#card-source-correspondence-2026-10-15)
+maps all four E.1 bases to their producer objects and distinguishes 500 splits
+of fixed data from independent datasets or agent draws. The helper returns
+per-fit objects, not a recovered Table 15 aggregator. A.3 describes two different
+aggregation procedures; neither is silently selected here. Deleted historical
+Card scripts do not supply the declared four-basis aggregation. This review stays
+outside the agent input capsule.
+
+Public acquisition paths and BLS public-use/reuse statements are documented.
+Exact-derivative redistribution and the full raw-NLS-to-package crosswalk remain
+unqualified; no prohibition of local research is inferred. Replicating with the
+exact package input is not a claim to reconstruct every upstream survey step.
+Release instructions can identify downloads and hashes without bundling the data.
+These distinctions do not resolve the missing comparator or aggregation, activate
+a new draw, or change the consumed preparation.
+
 ## Inputs Still Required Before A Publication Draw
 
 1. Freeze a complete public input capsule with the exact final paper, the official
    code pin, permitted application data and their licenses/identities. The new
    available-input capsule supplies exact assets but does not resolve missing
-   author dependencies, original data rights or release reconstruction.
+   author dependencies, exact-derivative redistribution or release reconstruction.
 2. Recover or explicitly resolve the missing B1 heteroskedastic comparator helper.
    An independently authored implementation is not unchanged author replication.
    The contract permits honest unavailable/failed fits but does not count them as

@@ -1,6 +1,6 @@
 # TSCI Scientific Source Qualification
 
-Checked 2026-10-02; source-input follow-up 2026-10-03. Evaluator-side source review, not an agent task, proof
+Checked 2026-10-02; latest source follow-up 2026-10-15. Evaluator-side source review, not an agent task, proof
 certificate or numerical experiment. Earlier reference executions remain unchanged.
 
 ## Editions and Examined Material
@@ -263,3 +263,116 @@ needs supplied original material or a separately attributed, prospectively
 qualified reconstruction decision; do not keep repeating the same source search
 or silently insert a homoskedastic helper. The final article and exposed case
 scope remain unchanged. Primary comparison qualification can advance separately.
+
+## Card Source Correspondence, 2026-10-15
+
+This follow-up rechecked the advertised refs before inspecting new source scope.
+Replication `main` remains `ca73f039`, with no other advertised branch or tag.
+The two package repositories retain the heads recorded above. The author's two
+advertised pull-request heads are ancestors of its inspected `main`, not newly
+recovered implementations. No repeat of the earlier exhaustive helper search,
+model draw, statistical execution or assessment was performed.
+
+### Four Basis Specifications And Returned Objects
+
+The complete Card producer and the helper's basis construction, fitting,
+selection and return paths were read at the existing pin. The final PDF's printed
+pages 36 and 62 were rendered and inspected; its identity is unchanged. This
+establishes a source correspondence, not numerical or mathematical acceptance.
+
+| E.1/Table 14 specification | Producer construction in `Real-Data/RealData_Card_V1V2.R` | Recorded fit |
+| --- | --- | --- |
+| Baseline second space | `V2_1`: IV interactions with the eight region indicators, layered above `V1` | `rf_card_1` |
+| First alternative | `V2_2`: IV times cubic experience, layered above `V1` | `rf_card_2` |
+| Second alternative | `V2_3`: pairwise interactions of the six key covariates with the IV, excluding the experience/squared-experience pair; duplicate columns removed | `rf_card_3` |
+| Third alternative | `V2_4`: the same construction including that pair; duplicate columns removed | `rf_card_4` |
+
+`V1` contains the IV and its interactions with six key covariates. All four fits
+use the same permutation of the package data within a split, log wage as outcome,
+schooling as treatment, college proximity as IV and the same 14 baseline
+covariates. Each call requests 500 trees, `mtry` from 1 through 15 and node sizes
+5, 10, 20 and 30. The helper defaults to a two-thirds estimation split and chooses
+among RF candidates using its out-of-bag error. The relative `source()` call also
+requires an explicit project working-directory/source arrangement; the helper is
+stored under `Source Codes`, not beside the producer. No setup was silently fixed.
+
+The helper returns coefficient and standard-error vectors, four named selected
+entries (`RF-comp`, `RF-Cor-comp`, `RF-robust`, `RF-Cor-robust`), per-fit intervals,
+selection indices and IV-strength fields. The producer stores those objects; it
+does not select their final Table 15 columns or aggregate them. Its 25 declared
+20-split batches would supply 500 random splits of the **same observed dataset**,
+not 500 new datasets or independent research-agent draws. RF randomness also
+needs recording; a row permutation alone is not the complete RNG condition.
+
+The earlier deleted `Real-Data/TSCI-Real-Card.R` was read at commits `b595a6f`
+and `bd02006`. It fits two older basis choices, not the four E.1 choices, and
+contains no recovered final E.1 aggregation. A history search for the current
+output prefix and median-aggregation identifiers returned the `4c437ba` producer
+addition, not an aggregation implementation. These bounded findings do not
+establish absence from every possible distribution. The old script is not a
+replacement for the declared case.
+
+### Aggregation Is An Unresolved Scientific Choice
+
+Appendix A.3 describes both a median-estimate interval with a dispersion-adjusted
+standard error and a confidence set obtained by inverting median-aggregated
+split p-values. They are distinct procedures. Section 7.1 explicitly describes
+its reported interval as multi-split; E.1's first row repeats that estimate and
+interval. Neither observation recovers Table 15's complete computation. Do not
+choose a pooling rule from the printed interval's shape or numerical agreement.
+
+The missing reader must determine the selected estimator/SE entries, aggregation
+method, selection-proportion denominators, IV-strength summary and handling of
+weak-IV, null, nonfinite or failed fits. Averaging per-split interval endpoints is
+not established as the author's method. A prospective reimplementation may be
+assessed as such; it must not be labelled recovered author code or used to revise
+the consumed preparation. A new seed schedule is permissible for a declared
+stochastic reproduction but supplies none of these missing definitions.
+
+### Data Access, Ancestry And Release Are Separate
+
+The exact `ivmodel` 1.9.1 archive, RDA and retained DESCRIPTION/LICENSE/data help
+were checked against the preparation record. The package identifies 3,010 rows
+and 35 variables and cites Card/NLS; it supplies no complete upstream preparation
+recipe. Its software notices are not an exact-file survey-data rights finding.
+
+Card's [official data page](https://davidcard.berkeley.edu/data_sets.html) links
+the [original archive](https://davidcard.berkeley.edu/data_sets/proximity.zip).
+The retrieved 134,563-byte archive has SHA-256
+`0e9b2ad4182ea631ca3dd8a5fff6c1b0ab86b56c6a3fa868870f716e8d82691f`.
+Its readme and codebook describe 3,613 observations. The codebook and SAS reader
+document original fields and potential-experience construction; they do not
+establish the exact 3,613-to-3,010 selection or all package recodings. Matching a
+reported nonmissing count is not a recovered transformation. The data records
+and `read1.lst` fitted-output listing were not analyzed or used as reference gold.
+
+There is positive public-access/reuse evidence: BLS provides
+[free public-use access](https://www.bls.gov/nls/getting-started/accessing-data.htm),
+states its [published material is public domain](https://www.bls.gov/bls/linksite.htm),
+and the [NLS catalog](https://catalog.data.gov/dataset/national-longitudinal-surveys)
+lists public access and CC0. Those records do not specifically identify the Card
+ZIP or package derivatives. Do not infer either an exact-file clearance or a
+prohibition from that gap. Publish acquisition instructions and hashes rather
+than newly redistribute the data while that release question remains unresolved.
+
+Using the exact already-acquired package dataset is a different scope from
+rebuilding it from raw NLS records. The missing historical crosswalk limits
+ancestry and raw-survey reconstruction claims; it is not an automatic requirement
+to reconstruct the whole survey before any local methods research. Likewise,
+release clearance is not numerical agreement, and incomplete release qualification
+must not be reported as demonstrated denial of research access.
+
+### Exact Material Still Needed
+
+Request the original B1 heteroskedastic comparator helper and E.1 aggregation
+reader with their commit/environment identities. For E.1, clarify the output
+field choices and failed-fit/denominator conventions above; confirm the package
+data edition and supply its preparation crosswalk if a raw-data reconstruction
+claim is intended. Record original RNG information if available, or declare a
+new schedule without calling it historical replay. This is an acquisition scope,
+not a sent request or authority to contact the authors.
+
+Q03/Q04/C02/C03 remain open. The available code and exact local inputs are now
+mapped more precisely, but neither Table 15 nor the B1 comparison has been
+executed or independently qualified by this follow-up. No input capsule, task,
+old outcome, source bytes, runtime or author-facing prompt was changed.

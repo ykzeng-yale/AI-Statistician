@@ -109,8 +109,17 @@ now separates the exact joint model from the software's clipped numerical
 objective and flags an unresolved boundary-null reference distribution. These
 are assessment-preparation findings, not model results or a substitute for a
 complete methods study. The original preparations remain historical records, not a qualified
-current roster. TSCI remains the
-exposed substantive case with missing source/aggregation/data-rights dependencies.
+current roster. TSCI remains the exposed substantive case with missing comparator,
+aggregation and independent-assessment dependencies. The
+[Card source correspondence](../benchmarks/publication_reference_qualification_20261002/tsci_scientific_source_review.md#card-source-correspondence-2026-10-15)
+now maps all four bases, separates fixed-data split variation from independent
+datasets/agent draws and distinguishes A.3's two aggregation procedures. Public
+acquisition/reuse evidence, exact-input identity, upstream processing ancestry and
+redistribution qualification have separate scopes. Do not turn an unrecovered
+raw-survey crosswalk into a universal local-research gate. No Table 15 aggregator
+or missing B1 comparator was recovered, and no case execution or acceptance was
+added. Further unchanged-author reconstruction needs the recorded exact material,
+not another repetition of the same filename search.
 Historical Haiku and consumed Qwen outcomes stay unchanged. Exact records belong
 in [main_worker_status.json](main_worker_status.json).
 
@@ -218,7 +227,10 @@ source-grounded argument and report quality under its prospective conditions.
    incomplete and unsuccessful research. Compare each method on its own scientific
    estimand, and compare agents on their full research deliverables.
 4. **Complete the case and manuscripts (C02--C05, W02--W05, A01--A06).** Resolve
-   TSCI's original-material dependencies in parallel. Fill main results and
+   TSCI's recorded original-material dependencies in parallel; request the exact
+   comparator and aggregation definitions rather than infer them from published
+   numbers. Preserve the distinction between local input use and public data
+   redistribution. Fill main results and
    appendices from assessed artifacts, including failed conditions and limitations.
    Distinguish the portable package's contribution from the collaboration effect.
 5. **Finish releases and submission QA (R01--R05).** Resolve rights and authorship,
@@ -239,7 +251,8 @@ diagnostic experiments, draft arguments or preparation of reviewable submissions
 Such outputs retain an explicit unassessed status; Qwen agreement is not a
 substitute. An official run cannot be retrospectively designated development.
 
-TSCI's missing helper, aggregation and data rights affect that case. Root and
+TSCI's missing helper and aggregation affect that case; exact-derivative data
+redistribution remains a separate release question. Root and
 third-party licenses affect release. Neither dependency justifies stopping
 otherwise authorized work on the system's scientific workflow. Preserve consumed
 records and do not replace their sources, retry failures or rescore them.

@@ -555,6 +555,12 @@ theory assessment or matched-arm qualification. Scientific checklist items stay 
   Original seeds are needed for exact historical replay, not for every stochastic
   reproduction; qualify a declared new schedule separately without filling the
   missing aggregation or comparator by numerical guesswork.
+  The [October 15 correspondence check](../benchmarks/publication_reference_qualification_20261002/tsci_scientific_source_review.md#card-source-correspondence-2026-10-15)
+  maps the four bases and returned objects but recovers no aggregator. Distinguish
+  fixed-data splits from new datasets/agent draws, and A.3's two aggregation
+  methods. Public acquisition/reuse evidence does not settle exact-derivative
+  redistribution; missing raw-survey ancestry is not a universal local-research
+  gate. No case execution or independent acceptance is added.
 - [ ] **C04. Independent scientific interpretation.** Connect T02--T04 and
   C02--C03; separate reproduction, adaptation, reimplementation and new theory.
   Clearly bound causal and asymptotic claims. Preserve the published proof/source
