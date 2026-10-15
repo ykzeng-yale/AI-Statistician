@@ -5,6 +5,12 @@ The subsequent [observation](observed_results.json) records both terminal
 pre-client launch failures. The consumed runner is frozen at `54d4a3f5`; the
 current runner's short temporary paths are a future configuration correction,
 not a rerun or change to that observation.
+A separately frozen [short-temp condition](short_tmp_precall.json) now has a
+terminal [stock-arm observation](short_tmp_stock_observation.json): real managed
+Qwen authoring and 60,000 completed numerical replicates, but zero candidate
+reference-compliance successes. Its theoretical argument remains unassessed.
+The statistical arm's terminal result must be recorded separately; this stock
+record neither establishes that arm's outcome nor a full research comparison.
 This fresh condition does not modify or rescore
 `../agentic_scientist_hc0_20261015/`. It reuses the exposed HC0 topic rather than
 selecting a new family after failure. It is known-method reconstruction, not

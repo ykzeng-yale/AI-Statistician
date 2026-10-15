@@ -26,6 +26,22 @@ review rubric receives `assessment=failed` with evidence saying it cannot be
 verified; this is not a finding that the mathematics is false. A separate exact-file
 scientific assessment is still needed. The native drafting/final gap below remains.
 
+The subsequent Bouchet conditions and their frozen configuration changes are in
+[the module record](../../benchmarks/agentic_scientist_hc0_bouchet_20261015/README.md).
+Fresh stock job 29684591 now reaches Qwen/Pi source authoring and the complete
+fixed numerical study, but all candidate reference checks fail; theory remains
+unassessed. Statistical job 29684597 is still running. These module observations
+do not establish a full campaign, independent mathematical acceptance or Paper S.
+The full campaign's cold-start issue is distinct: qualified runtime activation can
+admit a finite-scored **incorrect** baseline, so "validated incumbent" does not
+universally mean a solved task. Native pre-authored reconstruction skips that
+activation and cannot currently reconcile its unscored starter. Upstream already
+has null bootstrap state and first-correct-candidate promotion, but startup,
+resume provenance and score-improvement stopping must agree before using them.
+Do not remove only the startup check, invent a baseline score, or treat binary
+computational compliance as mathematical task completion. This belongs in the
+existing campaign interfaces, separately from native drafting/final verification.
+
 ## Prepare And Preview
 
 From this repository root:

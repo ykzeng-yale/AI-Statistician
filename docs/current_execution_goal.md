@@ -123,13 +123,18 @@ run a prospectively matched statistical-profile condition with captured effectiv
 model requests. Reuse upstream's existing harness-owned evaluation. Do not add
 diagnostic gates or another controller to force a successful example.
 
-The subsequent [Bouchet module condition](../benchmarks/agentic_scientist_hc0_bouchet_20261015/observed_results.json)
-now has a complete 12-cell numerical evaluator and two frozen instruction arms,
-but both launches failed before the Pi client: the operator's long NFS temporary
-path prevented socket and private log creation. A separate zero-inference check
-passed with node-local `/tmp`. Neither model research nor the full study ran.
-Preserve those outcomes; qualify a fresh capable, consistent Qwen condition
-without treating deployment checks as scientific results. The larger-model
+The original [Bouchet module condition](../benchmarks/agentic_scientist_hc0_bouchet_20261015/observed_results.json)
+failed before the Pi client because of the operator's long NFS temporary path.
+Those failures remain unchanged. A separately frozen
+[short-temp condition](../benchmarks/agentic_scientist_hc0_bouchet_20261015/short_tmp_precall.json)
+now reaches actual managed Qwen3.8-Flash-Next/Pi authoring and host evaluation.
+Stock job 29684591 completed all 60,000 numerical replicates but its candidate
+passed zero reference-compliance checks; the generated covariance has an extra
+sample-size division. No generated source was corrected or rerun. Its theoretical
+argument remains unassessed. Statistical job 29684597 is still in progress at
+this update; a partial file or successful process exit is not research acceptance.
+The single-attempt module evaluates after author exit, so it does not establish
+the full source-owner feedback/revision workflow. The larger-model
 route is documented in [local Qwen testing](local_qwen_testing.md#larger-consistent-deployment).
 Do not keep defaulting to the old 4B deployment or introduce a new host framework.
 
@@ -272,9 +277,11 @@ module offers a managed local Qwen coding-host route according to
 [YCRC](https://docs.ycrc.yale.edu/ai/local-coding-agents/). The service can update
 its model; a shared alias alone is not an official experiment pin. Verify effective
 weights/configuration or use a pinned task-owned deployment for publication runs.
-No GPU allocation, remote inference or model download has occurred in this
-handoff-verification step. Qwen3.8-27B BF16 at the recorded exact revision is the
-prospective first task-owned model, not yet deployed or scientifically evaluated.
+The subsequent managed-host development condition has made real Qwen calls.
+Qwen3.8-27B BF16 at the recorded exact revision has been staged and hash-verified
+for a task-owned direct API; runtime installation is pending. Downloaded weights
+are not a deployed inference service.
+No owned GPU service or 27B scientific evaluation has been established.
 Keep one model condition across each comparison. The managed service remains a
 useful development option but cannot establish Paper S's single-API requirement.
 Use only permitted low-risk/public or synthetic data

@@ -1,0 +1,45 @@
+{
+  "condition": "short_tmp_precall.json",
+  "scope": "Terminal stock-arm development observation; the statistical arm is separate and was still running when recorded. Not an official H/S comparison or a complete research workflow.",
+  "job_id": "29684591",
+  "state": "COMPLETED",
+  "exit_code": "0:0",
+  "elapsed_seconds": 224,
+  "model_returned": "Qwen3.8-Flash-Next",
+  "host": "Pi 0.85.1 via local-coding-agents/1.1; bouchet/ycrc-local-think",
+  "model_pin_limit": "Managed weights revision, quantization, backend and effective sampling remain unknown.",
+  "assistant_turns": 33,
+  "reported_usage": {
+    "input_tokens": 974459,
+    "output_tokens": 32742,
+    "total_tokens": 1007201,
+    "cache_read_tokens": 0,
+    "scope": "Sum of completed assistant message_end records, not stream deltas or duplicated turn_end records. Zero reported cache use does not establish backend cache behavior or monetary cost."
+  },
+  "tool_calls": {"bash": 12, "edit": 7, "read": 8, "write": 5},
+  "official_evaluations": 1,
+  "numerical_result": {
+    "correct": false,
+    "combined_score": 0,
+    "study_complete": 1,
+    "scheduled_replicates": 60000,
+    "completed_replicates": 60000,
+    "candidate_compliant_replicates": 0,
+    "conventional_compliant_replicates": 60000,
+    "reference_failure_replicates": 0
+  },
+  "source_observation": "The generated estimator divides the unnormalized inverse-crossproduct sandwich by n again, in both its main and fallback branches. This is an implementation normalization error; no candidate source was patched or rerun.",
+  "theory_status": "UNASSESSED; source inspection and numerical disagreement are not a complete mathematical review",
+  "research_scope": "Model authored theory, estimator, study explanation and reporting source. The evaluator owns and executes the fixed simulation. Reporting source was not executed after evaluation; no application, final interpretation, independent acceptance or six-phase campaign.",
+  "archive": "runs/bouchet_v3_pi_shorttmp_20261015/stock_observation.tar.gz",
+  "archive_sha256": "0abff3815495991c32026bcf51a10f1e84886feb082abc6b89131ccf7399cf61",
+  "source_sha256": {
+    "src/program.py": "437137c93bdfe013bede7173c8e3814f7f73849ddc912c5959769d35b7133266",
+    "src/report.py": "894eb5fe64108bc1b193ff08fd1d6356a4ac3a42d03e9d8d520dd9d9901b7736",
+    "src/study.md": "10e417b80455e755fc09af484110937ec65a285a91fc2bd18669ddc78dc8f51c",
+    "src/theory.md": "9312ee2435832ce4c38bf28c06a5924dbe23b9749787d66563a0598c8922fa05"
+  },
+  "raw_replicates_sha256": "98db60d714845c7c7f6de0b735da440fe7c3f1fe20d8c8218bc1fc3a1ac3b30b",
+  "evaluator_sha256": "141c75b45daa50420bfd1285b9a4122ebc85d7b5b5d7958eb4c04bb7f86e9891",
+  "limits": "One exposed family, one stock draw, fixed arm order and unpinned managed service. Inner simulation datasets are not independent agent trials. No general efficacy, speed or mathematical correctness claim. The model owner did not receive post-exit evaluator findings in this single-attempt module."
+}

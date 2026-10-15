@@ -35,22 +35,23 @@ PyTorch 2.9.1 and Transformers 4.55.2 modules exist, but are not model deploymen
 or proof of compatibility with current architectures. Bouchet has no `llms`
 module or `/apps/large_language_models` at the checked paths; that offline cache
 is documented for [Hopper](https://docs.ycrc.yale.edu/clusters/hopper/#llm-models),
-not established for this account on Bouchet. No new weights were downloaded.
+not established for this account on Bouchet. That inventory downloaded no weights;
+the subsequent task-owned staging is recorded below.
 
 The source-verified shortlist below is a deployment recommendation, not a model
 ranking, scientific performance result or claim that Yale already hosts every row:
 
 | Candidate | Actual availability and intended use |
 | --- | --- |
-| [Qwen3.8-Flash-Next](https://huggingface.co/Qwen/Qwen3.8-Flash-Next) | YCRC-documented managed service and observed launcher aliases; first portable-host development route. Shared aliases can change and do not freeze an official experiment. |
-| [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Public dense 27B weights, controllable reasoning and 262144 native context; preferred prospective task-owned single-API deployment. Not installed or called here. |
+| [Qwen3.8-Flash-Next](https://huggingface.co/Qwen/Qwen3.8-Flash-Next) | Actual returned model in the new Pi authoring condition, not only a launcher alias. Shared weights/configuration remain unpinned. |
+| [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Exact BF16 weights staged and verified; direct-API runtime preparation pending. No inference or scientific result yet. |
 | [Qwen3-Coder-Next](https://huggingface.co/Qwen/Qwen3-Coder-Next) | Public 80B-total/3B-active coding model; useful coding-agent comparator. Non-thinking-only, so not presumed superior for mathematical theory. Not installed or called here. |
 | [DeepSeek-V4-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) | Public 284B-total/13B-active model; possible later cross-family comparison, not an observed Yale service or selected Qwen-only study condition. No deployment or calls. |
 
 For Paper H, use the same actual managed host/model condition for bare and
 statistical-skill arms, recording effective access and any service changes.
-Sakana's pinned host supports Pi; actual model/task/skill uptake through Yale's
-wrapper is still unverified. For Paper S, a CLI launch is not the required single-API system:
+Sakana's pinned host now reaches real Pi model/file tools through Yale's wrapper;
+that alone does not verify scientific skill benefit. For Paper S, a CLI launch is not the required single-API system:
 verify a supported direct API and exact deployment or use a task-owned pinned
 Qwen service. Do not extract credentials or bypass managed-client restrictions.
 Match the model across each harness contrast rather than confound model upgrades
@@ -74,7 +75,7 @@ The prospective first task-owned model is `Qwen/Qwen3.8-27B`, revision
 `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`. The public Hugging Face metadata lists
 18 BF16 weight shards totaling 55,563,006,776 bytes (about 51.75 GiB), Apache-2.0
 licensing and no access gate. Its native context is 262144 tokens. These are
-source-verified properties, not an installed deployment. Metadata is retained at
+source-verified properties. Metadata is retained at
 `runs/bouchet_model_inventory_20261015/qwen38_27b_metadata.json`.
 This is larger than our historical 4B baseline, not a claim that it outperforms
 Yale's managed Flash-Next model. Task results, not parameter count, decide that.
@@ -100,7 +101,28 @@ partitions, no user GPU job, and substantial `pi_fl426` project/scratch quota
 headroom. The quota tool's report is dated midnight, not live byte accounting.
 Cluster inventory is not idle capacity; request through Slurm. Use task-owned
 storage, a bounded compute-node loopback API and the existing authenticated SSH
-route. No GPU job, large weight download or inference was started by this check.
+route. No GPU job, large weight download or inference was started by that inventory.
+
+Subsequent staging used the exact revision and upstream Hugging Face downloader,
+not a new model-management framework. Job **29684890** exhausted its 12-GiB host
+memory allocation during concurrent downloads. Job **29685132** used the same
+revision/client with the upstream `--max-workers 1` option and 40 GiB host memory;
+it completed in 591 seconds. All 32 files have recorded sizes and SHA-256 hashes,
+and every LFS object matches the source metadata. The receipt is
+`runs/bouchet_model_inventory_20261015/verified-model-files.json`, SHA-256
+`3b138394437dc1c4959330965db95b40c7c1400d0b9479c5105cd96f03d50dfd`.
+The task storage occupies 65 GiB. Both attempts used zero GPUs and made no model
+requests; retain the failed attempt as well as the successful staging.
+
+Upstream vLLM **0.31.0** has a resolved, hash-locked 199-package Linux/Python 3.12
+environment (lock SHA-256
+`77df8a4c761d31626671a829ed344985eeeb3935ad1a75e3bc7fcd0e16dff2f1`).
+Runtime-install job **29685758** is pending after the current scientific arm,
+with two CPUs, 24 GiB, one hour and no GPU. The preparation scripts are under
+`integrations/agentic-scientist/bouchet/`; exact locks, logs and job receipts remain
+in task storage and `runs/bouchet_model_inventory_20261015/`.
+Driver compatibility, actual GPU memory/context fit, tool round trips and
+throughput remain unverified. Do not call staged weights a deployed service.
 
 ## Latest Managed-Host Observation
 
@@ -112,6 +134,18 @@ not be created. There is no model-capacity or scientific result. Original script
 and records remain immutable. A separate zero-inference job **29683607** completed
 with short node-local `/tmp`, exercising the actual launcher, logger and CLI.
 The future runner uses that configuration; no consumed candidate was rerun.
+
+The separately frozen short-temp condition has now returned
+`responseModel=Qwen3.8-Flash-Next` and actual file/tool activity. Stock job
+**29684591** authored a candidate and completed the 60,000-replicate evaluator,
+but passed zero implementation-reference checks. Its source contains an extra
+sample-size division in the covariance; it was not manually fixed or reexecuted.
+Theory remains unassessed. See the
+[terminal stock record](../benchmarks/agentic_scientist_hc0_bouchet_20261015/short_tmp_stock_observation.json).
+Statistical job **29684597** was still running at this update. The separate weight
+transfer overlapped that arm, another reason not to interpret wall-time differences
+causally. Neither this managed-host draw nor the staged 27B weights establish
+Paper S's single-API system or an official publication condition.
 
 ## Transport Conformance
 
