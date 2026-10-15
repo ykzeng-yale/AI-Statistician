@@ -1,0 +1,22 @@
+{
+  "frozen_at_utc": "2026-10-15T21:25:29Z",
+  "project_head_before_work": "71365493c5b8b5d8ea35bbd328a2c04e86de953b",
+  "upstream_commit": "2b8aa39285c35aaca3b0e06dd121061ef8a2d854",
+  "headless_commit": "93cd9b06b85f848af1308c41e018991b33907c5e",
+  "scope": "One real upstream single-attempt CLI invocation per arm; development only, not full campaign, autonomous simulation authoring, research-E2E or official H/S evidence.",
+  "arms_in_order": ["stock", "statistical"],
+  "model_route": "YCRC local-coding-agents/1.1; Pi 0.85.1; bouchet/ycrc-local-think; YCRC_THINKING=1",
+  "model_limit": "Managed Qwen3.8-Flash-Next service according to YCRC documentation. Exact weights, runtime and effective sampling unverified; no commercial fallback or cross-model comparison.",
+  "method_condition": "The existing exposed HC0 family, new complete 12-cell simulation evaluator, 5000 datasets per cell, seed 2026101517. Common task, resources and metric rubric; only stock versus statistical instructions/guidance differ.",
+  "assessment": "Computational compliance only; mathematical files remain UNASSESSED. No numerical success criterion for coverage, power or proof.",
+  "bundle": "runs/bouchet_v3_pi_20261015/frozen_inputs.tar.gz",
+  "bundle_sha256": "559a247ce70336c5ce4b58ef470664b89f7b7afb5b2621dff4be9e9b7f627bbd",
+  "evaluator_sha256": "141c75b45daa50420bfd1285b9a4122ebc85d7b5b5d7958eb4c04bb7f86e9891",
+  "task_sha256": "a07e8174e931dc8d2993160e37d66a3bde098aa6dfb59ccfc064c3fab509fc34",
+  "host_adapter_sha256": "7f2e4dd19224c4a409abdc2cf90e9cc08b242a1fcb299eb5d806890b26d94fc4",
+  "run_script_sha256": "e255a7ee5c3905c369d4284e2335137ae693ad881a825a6e1e35b9650f9d5c3b",
+  "resources_per_arm": {"account": "pi_fl426", "partition": "devel", "cpus": 2, "memory_gib": 8, "wall_minutes": 135, "allocated_gpus": 0, "host_author_seconds": 5400, "evaluator_seconds": 1800},
+  "verification_before_calls": "46 focused evaluator/preparation tests passed in local pinned statsmodels 0.14.6 environment. Full default regression still running. Shell syntax checks passed. Remote bundle SHA256 equals local.",
+  "setup_record": "Job 29682155 installed exact upstream lock and Headless, then failed its final non-inference help probe because the operator used a nonexistent Python module name. Original failure log retained; installed packages verified present. No model calls during setup. The real stage entrypoint is src/scripts/run.sh.",
+  "controller_limit": "agsci investigate requires a validated incumbent incompatible with this empty native reconstruction seed. No fake baseline, patched controller or waived scientific acceptance. Direct single-attempt entry is intentionally narrower."
+}
