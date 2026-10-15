@@ -59,19 +59,28 @@ construction, variance, asymptotics and empirical calibration are distinguished.
 The reviewer cannot infer a proof from numerical agreement. The complete selected
 argument and assessment, rather than only a theorem card, belong in the supplement.
 
-The assessment protocol fixes qualifications, conflicts, arm blinding and
-adjudication. Missing assessment is **pending**, not an adverse expert judgment
+The primary proposed protocol uses a separately calibrated local-Qwen assessor,
+held source/reference arguments and executable references, not a required human
+panel. It fixes model/configuration, operator involvement, arm blinding and
+adjudication before draws. Calibration includes correct, subtly wrong,
+underspecified and valid-alternative arguments with reasoned reference labels;
+author-model consensus is not reference truth. Outcomes are labelled AI-assessed.
+Context separation does not eliminate shared-model errors. Optional human review
+is identified only when actually performed.
+
+Missing assessment is **pending**, not an adverse expert judgment
 and not a score of zero silently entered into an official results table. A
 completed assessment may conclude accepted, rejected or unresolved; an unresolved
 required argument is not independently accepted. A final unresolved disposition
-must be handled by the prospectively specified endpoint. No appointed mathematical
-panel or official adjudicated outcomes currently exist.
+must be handled by the prospectively specified endpoint. The AI-assessor
+calibration and official adjudicated outcomes are not yet established.
 
 Executable references have a separate numerical scope. They can assess faithful
 reproduction under defined tolerances, not prove the source paper's theoretical
-claims or observational causal assumptions. Model review is a product mechanism
-or separately labelled automated diagnostic, not a substitute for missing
-independent authority. Kernel proof additionally needs source-statement fidelity.
+claims or observational causal assumptions. Product self-review is not the common
+external assessment. A prespecified, calibrated AI assessment may supply that
+scoped endpoint without implying human endorsement or mathematical proof.
+Kernel proof additionally needs source-statement fidelity.
 
 Paper access also requires source-presentation qualification. A bounded operator
 comparison of six selected method pages in the three prospective journal papers
@@ -100,12 +109,16 @@ deterministic execution can remove the repeated-run randomness being estimated.
 The realized seeds are retained separately for reproduction. Any remaining
 environment or assessor randomness and dependence must be explicitly identified.
 
-For arm $a$, $Y_{ir}^a\in\{0,1\}$ denotes complete acceptance by independent
-assessment in family $i$, scheduled draw $r$, after resolution under S2.
+For arm $a$, $Y_{ir}^a\in\{0,1\}$ denotes complete acceptance under the declared
+AI/executable assessment in family $i$, scheduled draw $r$, after resolution
+under S2. Assessment is separate from product self-review, not a claim of
+statistical independence between author and judge errors.
 A missing final selection is not an accepted delivery. Environmental interruption,
 scientific rejection, incompletion and unresolved adjudication have distinct
 causes in the record. The endpoint is accepted delivered research, not an
-unobserved error-free mathematical truth. Aggregate official outcomes are not
+unobserved error-free mathematical truth. Judge calibration error and shared-model
+bias are reported separately; more research draws do not eliminate them.
+Aggregate official outcomes are not
 reported while required adjudications remain pending.
 
 For arms $A$ and $B$, define the schedule-averaged target and estimator by
@@ -342,7 +355,7 @@ This supplement contains no operator-authored replacement proof or numerical gol
 | B1 methods | Oracle TSCI, comparison/robust-selected TSCI, TSLS, oracle RF-Init/Plug/Full; preserve each method's information access | No complete qualified seven-method run or reference |
 | B1 output | Declared 18 settings and 25 rounds per setting, each source batch containing 20 repetitions; performance, failures and uncertainty | Source-declared grid/counts, not executed observations |
 | Card E.1 | Exact data/covariates, four alternative bases, split/aggregation and interpretation | Four bases mapped to producer objects; aggregate definition and complete execution/reference unresolved; original RNG absent and exact-derivative redistribution unqualified |
-| Theory | Complete selected explanation with stated assumptions and dependency scope | Independent authority unappointed; source proof findings unresolved |
+| Theory | Complete selected explanation with stated assumptions and dependency scope | Task-specific AI assessment unqualified; source proof findings unresolved |
 | Environment | Explicit native Python/R configurations and exact package/library reconstruction across arms | Local mechanisms are verified, not autonomous use or clean release |
 
 The code-to-display mapping and known source gaps are recorded in the evaluator's

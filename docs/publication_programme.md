@@ -346,14 +346,18 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   distinguishes each source-format channel, coordinate map and missingness;
   Q04 is not closed.
 - [ ] **Q05. Independent mathematical authority.** Freeze claim rubrics, valid
-  alternative arguments, negative/underspecified controls, assessor qualifications,
-  conflicts, blinding and adjudication. Obtain assessor appointments; none is
-  currently established. Missing authority cannot be replaced by Qwen voting.
+  alternative arguments, negative/underspecified controls, exact AI-assessor
+  configuration, source/reference qualification, blinding and adjudication.
+  The worker organizes this process; human appointments are not a prerequisite.
+  The primary proposed endpoint is calibrated local-Qwen assessment outside the
+  author session, explicitly labelled AI-assessed. Separate context does not
+  remove shared-model bias, and Qwen voting cannot establish reference truth.
   The [public-obligation assessment draft](../benchmarks/publication_case_candidates/published_methods/assessment_protocol.md)
   now specifies exact-final review scope and unresolved decisions without giving
   agents mathematical answers or numerical gold. It does not close Q05/A01.
-  Pending appointment blocks formal external acceptance and official study
-  activation, not the production of explicitly unassessed development artifacts.
+  Missing calibration/reference authority blocks official activation, not the
+  production of explicitly unassessed development artifacts. Optional human
+  review is reported only if it actually occurs; no such endorsement is claimed.
 - [ ] **Q06. Comparable actual conditions.** Verify tool/source/data access,
   execution profiles, effective model requests, revision opportunities, confirmation
   exposure and resources across H's two arms and S's four. Record irreducible
@@ -678,8 +682,9 @@ case reconstruction and working releases; never change task acceptance after
 observing results just to close a checklist item.
 
 The current native scientific mechanisms and shared appendix drafting advance prerequisites
-only. Missing author sources, data rights and qualified assessor appointments
-remain external decisions. Until resolved, advance unblocked items of this same
+only. Missing author sources and release rights retain their actual scopes.
+This worker is responsible for qualifying the declared AI assessment rather than
+waiting for the user to recruit reviewers. Advance unblocked items of this same
 programme; do not replace the case, invent authority or launch a knowingly
 unqualified official comparison.
 

@@ -203,8 +203,10 @@ conditions do not contribute observations to the current source-assisted proposa
 
 ### 3.2. Scientific Assessment
 
-The primary scientific endpoint is independently accepted full-task output for
-the frozen intent. Secondary measures include derivation fidelity, implementation,
+The primary proposed endpoint is AI-assessed full-task acceptance for the frozen
+intent, combining separately calibrated mathematical review and required
+executable checks. It is not human-expert endorsement or latent error-free
+research. Secondary measures include derivation fidelity, implementation,
 numerical agreement, empirical uncertainty, formal status, actual resource use
 and operator intervention. Study size, repeats, tolerances and analysis must be
 fixed before opening held results. Equal request counts are not equal tokens,
@@ -218,8 +220,12 @@ assumption or conclusion is recorded as such. A valid alternative argument or a
 justified counterexample can satisfy a task that permits it; an incomplete argument
 remains incomplete even when code and simulation agree with the expected answer.
 Reviewers record the first unsupported step when identifiable and their unresolved
-uncertainty. Expert identities, conflicts, blinding, adjudication and workload
-must be disclosed. No qualified mathematical panel has yet been completed.
+uncertainty. Assessor configuration, operator involvement, blinding, adjudication
+and workload must be disclosed. The primary proposal uses the existing local-Qwen
+review protocol with source-grounded calibration, not a required human panel.
+Its endpoint is labelled AI-assessed acceptance. Separate author/assessor contexts
+do not remove shared-model bias; optional human review is recorded only if it
+actually occurs. This assessment process is not yet qualified.
 
 The prospective evaluation entry now accepts the independent assessors' explicit
 accepted, rejected or unresolved conclusion and complete Markdown/LaTeX report.
@@ -228,15 +234,18 @@ the assessment binds that task, final submission and complete submitted material
 Exact report and protocol copies remain evaluator-side, outside the author's
 feedback. A missing assessment stays pending, and an unresolved argument does
 not meet required theory. The software records this assessment; it does not
-certify the assessors' competence or the argument's truth. A local-model verdict
-is labelled separately and cannot replace a missing or unfavorable independent
-assessment. No expert acceptance is established by the transport tests.
+certify the assessors' competence or the argument's truth. A separately qualified
+local-model protocol is the planned primary authority; external review is an
+alternative only when prospectively selected. Neither can replace a missing or
+unfavorable verdict from the frozen process. Transport tests establish no
+mathematical acceptance or human-expert endorsement.
 
 Final assessment distinguishes the scientific result from its explanation:
 an accurate number, a faithful implementation, a complete argument and an honest
 gap report are different observations. Automated grading, if used for mathematical
-claims, must first be checked on independently adjudicated valid and invalid
-artifacts; it cannot acquire authority from agreement with the author model.
+claims, must first be checked on source-grounded valid, invalid, underspecified
+and valid-alternative artifacts with explicit reference arguments; it cannot
+acquire authority from agreement with the author model.
 PaperBench's separate JudgeEval is a relevant evaluation precedent, not a
 mathematical referee for this study. [PaperBench](https://arxiv.org/abs/2504.01848v1)
 
@@ -286,7 +295,7 @@ a thousand independently evaluated agent outputs. They cannot compensate for
 using one paper family or one successful model draw.
 
 For the outer comparison, the proposed estimand is the package-minus-bare-host
-difference in expected independent full-task acceptance on a fixed qualified
+difference in expected AI-assessed full-task acceptance on a fixed qualified
 benchmark under one specified host, model and resource condition. For $N$
 families, frozen weights $w_i>0$, $\sum_i w_i=1$, and $R_i$ scheduled
 paired draws per family, the aggregate estimate is
@@ -297,7 +306,7 @@ $$
  (Y_{ir}^{\mathrm{package}}-Y_{ir}^{\mathrm{bare}}),
 $$
 
-where $Y_{ir}^a$ indicates complete independent acceptance and $\mathcal B$
+where $Y_{ir}^a$ indicates complete acceptance under that AI/executable assessment and $\mathcal B$
 is the fixed roster; $i$, $r$ and $a$ denote family, scheduled draw and
 arm. Equal-family weights are $1/N$; one primary task/access
 condition per family defines the initial comparison. Report family-level counts,
@@ -431,9 +440,9 @@ status. Numeric diagnostics are separately identified and do not replace a proof
 
 Task materials will state what the agent could see and what was held by the
 evaluator. Hidden mathematical gold includes admissible alternative arguments,
-scope-changing errors and expert assessment instructions, not just one target
+scope-changing errors and substantive assessment instructions, not just one target
 formula. The study record will preserve source versions, task exclusions and the
-expert qualification process. Full DGPs, method settings, random-number handling,
+AI-assessor calibration process. Full DGPs, method settings, random-number handling,
 precision choices, failures and result-generation scripts support the reported
 simulation results.
 

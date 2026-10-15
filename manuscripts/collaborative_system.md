@@ -277,9 +277,11 @@ Missing material stays missing; an earlier passing draft cannot be salvaged as
 a final result. Executable implementation checks and submitted experiment checks
 are separate, so a correct estimator cannot manufacture an absent experiment.
 
-The primary endpoint is independently accepted full-task output for the frozen
-intent. Mathematical acceptance requires qualified authority and a hidden claim
-rubric. An executable reference can judge numerical reproduction but not a proof.
+The primary proposed endpoint is AI-assessed full-task acceptance for the frozen
+intent, combining separately calibrated local-model mathematical review with the
+required executable checks. It is not human-expert endorsement or an error-free
+research indicator. Mathematical assessment requires a source-grounded hidden
+claim rubric. An executable reference can judge numerical reproduction but not a proof.
 PaperBench's replication evaluation motivates artifact-level assessment, while
 statistical derivations require additional mathematical scrutiny. [PaperBench](https://arxiv.org/abs/2504.01848v1)
 Optional formal outcomes remain separately reported.
@@ -290,10 +292,12 @@ or unresolved conclusion. The evaluator binds the report to the frozen task,
 final submission and complete material and stores its exact bytes and protocol.
 It does not create a mathematical referee, infer a verdict from prose or certify
 expertise through a hash. Missing assessment remains pending; unresolved theory
-does not satisfy full-task acceptance. Local-model grading remains a separately
-labelled automatic diagnostic, not a substitute for this independent endpoint.
-The available tests establish record identity and non-substitution only; no
-qualified panel or mathematical acceptance has yet been demonstrated.
+does not satisfy full-task acceptance. The existing separately prequalified local
+semantic protocol is the planned primary path; an external assessment is an
+alternative only if prospectively selected, never an outcome-driven fallback.
+Separate contexts do not remove shared-model errors. The available tests
+establish record identity and non-substitution only; assessor calibration and
+mathematical acceptance have not yet been demonstrated.
 
 Numerical assessment likewise uses exact selected material. The common
 runtime/shared-control view now includes complete declared source-result and
@@ -358,7 +362,7 @@ a reason to invent extra roles, mandatory review rounds or theorem-specific rule
 ### 4.1. Agent-System Comparison
 
 The proposed primary estimand is the full-collaboration-minus-free-planning
-difference in expected independent full-task acceptance on a fixed qualified
+difference in expected AI-assessed full-task acceptance on a fixed qualified
 benchmark, under one frozen base-model and resource condition. The same-workflow
 comparison assesses fixed guidance within one conversation. Its comparison with
 full collaboration assesses the additional product bundle, not session separation
@@ -538,9 +542,11 @@ acceptance. Disproved, conditional, conjectural and unresolved results are label
 according to the actual argument.
 
 The assessment record will specify the hidden rubric, acceptable alternative
-arguments, scope-changing errors, independent reviewer qualifications, blinding,
-conflicts and adjudication. If an automated judge is used, its assessment against
-independent mathematical annotations is reported separately. Reviewer reliability
+arguments, scope-changing errors, AI-assessor configuration, operator involvement,
+blinding and adjudication. The primary proposed endpoint is calibrated local-model
+assessment, not a required human panel. Its source-grounded control performance
+and unresolved judgments are reported separately; session separation does not
+remove shared-model bias or establish human-expert endorsement. Reviewer reliability
 and unresolved cases must not disappear into a single acceptance field. These
 materials are not yet qualified for the official study.
 

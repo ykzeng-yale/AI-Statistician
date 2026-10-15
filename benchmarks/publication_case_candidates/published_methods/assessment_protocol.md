@@ -1,8 +1,10 @@
 # Independent Assessment Protocol: Draft
 
 Original draft: 2026-10-04. Status corrected: 2026-10-15. Draft for Q05/A01,
-**not qualified or frozen authority**. No assessors are appointed, official study
-is activated, mathematical verdict is issued or numerical threshold is set here.
+**not qualified or frozen authority**. No AI assessment process is qualified,
+official study is activated, mathematical verdict is issued or numerical threshold
+is set here. The 2026-10-15 operator clarification removes a human-appointment
+prerequisite; it does not qualify a judge or change any consumed outcome.
 
 ## Scope and Inputs
 
@@ -31,8 +33,10 @@ reconstruction, derivation, implementation and scientific assessment, not blind
 rediscovery or novelty. Lean is not required. Paper H and Paper S use distinct
 draws and interventions; shared tasks do not make their evidence independent.
 
-Use the existing common final-artifact evaluator and its hash-bound external
-theory review, not a second reviewer runtime. Assessment receives only the actual
+Use the existing common final-artifact evaluator and separately qualified local
+semantic-review path for the primary condition, not a second reviewer runtime.
+A frozen external-review record remains an alternative condition, not a fallback.
+Assessment receives only the actual
 final selections and their exact source, input and execution identities.
 An absent final stays absent; an attractive intermediate file is not a substitute.
 Final collection, outcome availability and scientific acceptance are separate.
@@ -568,14 +572,27 @@ valid alternative argument/method rules, new confirmatory design and independent
 assessment remain outstanding. This scope map advances Q04/A01 preparation;
 it does not activate Q07, close those items or alter a consumed result.
 
-## Assessor Appointment and Blinding
+## Assessor Configuration and Blinding
 
-Before freezing, name the mathematical assessor(s), relevant statistical
-expertise, role in producing the tasks/system and conflicts. Disclose author or
-collaborator involvement; do not call an assessment independent merely because it
-occurs in another model session. Use the same qualified process for every arm.
-Specify assignment, review capacity, unresolved-case handling and any second
-assessment/adjudication in advance. No person or agreement rate is invented here.
+The worker organizes the prospective primary assessment using the existing local
+Qwen semantic-review protocol; the user need not recruit real people. Freeze
+weights/runtime/template, prompts, source access, sampling, budgets, context
+separation, assignment and adjudication before calls. The publication endpoint
+is explicitly **AI-assessed acceptance**. A separate session is independent of
+the author's conversation, not statistically independent of the same model's
+errors or evidence of human expertise. Disclose operator reference construction
+and interventions; do not invent a person, appointment or agreement rate.
+
+Qualify the reference rubric and declared judge on source-grounded correct,
+subtly invalid, underspecified and valid-alternative arguments outside official
+draws. Reference labels require substantive reasons and exact source/claim scope;
+neither a published formula alone nor model voting establishes them. Freeze
+qualification criteria before those controls are consumed, report all errors and
+unresolved judgments, and retain uncertainty about calibration performance.
+An unsuccessful qualification cannot be repaired by choosing a favorable judge
+or changing criteria after its results. Use the same qualified process for every
+arm. Human review can be an optional separately recorded validation, not a gate
+that halts all work until appointments exist.
 
 Provide pseudonymous, consistently presented final material without arm names,
 internal verdicts, operator diagnoses or comparative outcome summaries. Retain
@@ -587,16 +604,17 @@ scientifically relevant failures or changing the submitted argument.
 Reviewers should distinguish an incorrect statement, an argument that does not
 establish its claim, an underspecified claim and an unresolved review question.
 Record the consequence and location of each finding, including valid alternatives.
-Use declared negative/underspecified calibration examples outside official draws
-to check consistent treatment; their production and assessment remain pending.
+The declared calibration bank and its actual assessment remain pending.
 
 ## Assessment Record and Decision
 
 Write the mathematical report in Markdown/LaTeX with claim-level findings and an
-explicit assessed scope. The existing small external-review envelope binds its
-authority ID, frozen task hash, actual submission identity hash, complete submitted
-material hash and report path/hash. It carries `accepted`, `rejected` or
-`unresolved`; it is not the mathematical argument itself.
+explicit assessed scope. The local mode retains the existing protocol,
+qualification, request and judgment identities. If external review is selected,
+its existing small envelope binds the authority ID, frozen task hash, actual
+submission identity hash, complete submitted material hash and report path/hash.
+It carries `accepted`, `rejected` or `unresolved`; it is not the mathematical
+argument itself. Neither mode adds a second judge after an unfavorable outcome.
 
 An accepted mathematical report does not override failed code, absent confirmation
 or missing required source reconstruction. A missing assessor/report remains
@@ -611,8 +629,10 @@ intermediate salvage or reassessment of a consumed draw. Prespecified adjudicati
 belongs to that single assessment process, not a second opportunity to select a
 better artifact. Preserve initial findings, disagreement and final dispositions.
 
-Model review can be a separately labelled diagnostic; it is not independent
-mathematical authority for these studies. Optional Lean evidence verifies only an
+Calibrated model review can supply the prespecified AI-assessed endpoint; it is
+not human-expert endorsement or a proof certificate. Unresolved arguments remain
+unresolved, and a new-theory correctness claim cannot be justified by judge
+agreement alone. Optional Lean evidence verifies only an
 exact identity-bound, axiom-clean encoded statement; source fidelity needs its own
 review and non-formal tasks do not wait for kernel closure.
 
@@ -625,8 +645,8 @@ Its conditional interval must not be applied when its assumptions are unqualifie
 
 ## Decisions Required Before Freeze
 
-- Appoint qualified assessors and disclose conflicts; finalize masking, assignment,
-  calibration and adjudication, including what happens when review is unavailable.
+- Qualify the declared local AI-assessment process and reference bank; finalize
+  masking, assignment, calibration and adjudication, including unavailable review.
 - Approve claim-level acceptance obligations and valid alternative/negative
   dispositions without requiring one canonical textual answer.
 - Qualify the proposed estimator input/output contracts and fix executable numerical endpoints,
@@ -638,4 +658,4 @@ Its conditional interval must not be applied when its assumptions are unqualifie
 
 Q05/A01 remain open. This draft advances their assessment specification only;
 mechanism tests, a well-written protocol and evaluator transport cannot certify
-the three methods, appoint an expert or activate an official experiment.
+the three methods, qualify an AI judge or activate an official experiment.

@@ -244,12 +244,22 @@ does not activate a study, select a new test family or alter an old protocol.
 
 ## Dependencies Without A Global Stop
 
-Independent mathematical assessor arrangements are still unresolved. They block
-claims of externally accepted mathematics and the currently planned official
-comparison. They do not block source qualification, model-authored development,
-diagnostic experiments, draft arguments or preparation of reviewable submissions.
-Such outputs retain an explicit unassessed status; Qwen agreement is not a
-substitute. An official run cannot be retrospectively designated development.
+The operator clarified on 2026-10-15 that this worker must organize assessment;
+the user is not required to appoint real people. The prospective primary process
+uses the existing separately qualified local-Qwen review path, evaluator-held
+source/reference arguments and executable references. Freeze its model, context,
+rubric, calibration, blinding and adjudication before product draws. Assess exact
+final artifacts outside the author session and apply the same process to every
+arm. Report this endpoint as **AI-assessed**, never human-expert endorsement or
+kernel proof. Context separation alone does not remove shared-model bias.
+
+Q05 still requires substantive reference qualification and successful prespecified
+controls, including valid alternatives, subtle errors and underspecified claims;
+Qwen agreement is not the reference truth. A failed qualification cannot be
+bypassed by changing the judge or acceptance rule after outcomes. Optional human
+review can strengthen later evidence but is not a standing execution prerequisite.
+Until this process is qualified, arguments remain unassessed and official draws
+remain unactivated. An official run cannot be retrospectively designated development.
 
 TSCI's missing helper and aggregation affect that case; exact-derivative data
 redistribution remains a separate release question. Root and

@@ -14,6 +14,12 @@ S2: What changes under shared-context workflow guidance and under the implemente
 policy that disables reverse author revision? These are operational contrasts,
 not separate estimates of review quality, memory, communication or Lean effects.
 
+For the primary proposed condition, acceptance means the declared calibrated
+AI assessment plus the required executable checks, outside product self-review.
+It is not a latent error-free-research indicator or human-expert endorsement.
+Report judge calibration and unresolved cases separately. More agent draws do
+not remove a judge's systematic errors or shared-model bias.
+
 The scientific target is a complete statistical-method investigation. Its inner
 experiment compares statistical procedures under stated estimands, assumptions
 and data-generating mechanisms. Its outer experiment compares research agents
@@ -35,8 +41,9 @@ source-assisted work. A hidden-proof or hidden-implementation condition requires
 a separate clean run, fixed permitted sources and its own assessment. Existing
 prepared candidates are not retrospectively made blind or extended after results.
 
-Fresh development may produce arguments and experiments while expert assessment
-is pending. Declare that status before calls, retain all outputs, and keep exposed
+Fresh development may produce arguments and experiments while assessment
+qualification is pending. Declare that status before calls, retain all outputs,
+and keep exposed
 families outside the official test pool. Such development cannot supply accepted
 mathematical outcomes or a confirmatory comparative effect. Official activation
 still requires the complete prospective assessment and execution conditions.
@@ -86,7 +93,7 @@ outputs or subscription costs with the open-weight scientific comparisons.
 | Known-result derivation | Problem, definitions and permitted background | Assumptions, exact claim, admissible proofs/counterexamples, derivation rubric |
 | Integrated methods | A narrowly scoped statistical question | Theory, implementation, frozen empirical requirements, honest final report |
 | Formal component | Exact Lean target with proof hidden, or separate informal target | Active-project kernel/axioms, exact identity and source semantics |
-| Extension/rediscovery | Baseline or pre-publication source horizon | Held follow-up/historical result and expert assessment |
+| Extension/rediscovery | Baseline or pre-publication source horizon | Held follow-up/historical result and explicitly scoped mathematical assessment |
 
 Select open, locally reproducible source studies with explicit theoretical and
 numerical claims. Cover distinct inferential domains and both Python and R.
@@ -404,12 +411,28 @@ shortcut. Formal closure and native result-file decoding remain explicit study
 obligations, not implicit fallbacks. Outcomes retain the
 input submission identity hash as well as the material hash.
 
-For theoretical tasks, freeze `external_theory_authority` in the private task
-before the first draw: an `authority_id` and a hash-bound `protocol` reference
+For theoretical tasks, freeze one assessment authority before the first draw.
+Following the operator's 2026-10-15 clarification, the primary planned condition
+uses the existing separately prequalified local-model semantic protocol, labelled
+`assessment_authority=local_model_review`. The worker supplies source-grounded
+reference arguments, claim rubrics and prespecified correct, subtly incorrect,
+underspecified and valid-alternative controls. Their reference judgments must
+have explicit arguments, not author-model consensus. Record calibration outcomes
+and uncertainty, exact model/weights/template, prompts, source access, context
+separation, blinding and adjudication. Apply the same fixed process to every arm.
+Qualification is not yet completed; human appointment is not required to proceed.
+This endpoint measures AI-assessed acceptance, not human-expert certification or
+unqualified mathematical truth. Shared-model and operator-reference biases remain
+limitations even with isolated sessions and masked arm labels.
+
+An optional external-assessment condition may instead freeze
+`external_theory_authority` in the private task: an `authority_id` and a hash-bound
+`protocol` reference
 (`path`, `sha256`, `byte_size`), using resolved evaluator-owned file paths.
-The protocol identifies the qualified assessors,
-conflicts, blinding, full claim rubric, permitted alternatives and adjudication
-procedure. The trusted study caller obtains their final assessment; the product
+The protocol identifies the actual AI or human assessor, configuration or relevant
+expertise, conflicts, blinding, full claim rubric, permitted alternatives and
+adjudication procedure. Never invent a person or imply human endorsement. The
+trusted study caller obtains the final assessment; the product
 does not nominate or invoke its own publication referee. Qualification is a
 scientific responsibility, not a consequence of filling these fields.
 
@@ -425,14 +448,12 @@ An accepted assessment
 cannot manufacture missing material or override a failed implementation/experiment
 check. Review record transport does not establish reviewer independence or truth.
 
-The separately qualified local-model assessment is still available as an
-automated diagnostic condition, with `assessment_authority=local_model_review`.
-It is not the expert mathematical endpoint of these papers. The evaluator rejects
+The evaluator rejects
 simultaneous model and external authorities rather than choosing a favorable
 verdict or falling back when a review is absent. Fix the authority and intended
 endpoint prospectively; do not append a new review to reinterpret a consumed
-outcome. This implementation has only opaque transport tests, no qualified expert
-panel, mathematical acceptance or activated publication study.
+outcome. Existing opaque transport tests qualify neither assessor reliability
+nor mathematical acceptance; no official publication study is activated.
 
 Artifact evaluators take an explicitly frozen JSON view; binary snapshots remain preserved
 at collection, with no generic decoding or silent omission here. Formal input must
@@ -763,9 +784,10 @@ independent tasks and exact-input joins, with separately measured hardware load.
 - Establish gold through reference implementations and mathematical review before
   product runs. Calibrate automated referees on correct, subtly wrong and
   underspecified controls. Qwen consensus alone is not independent correctness.
-- Blind mathematical referees to experimental arm and creator. Use two qualified
-  human assessors and adjudication for the main theoretical claim set when feasible;
-  otherwise disclose the limited authority and restrict conclusions accordingly.
+- Blind mathematical referees to experimental arm and creator. Use the declared,
+  calibrated AI review and prespecified adjudication; report its reference basis,
+  error profile and shared-model limitations. Optional human review is a separate
+  source of evidence, not a mandatory appointment or an implied endorsement.
 - Freeze source access, target DOI/title exclusions and retrieval manifests.
   Historical horizons do not remove pretraining contamination. Include transformed
   parameter/DGP tasks and report that limitation rather than call rediscovery proven.
