@@ -330,9 +330,12 @@ unknown-theorem discovery. Existing EM/normal-means exposure and the common
 software-journal source channel remain limitations. Independent argument authority,
 input/ABI and arm qualification, rights and the roster/precision freeze are still
 pending; these definitions provide no collaborative effect estimate.
-Subsequent development draws consumed the StepMix and ebnm families without
-final submissions. They are excluded from official held-out comparisons;
-bizicount remains unconsumed but unqualified. The official roster is still open.
+Subsequent development draws consumed all three families without final
+submissions. They are excluded from official held-out comparisons. The
+[bizicount condition](../benchmarks/publication_development/bizicount_integrated_20261015/observed_results.json)
+ended at a request timeout before computational research; neither its intermediate
+Markdown nor the unreturned response is accepted theory. These development
+failures provide no efficacy estimate. The official roster is still open.
 
 The unactivated [condition follow-up](../benchmarks/publication_case_candidates/published_methods/prospective_conditions_followup.json)
 binds public estimator transport metadata and all twelve proposed configurations

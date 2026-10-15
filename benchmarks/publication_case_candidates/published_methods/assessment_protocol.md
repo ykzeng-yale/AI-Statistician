@@ -12,14 +12,16 @@ unchanged in the input-preparation records. This prospective draft now refers to
 the three v3 tasks in [execution_questions.json](execution_questions.json),
 whose exact identity is bound by [prospective_conditions_followup.json](prospective_conditions_followup.json).
 The new edition supplies public estimator transport metadata, not a mathematical
-solution, numerical endpoint or acceptance threshold. StepMix and ebnm have since
-been consumed in separately precommitted development draws, both without final
+solution, numerical endpoint or acceptance threshold. All three families have
+been consumed in separately precommitted development draws, all without final
 submissions; their complete families are excluded from official held-out testing.
 Their [current dispositions](README.md#background-and-consumed-family-boundaries)
-and immutable outcomes remain authoritative. Bizicount remains unconsumed but
-unqualified. The original three-task edition is not a fresh official roster.
+and immutable outcomes remain authoritative. The subsequent
+[bizicount record](../../publication_development/bizicount_integrated_20261015/observed_results.json)
+reports request timeout, not mathematical assessment. The original three-task
+edition is not a fresh official roster.
 Final authority must bind an eligible roster and selected edition before official
-calls; this status correction does not revise, assess or rescore either failure.
+calls; this status correction does not revise, assess or rescore any failure.
 The preceding unactivated v2 proposal required an unsupported `unresolved_gaps`
 score; that preparation defect is recorded, not hidden or rescored. Current
 metadata leaves gap reporting in the scientific obligations below rather than

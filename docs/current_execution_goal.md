@@ -101,9 +101,9 @@ theory, Python/R execution and optional Lean. Current execution is serial or
 interleaved; concurrent research speedup has not been shown. Installation fixtures
 on two Macs establish a limited release mechanism, not research efficacy.
 
-StepMix and ebnm are now consumed development families, excluded from official
-held-out comparisons. Bizicount is the only unconsumed candidate in the original
-three-family set; its scientific obligations and numerical authority are still
+StepMix, ebnm and bizicount are now consumed development families, excluded from
+official held-out comparisons. The original three-family set supplies no fresh
+official roster; its independent assessment and numerical authority remain
 unfinished. The [source qualification note](../benchmarks/publication_case_candidates/published_methods/bizicount_scientific_qualification.md)
 now separates the exact joint model from the software's clipped numerical
 objective and flags an unresolved boundary-null reference distribution. These
@@ -125,6 +125,18 @@ corrects the interpretation of the generic runtime label without altering it.
 No complete independently accepted methods investigation or official comparison
 has been established. Do not salvage intermediates, rerun consumed draws or turn
 their formulas into runtime rules.
+
+The subsequent [complete-scope bizicount condition](../benchmarks/publication_development/bizicount_integrated_20261015/observed_results.json)
+also ended BLOCKED without a final submission: 15 requests, one Markdown document,
+a structurally ready but uncommitted index, then a 900-second request timeout.
+Explicit reads reached package documentation and replication scripts, not the
+paper body; no source, scientific-code or simulation execution occurred. The
+partial response to the timed-out call is unavailable. Its inherited timeout can
+expire before the allowed 16384 tokens at the observed local generation rate.
+Do not call that mathematical rejection or a model-capacity ceiling, and do not
+resume it to claim success. Future conditions must prospectively reconcile actual
+resource feasibility with complete scientific scope, not add another repair layer.
+No complete accepted methods investigation or official effect estimate exists.
 
 The [server-schema action observation](../benchmarks/publication_tool_action_qualification_20261015/results.json)
 produced schema-valid responses but failed its artificial file task. Its restricted
@@ -160,8 +172,8 @@ source-grounded argument and report quality under its prospective conditions.
 ## Next Work
 
 1. **Finish scientific task qualification (Q02/Q04, T02--T04, E01).** Correct the
-   current development/test split before further execution. Qualify the remaining
-   candidate and any new families using the
+   current development/test split before further execution. Qualify new families
+   using the
    [source-based eligibility criteria](publication_experiments.md#scientific-eligibility-before-agent-runs),
    not model outcomes. Bind the actual paper edition, central inferential
    claim, theory and code obligations, baseline comparison, simulation design
@@ -188,6 +200,11 @@ source-grounded argument and report quality under its prospective conditions.
    interventions. An unresolved argument stays unresolved; neither an attractive
    intermediate nor a later rerun replaces the final artifact. Development and
    all exposed family material stay outside official held-out comparisons.
+   The original three-candidate set is exhausted. Do not run further families
+   simply to find a pass; complete the coherent new task/model/resource and
+   assessment condition first. A larger token allowance is not usable compute if
+   an earlier transport window cuts it off. Preserve the current failures without
+   inferring what an unreturned response would have achieved.
 3. **Qualify and execute the official comparisons (Q05--Q07, E02--E06).** Freeze
    independent assessment, actual access/resources, task-family splits and
    precision. Run every planned H and S condition with common final-artifact

@@ -133,8 +133,13 @@ selection criterion. Qualification by the operator is not an agent achievement.
   independent assessment, family weights and repeated-run precision. Do not
   shrink a failed task, substitute a successful family or drop a failed draw.
 
-The October 15 StepMix and ebnm draws leave only bizicount unconsumed in the
-original three-candidate set; even that task remains unqualified. The
+The October 15 StepMix, ebnm and subsequent
+[bizicount draw](../benchmarks/publication_development/bizicount_integrated_20261015/observed_results.json)
+consume the original three-candidate set for development. None yielded a final
+submission or qualifies as an official held-out task. Bizicount's final request
+timed out; its unreturned response is not a mathematical rejection or a model
+capacity result. A new condition must reconcile declared token allowance with
+actual local inference time before calls, not quietly retry a failed task. The
 [source screen](publication_sources_20261001.md#biostatistical-method-source-screen-2026-10-15)
 adds no eligible task, fixed roster, official activation or performance result.
 

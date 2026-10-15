@@ -429,8 +429,10 @@ bind these limits. DoubleML, CORE Type-M/Type-S, scikit-fda and fixed-K L2
 segmentation remain excluded from the fresh test pool because their development
 draws were consumed. The October 15 ebnm/StepMix outcomes likewise are development
 failures, not official draws or independent mathematical acceptance. They do not
-close Q02/Q04. Bizicount is the sole unconsumed original candidate and remains
-unqualified; apply the [scientific eligibility criteria](publication_experiments.md#scientific-eligibility-before-agent-runs)
+close Q02/Q04. The subsequent [bizicount draw](../benchmarks/publication_development/bizicount_integrated_20261015/observed_results.json)
+ended at a request timeout with no committed theory, scientific execution or
+final submission. All three original families are now development-exposed and
+unqualified for official testing; apply the [scientific eligibility criteria](publication_experiments.md#scientific-eligibility-before-agent-runs)
 before selecting a new roster. The [bounded biostatistical source screen](publication_sources_20261001.md#biostatistical-method-source-screen-2026-10-15)
 defers LMTP and JointAI as full-task replacements. Neither is activated.
 

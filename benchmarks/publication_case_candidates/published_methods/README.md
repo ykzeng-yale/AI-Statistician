@@ -1,7 +1,7 @@
 # Published-Method Task Candidates
 
-Original selection: 2026-10-03. Current disposition: 2026-10-15. StepMix and ebnm
-were subsequently consumed in development; neither is an official held-out task.
+Original selection: 2026-10-03. Current disposition: 2026-10-15. All three families
+were subsequently consumed in development; none is an official held-out task.
 Their original preparation files and unsuccessful outcome records are unchanged.
 No official experiment, mathematical acceptance or publication effect is claimed.
 
@@ -16,9 +16,9 @@ an answer key. Mathematical content remains model-authored Markdown/LaTeX.
 
 ## Selection and Access
 
-The original proposal selected three inspected software/method studies. Only
-bizicount remains an unconsumed candidate in this set; its eligibility is not yet
-qualified. The intended access condition is **paper plus
+The original proposal selected three inspected software/method studies. All are
+now development-exposed, without final submissions; their full scientific
+eligibility remains unqualified. The intended access condition is **paper plus
 original code and data**, excluding cached outputs and operator/evaluator findings.
 The [bizicount scientific qualification note](bizicount_scientific_qualification.md)
 distinguishes its exact probability model, clipped numerical objective and
@@ -32,7 +32,7 @@ does not make their experiments independent; task overlap is disclosed.
 | --- | --- | --- | --- |
 | [StepMix, JSS 113(8)](https://www.jstatsoft.org/article/view/v113i08); latent classes and external variables; Python | Argument for external-variable estimation/correction; all three simulation grids and GSS; reusable estimators and empirical source; scientific report | Six unchanged Python invocations in the [bound reference record](../../publication_reference_qualification_20261003/stepmix_results.json) | Consumed development, BLOCKED with no final submission; excluded from official held-out comparisons. |
 | [ebnm, JSS 114(3)](https://www.jstatsoft.org/article/view/v114i03); empirical Bayes; R | Prior-fitting/posterior argument; complete default main-text script, simulation and wOBA; reusable estimators and empirical source; report | One unchanged default run in the [bound reference record](../../publication_reference_qualification_20261002/ebnm_results.json) | Consumed development, BLOCKED with no final submission; excluded from official held-out comparisons. |
-| [bizicount, JSS 109(1)](https://www.jstatsoft.org/article/view/v109i01); joint count regression; R | Joint-model/likelihood argument; complete eight-setting simulation and Nigeria analysis; reusable estimators and empirical source; discrepancy report | Full unchanged scientific script in the [bound source record](../../publication_reference_qualification_20261002/sources.json), entry `jss_bizicount_2024` | Integrated reconstruction/assessment candidate, not an automatically correct software oracle. |
+| [bizicount, JSS 109(1)](https://www.jstatsoft.org/article/view/v109i01); joint count regression; R | Joint-model/likelihood argument; complete eight-setting simulation and Nigeria analysis; reusable estimators and empirical source; discrepancy report | Full unchanged scientific script in the [bound source record](../../publication_reference_qualification_20261002/sources.json), entry `jss_bizicount_2024` | Consumed development, BLOCKED after request timeout with no final submission; excluded from official held-out comparisons. Source outputs are not a scientific oracle. |
 
 These are candidate inclusion decisions, not the official test split, a random
 sample or a sufficient sample-size argument. All variants/access conditions from
@@ -50,6 +50,12 @@ inputs; a report containing remembered values is not a reproduced computation.
 
 ## Background and Consumed-Family Boundaries
 
+- The [bizicount outcome](../../publication_development/bizicount_integrated_20261015/observed_results.json)
+  records 15 requests, one Markdown document and a structurally ready but
+  uncommitted index before a 900-second request timeout. No paper-body read,
+  computational research or final submission was observed. The complete family
+  is now development-exposed; no intermediate is promoted or consumed failure
+  retried. Its resource limitation is not a mathematical rejection.
 - The [StepMix outcome](../../publication_development/stepmix_integrated_20261015/observed_results.json)
   and [ebnm outcome](../../publication_development/ebnm_integrated_20261015/observed_results.json)
   supersede the original unconsumed-candidate descriptions, not the immutable
