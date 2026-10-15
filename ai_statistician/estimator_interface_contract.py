@@ -204,81 +204,27 @@ def frozen_estimator_execution_contract_alignment_errors(
     if not isinstance(model_contract, Mapping):
         return [
             f"{label} frozen estimator {expected_id!r} is missing its "
-            "model-authored estimator_interface_contract"
+            "estimator_interface_contract"
         ]
-    def field_values(source: Mapping[str, Any], collection: str, field: str) -> tuple[str, ...]:
-        rows = source.get(collection, [])
-        if not isinstance(rows, list):
-            return ()
-        return tuple(
-            str(row.get(field, "") or "").strip() for row in rows
-            if isinstance(row, Mapping)
-        )
     errors: list[str] = []
-    for collection in ("request_fields", "response_fields"):
-        if field_values(model_contract, collection, "name") != field_values(
-            frozen_contract, collection, "name"
-        ):
+    for collection, keys in (
+        ("request_fields", ("name", "meaning", "binding")),
+        ("response_fields", ("name", "meaning", "normalization")),
+    ):
+        rows = model_contract.get(collection)
+        expected = [{key: row[key] for key in keys} for row in frozen_contract[collection]]
+        actual = [
+            {key: row.get(key) for key in keys} if isinstance(row, Mapping) else row
+            for row in rows
+        ] if isinstance(rows, list) else None
+        if actual != expected:
             errors.append(
                 f"{label} frozen estimator {expected_id!r} {collection} "
-                "names and order must match the frozen executable ABI exactly"
+                f"must match the frozen executable ABI exactly ({', '.join(keys)} "
+                "and order); omit estimator_interface_contract to reference the "
+                "question's ABI without copying it"
             )
-    if field_values(model_contract, "request_fields", "binding") != field_values(
-        frozen_contract, "request_fields", "binding"
-    ):
-        errors.append(
-            f"{label} frozen estimator {expected_id!r} request field bindings "
-            "and order must match the frozen executable ABI exactly"
-        )
     return errors
-
-
-def estimator_interface_contract_json_schema() -> dict[str, Any]:
-    response_required = [
-        "name",
-        "meaning",
-        "normalization",
-        "derivation_ref",
-    ]
-    return {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["request_fields", "response_fields"],
-        "properties": {
-            "request_fields": {
-                "type": "array",
-                "minItems": 1,
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": ["name", "meaning", "binding"],
-                    "properties": {
-                        "name": {"type": "string", "minLength": 1},
-                        "meaning": {"type": "string", "minLength": 1},
-                        "binding": {
-                            "type": "string",
-                            "enum": list(ESTIMATOR_REQUEST_BINDINGS),
-                        },
-                    },
-                },
-            },
-            "response_fields": {
-                "type": "array",
-                "minItems": 1,
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": response_required,
-                    "properties": {
-                        "name": {"type": "string", "minLength": 1},
-                        "meaning": {"type": "string", "minLength": 1},
-                        "normalization": {"type": "string", "minLength": 1},
-                        "derivation_ref": {"type": "string", "minLength": 1},
-                    },
-                },
-            },
-        },
-    }
 
 
 def project_executable_estimator_interface_contract(
@@ -440,7 +386,9 @@ def estimator_interface_contract_errors(
     return errors
 
 
-def normalize_theory_estimator_interface_contracts(body: dict[str, Any]) -> None:
+def normalize_theory_estimator_interface_contracts(
+    body: dict[str, Any], *, frozen_contract: Mapping[str, Any] | None = None,
+) -> None:
     raw_specs = body.get("estimator_specs", [])
     if not isinstance(raw_specs, list):
         return
@@ -450,6 +398,14 @@ def normalize_theory_estimator_interface_contracts(body: dict[str, Any]) -> None
             normalized_specs.append(raw_spec)
             continue
         spec = dict(raw_spec)
+        if (frozen_contract and spec.get("id") == frozen_contract.get("estimator_id")
+                and "estimator_interface_contract" not in spec):
+            contract = project_executable_estimator_interface_contract(frozen_contract)
+            # The estimator claim is the document reference, not a proof of its ABI.
+            for row in contract["response_fields"]:
+                if isinstance(row, dict):
+                    row["derivation_ref"] = spec["id"]
+            spec["estimator_interface_contract"] = contract
         contract = spec.get("estimator_interface_contract")
         if isinstance(contract, Mapping):
             exact_contract = normalize_estimator_interface_contract(contract)

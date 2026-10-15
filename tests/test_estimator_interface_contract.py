@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
+
+import pytest
 
 import ai_statistician.research_architect as research_architect_module
 from ai_statistician.estimator_interface_contract import (
@@ -9,6 +12,7 @@ from ai_statistician.estimator_interface_contract import (
     frozen_estimator_execution_contract_empirical_claim_ids,
     frozen_estimator_execution_contract_errors,
     frozen_estimator_execution_contract_id,
+    normalize_theory_estimator_interface_contracts,
     project_executable_estimator_spec,
 )
 from ai_statistician.algorithm_engineer_llm import (
@@ -135,7 +139,7 @@ def _model_theory_handoff_for_frozen_contract(contract: dict) -> dict:
                     "request_fields": [
                         {
                             "name": row["name"],
-                            "meaning": "Chosen by TheoryDeveloper.",
+                            "meaning": row["meaning"],
                             "binding": row["binding"],
                         }
                         for row in contract["request_fields"]
@@ -143,8 +147,8 @@ def _model_theory_handoff_for_frozen_contract(contract: dict) -> dict:
                     "response_fields": [
                         {
                             "name": row["name"],
-                            "meaning": "Chosen by TheoryDeveloper.",
-                            "normalization": "Chosen by TheoryDeveloper.",
+                            "meaning": row["meaning"],
+                            "normalization": row["normalization"],
                             "derivation_ref": "C1",
                         }
                         for row in contract["response_fields"]
@@ -155,7 +159,8 @@ def _model_theory_handoff_for_frozen_contract(contract: dict) -> dict:
     }
 
 
-def test_frozen_estimator_alignment_binds_identity_and_layout_only() -> None:
+@pytest.mark.parametrize("field", ["meaning", "normalization", "name"])
+def test_frozen_estimator_alignment_preserves_public_semantics(field: str) -> None:
     frozen = _frozen_contract()
     packet = _model_theory_handoff_for_frozen_contract(frozen)
 
@@ -166,11 +171,10 @@ def test_frozen_estimator_alignment_binds_identity_and_layout_only() -> None:
 
     packet["estimator_specs"][0]["estimator_interface_contract"][
         "response_fields"
-    ][0]["meaning"] = "A different model-authored statistical meaning."
-    assert frozen_estimator_execution_contract_alignment_errors(
-        packet,
-        frozen,
-    ) == []
+    ][0][field] = "A different model-authored statistical meaning."
+    errors = frozen_estimator_execution_contract_alignment_errors(packet, frozen)
+    assert len(errors) == 1
+    assert "response_fields must match the frozen executable ABI" in errors[0]
 
 
 def test_frozen_estimator_alignment_rejects_model_renamed_identity() -> None:
@@ -205,9 +209,50 @@ def test_frozen_estimator_alignment_rejects_field_or_binding_drift() -> None:
 
     errors = frozen_estimator_execution_contract_alignment_errors(packet, frozen)
 
-    assert len(errors) == 2
-    assert "request_fields names and order" in errors[0]
-    assert "request field bindings and order" in errors[1]
+    assert len(errors) == 1
+    assert "request_fields must match the frozen executable ABI" in errors[0]
+    assert "name, meaning, binding and order" in errors[0]
+
+
+def test_frozen_estimator_reference_binds_unchanged_abi_without_authoring_it() -> None:
+    frozen = _frozen_contract()
+    original = deepcopy(frozen)
+    packet = {"estimator_specs": [{"id": "est_example", "name": "Example"}]}
+    authored_spec = packet["estimator_specs"][0]
+    normalize_theory_estimator_interface_contracts(packet, frozen_contract=frozen)
+    spec = packet["estimator_specs"][0]
+
+    assert authored_spec == {"id": "est_example", "name": "Example"}
+    assert frozen == original
+    assert frozen_estimator_execution_contract_alignment_errors(packet, frozen) == []
+    assert spec["estimator_interface_contract"]["response_fields"][0] == {
+        "name": "estimate", "meaning": frozen["response_fields"][0]["meaning"],
+        "normalization": frozen["response_fields"][0]["normalization"],
+        "derivation_ref": "est_example",
+    }
+    once = deepcopy(packet)
+    normalize_theory_estimator_interface_contracts(packet, frozen_contract=frozen)
+    assert packet == once
+    # The question's full public shape/units contract remains independent of the ABI projection.
+    changed = deepcopy(frozen)
+    changed["response_fields"][0]["shape"] = "length 2"
+    assert frozen_estimator_execution_contract_id(changed) != frozen_estimator_execution_contract_id(frozen)
+
+
+@pytest.mark.parametrize("replacement", [None, {}, {"request_fields": []}])
+def test_frozen_binding_does_not_repair_an_authored_invalid_contract(replacement) -> None:
+    packet = {"estimator_specs": [{
+        "id": "est_example", "estimator_interface_contract": replacement,
+    }]}
+    normalize_theory_estimator_interface_contracts(packet, frozen_contract=_frozen_contract())
+    assert packet["estimator_specs"][0]["estimator_interface_contract"] == replacement
+    assert frozen_estimator_execution_contract_alignment_errors(packet, _frozen_contract())
+
+
+def test_unfrozen_estimator_still_requires_model_authored_interface() -> None:
+    packet = {"estimator_specs": [{"id": "different", "name": "New estimator"}]}
+    normalize_theory_estimator_interface_contracts(packet, frozen_contract=_frozen_contract())
+    assert "estimator_interface_contract" not in packet["estimator_specs"][0]
 
 
 def test_absent_frozen_estimator_contract_adds_no_legacy_constraint() -> None:
@@ -293,8 +338,11 @@ def test_frozen_contract_reaches_runtime_and_scientific_agent_contexts() -> None
     )
 
 
-def test_theory_free_source_materialization_binds_frozen_question_abi() -> None:
+@pytest.mark.parametrize("with_theory", [False, True])
+def test_source_materialization_binds_frozen_question_abi(with_theory: bool) -> None:
     contract = _frozen_contract()
+    theory = {"packet_id": "theory:test", "estimator_specs": [{"id": "est_example"}]} if with_theory else {}
+    normalize_theory_estimator_interface_contracts(theory, frozen_contract=contract)
     source = "def run_estimator(request): return {'estimate': 0.0}\n"
     packet = materialize_algorithm_source_workspace_record(
         question=OpenResearchQuestion(
@@ -307,7 +355,7 @@ def test_theory_free_source_materialization_binds_frozen_question_abi() -> None:
             },
             estimator_execution_contract=contract,
         ),
-        theory_packet={},
+        theory_packet=theory,
         implementation_gaps=[{"estimator_id": "est_example"}],
         source_rows=[
             {
@@ -335,7 +383,7 @@ def test_theory_free_source_materialization_binds_frozen_question_abi() -> None:
     ] == "response.estimate"
     assert target["estimator_interface_contract_authority"] == {
         "owner_agent": "FrozenResearchQuestion",
-        "source_theory_packet_id": "",
+        "source_theory_packet_id": "theory:test" if with_theory else "",
         "source_theory_packet_hash": stable_hash(contract),
         "source_estimator_ref": "question#/estimator_execution_contract",
         "transport_status": "RUNTIME_BOUND_FROM_FROZEN_QUESTION",

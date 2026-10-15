@@ -580,6 +580,7 @@ def prepare_theory_artifact_workspace(
     research_source_execution: ResearchSourceExecutionSpec | None = None,
     allow_source_replication_checkpoint: bool = False,
     task_intent: Mapping[str, str] | None = None,
+    frozen_estimator_contract: Mapping[str, Any] | None = None,
     workspace_dir: Path | None = None,
     require_document_authority: bool = False,
     writable_artifact_names: Sequence[str] | None = None,
@@ -693,7 +694,7 @@ def prepare_theory_artifact_workspace(
     if not parent:
         raise ValueError("theory workspace requires initial artifacts")
     if "estimator_specs" in parent:
-        normalize_theory_estimator_interface_contracts(parent)
+        normalize_theory_estimator_interface_contracts(parent, frozen_contract=frozen_estimator_contract)
     parent_documents = _normalized_theory_documents(initial_documents or {})
     context_documents = _normalized_theory_documents(read_only_documents or {})
     overlapping_document_paths = sorted(
@@ -960,7 +961,7 @@ def prepare_theory_artifact_workspace(
         # Bind the same derived interface identities used by the published handoff.
         candidate_artifacts = deepcopy(dict(candidate_artifacts))
         if "estimator_specs" in candidate_artifacts:
-            normalize_theory_estimator_interface_contracts(candidate_artifacts)
+            normalize_theory_estimator_interface_contracts(candidate_artifacts, frozen_contract=frozen_estimator_contract)
         state["submissions"] += 1
         state_changed = stable_hash(
             {

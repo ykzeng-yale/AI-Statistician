@@ -20,6 +20,7 @@ from .fingerprint import stable_hash
 from .estimator_interface_contract import (
     ESTIMATOR_REQUEST_BINDINGS,
     frozen_estimator_execution_contract_alignment_errors,
+    frozen_estimator_execution_contract_id,
     estimator_interface_contract_errors,
     estimator_interface_contract_id,
     normalize_theory_estimator_interface_contracts,
@@ -182,6 +183,11 @@ def _theory_output_contract_for_question(
         derivation_contract = output.get("theory_derivation_packet", {})
         if isinstance(derivation_contract, dict):
             derivation_contract.pop("formalization_handoff", None)
+    if question.estimator_execution_contract and "estimator_specs" in output:
+        output["estimator_specs"] = [{
+            "id": question.estimator_execution_contract["estimator_id"],
+            "name": "short name; the matching claim_index entry points to the estimator derivation",
+        }]
     return output, requirements
 
 
@@ -2050,7 +2056,9 @@ def _normalize_theory_packet(
         question,
         formalization_authoring_required=formalization_authoring_required,
     )
-    normalize_theory_estimator_interface_contracts(body)
+    normalize_theory_estimator_interface_contracts(
+        body, frozen_contract=question.estimator_execution_contract,
+    )
     body["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
     body["proof_evidence_boundary"] = KERNEL_PROOF_BOUNDARY
     body["kernel_verified"] = False
@@ -2548,8 +2556,10 @@ def _initial_theory_workspace_prompt(
         "calls, with no separate read or write quota. Use write_theory_document for a "
         "complete text file, edit_theory_document for a hash-bound local edit, and "
         "write_theory_workspace only for compact structured handoffs. Preserve any "
-        "frozen estimator ABI exactly; otherwise author required executable interfaces "
-        "without runtime translation. The required compact handoffs are: "
+        "frozen estimator ABI by submitting only its exact id and a name in estimator_specs; "
+        "index that estimator's mathematical document under the same claim ID. Runtime "
+        "binds the question's unchanged ABI to that reference. Without a frozen ABI, "
+        "author the executable interface yourself. The required compact handoffs are: "
         + required_handoffs
         + ". Handoffs not required by this task intent may remain empty: "
         + optional_handoffs
@@ -2670,14 +2680,12 @@ def _theory_workspace_revision_prompt(
     }
     if "estimator_specs" in writable_artifacts:
         payload["instructions"].append(
-            "The estimator interface contract is part of estimator_specs in this "
-            "same workspace. When estimator semantics or outputs change, inspect and "
-            "revise that executable ABI yourself; when they do not change, preserve "
-            "the parent value exactly. Runtime validates shape and claim references "
-            "but never authors the interface. When the question supplies a frozen "
-            "estimator execution contract, its estimator_id, request and response "
-            "field names and order, and request bindings remain exact external ABI "
-            "identity."
+            "For the question's frozen estimator ABI, submit only its exact id and "
+            "a name in estimator_specs, with the same claim ID indexing its mathematical "
+            "document; runtime binds the unchanged public ABI. A retained parent ABI "
+            "must remain exact. For other estimators, author or revise their executable "
+            "interfaces yourself when semantics change. Structural validation does "
+            "not establish mathematical correctness."
         )
     if "transport_observations" in read_only_observations:
         payload["transport_observations"] = {
@@ -3071,6 +3079,7 @@ def _prepare_initial_theory_artifact_workspace(
         read_only_documents=read_only_artifacts.pop("read_only_documents", {}),
         read_only_artifacts=read_only_artifacts,
         build_candidate=build_candidate,
+        frozen_estimator_contract=question.estimator_execution_contract,
         validate_candidate=lambda packet: _validate_theory_packet_for_question(
             packet,
             question=question,
@@ -3378,6 +3387,7 @@ def _prepare_theory_workspace_revision(
         read_only_artifacts=read_only_artifacts,
         read_only_documents=read_only_documents,
         build_candidate=build_candidate,
+        frozen_estimator_contract=question.estimator_execution_contract,
         validate_candidate=lambda packet: (
             _validate_theory_workspace_revision_packet(
                 packet,
@@ -3521,7 +3531,7 @@ def _finalize_document_workspace_estimator_interfaces(
     *,
     question: OpenResearchQuestion,
 ) -> dict[str, Any]:
-    """Record exact ABIs authored or retained by the document workspace."""
+    """Record model-authored, retained, or frozen-question ABIs without misattribution."""
 
     merged = deepcopy(dict(packet))
     specs = merged.get("estimator_specs", [])
@@ -3546,11 +3556,15 @@ def _finalize_document_workspace_estimator_interfaces(
         for spec in merged.get("estimator_specs", []) or []
         if isinstance(spec, Mapping) and str(spec.get("id", "") or "")
     }
-    interface_authored = "estimator_specs" in changed_artifacts
+    frozen_id = question.estimator_execution_contract.get("estimator_id")
+    authored_count = (
+        len(set(interface_rows) - {frozen_id}) if "estimator_specs" in changed_artifacts else 0
+    )
+    interface_authored = authored_count > 0
     disposition = (
-        "model_authored_or_revised_in_workspace"
-        if interface_authored
-        else "parent_workspace_value_retained"
+        "model_authored_or_revised_in_workspace" if interface_authored else
+        "frozen_question_abi_referenced" if frozen_id in interface_rows else
+        "parent_workspace_value_retained"
     )
     source_packet_id = str(merged.get("packet_id", "") or "")
     authoring_identity = {
@@ -3561,6 +3575,10 @@ def _finalize_document_workspace_estimator_interfaces(
         "interface_contract_ids": interface_rows,
         "disposition": disposition,
     }
+    if frozen_id in interface_rows:
+        authoring_identity["frozen_estimator_execution_contract_id"] = (
+            frozen_estimator_execution_contract_id(question.estimator_execution_contract)
+        )
     merged["estimator_interface_authoring"] = {
         "artifact_kind": "TheoryEstimatorInterfaceWorkspaceRecord",
         "artifact_id": (
@@ -3572,10 +3590,8 @@ def _finalize_document_workspace_estimator_interfaces(
         "model": str(merged.get("model", "") or ""),
         "model_tier": str(merged.get("model_tier", "") or ""),
         "n_interfaces": len(interface_rows),
-        "n_interfaces_authored_or_revised": (
-            len(interface_rows) if interface_authored else 0
-        ),
-        "n_interfaces_reused": 0 if interface_authored else len(interface_rows),
+        "n_interfaces_authored_or_revised": authored_count,
+        "n_interfaces_reused": len(interface_rows) - authored_count,
         "model_call_used": interface_authored,
         "dedicated_model_call_used": False,
         "workspace_session_used": True,

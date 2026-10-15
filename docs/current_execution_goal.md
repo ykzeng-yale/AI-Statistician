@@ -81,15 +81,19 @@ simulation or application execution. The author stopped over handoff validation,
 not a resource limit; the drafts also lack adequate source-grounded arguments.
 See the [immutable outcome record](../benchmarks/publication_development/ebnm_integrated_20261015/observed_results.json).
 This is failure evidence, not a completed workflow or evidence that its mathematical
-question is unsolvable. The immediate follow-up is to remove unnecessary frozen-ABI
-reauthoring across mismatched public/internal schemas and make source access clear,
-using shared mechanisms and deterministic tests. Do not repair or rerun this draw,
+question is unsolvable. The shared interface now permits the author to reference
+the frozen estimator by ID/name and index its mathematical document. Runtime binds
+the unchanged public ABI without requiring a second model-authored copy; it records
+the frozen contract identity rather than claiming autonomous interface invention.
+Deterministic tests cover first submission, document revision, missing derivation
+references, conflicting interfaces and unfrozen model-owned interfaces. This is
+mechanism evidence only, not a new successful research run. Do not repair or rerun this draw,
 raise limits as the presumed solution, or turn its formulas into runtime rules.
-For a task with a frozen executable contract, the owner should reference its fixed
-identity and author only genuinely new mathematical meanings or derivation links.
-It should not recopy request names, binding rules and output shapes into another
-schema. Preserve the original contract and independent semantic review while
-reducing this representation burden; do not add a new repair layer.
+Mathematical definitions, arguments and source use still belong to the model's
+documents and independent assessment. The next scientific development must show
+that usable source access and this simpler handoff actually support a complete
+workflow. Do not substitute interface conformance for correct mathematics or add
+a new repair layer.
 
 The immediate priority is a complete methods-research workflow, with the same
 estimand, assumptions, algorithm and interpretation followed across artifacts.

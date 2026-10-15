@@ -32,7 +32,7 @@ from ai_statistician.estimator_interface_contract import (
     ESTIMATOR_REQUEST_BINDINGS,
     estimator_interface_contract_id,
     estimator_interface_contract_errors,
-    estimator_interface_contract_json_schema,
+    frozen_estimator_execution_contract_id,
     normalize_estimator_interface_contract,
     project_executable_estimator_interface_contract,
     theory_estimator_interface_contracts,
@@ -1843,7 +1843,7 @@ def test_source_normalization_preserves_legacy_metadata_without_authorizing_it()
     assert normalized_rate["contributions"] == rate["contributions"]
 
 
-def test_canonical_interface_schema_excludes_legacy_rate_metadata() -> None:
+def test_canonical_interface_projection_excludes_legacy_rate_metadata() -> None:
     contract = json.loads(
         json.dumps(
             _sample_response()["estimator_specs"][0][
@@ -1855,24 +1855,15 @@ def test_canonical_interface_schema_excludes_legacy_rate_metadata() -> None:
         "scale": "not_indexed",
         "synthetic_exponent": 99,
     }
-    schema = estimator_interface_contract_json_schema()
-    response_schema = schema["properties"]["response_fields"]["items"]
-
-    assert response_schema["required"] == [
-        "name",
-        "meaning",
-        "normalization",
-        "derivation_ref",
-    ]
-    assert set(response_schema["properties"]) == set(
-        response_schema["required"]
-    )
     assert estimator_interface_contract_errors(
         contract,
         label="interface",
         required=True,
     ) == []
     projected = project_executable_estimator_interface_contract(contract)
+    assert set(projected["response_fields"][0]) == {
+        "name", "meaning", "normalization", "derivation_ref",
+    }
     assert "sample_size_order" not in projected["response_fields"][0]
     assert "sample_size_rate" not in projected["response_fields"][0]
 
@@ -2665,6 +2656,102 @@ def test_document_theory_handoff_keeps_math_out_of_estimator_json(
         "estimator_interface_contract",
         "estimator_interface_contract_id",
     }
+
+
+def _frozen_abi_from_test_spec(spec: dict) -> dict:
+    frozen = {
+        "schema_version": 1, "estimator_id": spec["id"], "entrypoint": "run_estimator",
+        "invariants": [], "empirical_claims": [],
+    }
+    for collection in ("request_fields", "response_fields"):
+        frozen[collection] = [{
+            **row, "clause_id": f"{collection}.{row['name']}",
+            "json_type": "number", "shape": "scalar", "units": "test units",
+            "indexing": "not_applicable", "edge_cases": "Must be finite.",
+        } for row in spec["estimator_interface_contract"][collection]]
+    return frozen
+
+
+def test_frozen_abi_reference_survives_theory_workspace_and_revision(tmp_path: Path) -> None:
+    core, documents = _file_authority_theory_fixture(_sample_response())
+    spec = core["estimator_specs"][0]
+    frozen = _frozen_abi_from_test_spec(spec)
+    spec.pop("estimator_interface_contract")
+    question = OpenResearchQuestion(
+        id="frozen-reference-workspace", title="Reference a public executable ABI",
+        description="Develop the mathematical documents using the unchanged public ABI.",
+        task_intent={"theory": "required", "scientific_code": "required",
+                     "empirical": "required", "formal": "required"},
+        estimator_execution_contract=frozen,
+    )
+    document_path, document = next(iter(documents.items()))
+    provider = ScriptedTheoryToolBackend(tool_responses=[
+        _theory_tool_response(ClientToolCall("context", "read_theory_workspace", {
+            "artifact_names": ["initial_authoring_context"],
+        })),
+        _theory_tool_response(ClientToolCall("document", THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL, {
+            "path": document_path, "content": document,
+        })),
+        _theory_tool_response(ClientToolCall("handoff", THEORY_WORKSPACE_WRITE_TOOL,
+            _theory_artifact_writes({key: core[key] for key in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT}))),
+        _theory_tool_response(ClientToolCall("inspect", "read_theory_workspace", {
+            "document_paths": [document_path],
+        })),
+        _theory_checkpoint_response(),
+    ], generator_responses=[])
+    config = ResearchArchitectConfig(
+        provider_name="local", model=DEFAULT_LOCAL_GENERATOR_MODEL, model_tier="local",
+        serious_model=DEFAULT_LOCAL_GENERATOR_MODEL, serious_model_tier="local",
+        max_tokens=16000, serious_max_tokens=16000,
+    )
+    packet = LLMTheoryDeveloperAgent(provider=provider, config=config).derive(
+        question, theory_workspace_root=tmp_path / "initial",
+    )
+    assert research_architect_module._validate_theory_packet_for_question(packet, question=question) == []
+    contract = packet["estimator_specs"][0]["estimator_interface_contract"]
+    assert all(row["derivation_ref"] == spec["id"] for row in contract["response_fields"])
+    assert packet["kernel_verified"] is False
+    assert provider.generator_requests == []
+    assert packet["estimator_interface_authoring"]["disposition"] == "frozen_question_abi_referenced"
+    assert packet["estimator_interface_authoring"]["n_interfaces_authored_or_revised"] == 0
+    assert packet["estimator_interface_authoring"]["n_interfaces_reused"] == 1
+    assert packet["estimator_interface_authoring"]["frozen_estimator_execution_contract_id"] == frozen_estimator_execution_contract_id(frozen)
+    prompt_contract, _ = research_architect_module._theory_output_contract_for_question(
+        THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT, question=question, formalization_authoring_required=True,
+    )
+    assert set(prompt_contract["estimator_specs"][0]) == {"id", "name"}
+    assert set(spec) == {"id", "name"}
+
+    invalid = deepcopy(packet)
+    invalid["theory_derivation_packet"]["claim_index"] = [
+        row for row in invalid["theory_derivation_packet"]["claim_index"] if row["id"] != spec["id"]
+    ]
+    errors = research_architect_module._validate_theory_packet_for_question(invalid, question=question)
+    assert any("has unresolved derivation_ref" in error for error in errors)
+
+    revised_document = document + "\n## Revision note\n\nThe public interface is retained.\n"
+    revision_provider = ScriptedTheoryToolBackend(tool_responses=[
+        _theory_tool_response(ClientToolCall("revise", THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL, {
+            "path": document_path, "content": revised_document,
+        })),
+        _theory_tool_response(ClientToolCall("inspect", "read_theory_workspace", {
+            "document_paths": [document_path],
+        })),
+        _theory_checkpoint_response(),
+    ], generator_responses=[])
+    context = _metric_theory_revision_context(question=question, parent=packet)
+    parent_session = packet["llm_client_tool_loop"]["client_tool_session_ref"]
+    context[THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY]["parent_client_tool_session_ref"] = parent_session
+    revised = LLMTheoryDeveloperAgent(provider=revision_provider, config=config).derive(
+        question, architect_context=context,
+        theory_workspace_root=tmp_path / "initial",
+    )
+    assert research_architect_module._validate_theory_packet_for_question(revised, question=question) == []
+    assert revised["estimator_specs"] == packet["estimator_specs"]
+    assert revised["estimator_interface_authoring"]["model_call_used"] is False
+    assert revised["estimator_interface_authoring"]["n_interfaces_reused"] == 1
+    assert revised["llm_client_tool_loop"]["resumed_from_client_tool_session_ref"] == parent_session
+    assert revision_provider.generator_requests == []
 
 
 def test_document_theory_handoff_rejects_duplicated_mathematical_content(
@@ -3474,8 +3561,9 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged(
 
 
 @pytest.mark.parametrize("tamper_interface", [False, True])
+@pytest.mark.parametrize("frozen_abi", [False, True])
 def test_runtime_review_roundtrip_restores_real_theory_workspace(
-    tmp_path: Path, tamper_interface: bool,
+    tmp_path: Path, tamper_interface: bool, frozen_abi: bool,
 ) -> None:
     from ai_statistician.agent_runtime import AgentRuntime, AgentTask, BlackboardState
     from ai_statistician.research_agent_runtime import TheoryDeveloperRuntimeSubsystem
@@ -3488,6 +3576,9 @@ def test_runtime_review_roundtrip_restores_real_theory_workspace(
                      "empirical": "required", "formal": "required"},
     )
     fixture, documents = _file_authority_theory_fixture(_serious_sample_response())
+    if frozen_abi:
+        question.estimator_execution_contract.update(_frozen_abi_from_test_spec(fixture["estimator_specs"][0]))
+        fixture["estimator_specs"][0].pop("estimator_interface_contract")
     path, document = next(iter(documents.items()))
     provider = ScriptedTheoryToolBackend(tool_responses=[
         _theory_tool_response(ClientToolCall(

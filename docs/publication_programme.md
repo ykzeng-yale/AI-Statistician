@@ -39,8 +39,10 @@ effect is reportable without redefining success.
 The [October 15 ebnm development record](../benchmarks/publication_development/ebnm_integrated_20261015/observed_results.json)
 does not complete an item: the author stopped over handoff validation after 28
 calls, before independent review or computation. Neither resource ceilings nor
-Lean caused that stop. Reduce duplicated public/internal interface authoring and
-verify source access before another prospectively declared condition. Keep this
+Lean caused that stop. Frozen-ABI reference binding now removes the duplicate
+authoring step, with deterministic mechanism tests but no new live efficacy
+evidence. Verify actual primary-source use and scientific progress in the next
+prospectively declared condition. Keep this
 failed run and the exposed family out of official held-out comparisons.
 
 The minimum scientific scope is a justified comparison of the implemented
