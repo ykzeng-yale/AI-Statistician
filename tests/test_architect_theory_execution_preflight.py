@@ -154,7 +154,7 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "do not reproduce the candidate or write a substitute proof" in protocol
     assert len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT) < 1_000
     assert len(protocol) < 3_000
-    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 50
+    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 51
 
 
 def test_preflight_preserves_the_exact_frozen_research_target() -> None:
@@ -2608,9 +2608,12 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     for phrase in (
         "structured handoff is only an index",
         "model-directed search and exact range reads",
-        "smallest set of load-bearing claims",
+        "reconstruct the load-bearing claims",
         "exact definitions and stated assumptions",
-        "deriving both sides from common definitions",
+        "Derive equivalence from common definitions",
+        "one justified change per line",
+        "check its conditions here",
+        "Numerical agreement is not proof",
         "each tool call encodes the proposition",
         "correct conclusion does not validate",
         "your own proposed blockers",

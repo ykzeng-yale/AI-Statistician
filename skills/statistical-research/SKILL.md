@@ -8,7 +8,8 @@ description: Develop or reproduce statistical methods research with reviewable m
 Use the host coding agent's own file, search and execution tools. There is no
 embedded model client or second scheduler. Read only the project context and
 references needed for the current question. See
-[research workspaces](references/workspaces.md) for scientific artifacts and
+[research workspaces](references/workspaces.md) for derivations, review, manuscript
+writing and linked scientific artifacts, and
 [local tooling](references/tooling.md) when using the AI-Statistician checkout.
 
 Clarify the inferential question, permitted sources and required evidence.
@@ -22,7 +23,8 @@ Maintain substantive mathematics in Markdown/LaTeX files. State definitions and
 assumptions explicitly; develop justified equation chains and dependent claims,
 with counterexamples, conditional results and unresolved gaps kept visible.
 Choose useful derivation length and local edits yourself. JSON can identify
-artifacts but is not the mathematical research medium.
+artifacts but is not the mathematical research medium. Verify the conditions of
+invoked results; an expected or published answer is a claim to investigate.
 
 Prototype when the estimand and computational interface are sufficiently clear.
 Use exploratory Python/R to challenge claims and inform the next derivation.
@@ -52,3 +54,8 @@ empirical uncertainty and honest gaps. Separate reproduced, independently review
 empirically supported and kernel-closed evidence. Host skill instructions do not
 enforce runtime isolation or certify a scientific result; describe actual tool
 permissions and review authority in the report.
+
+When a manuscript is requested, develop its scientific argument from the actual
+selected theory and results, with complete supporting proofs and experiments.
+Keep the main text, appendix, algorithm, tables and interpretation synchronized
+through revisions; polish cannot supply a missing result or resolve a proof gap.

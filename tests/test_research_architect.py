@@ -2570,6 +2570,9 @@ def test_theory_developer_prompt_requires_model_owned_referee_self_check() -> No
     assert "remove false work or delimit it as SCRATCH or REJECTED" in prompt
     assert prompt.count(reasoning_contract) == 1
     assert "exact definitions and stated assumptions" in prompt
+    assert "one justified change per line" in prompt
+    assert "check its conditions here" in prompt
+    assert "Numerical agreement is not proof" in prompt
     assert "each tool call encodes the proposition" in prompt
     assert "correct conclusion does not validate" in prompt
     assert "skeptical author" in prompt

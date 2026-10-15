@@ -17,6 +17,21 @@ import pytest
 SKILL = Path(__file__).resolve().parents[1] / "skills" / "statistical-research"
 
 
+def test_portable_research_guidance_is_self_contained_and_links_paper_material():
+    entry = (SKILL / "SKILL.md").read_text()
+    guidance = (SKILL / "references" / "workspaces.md").read_text()
+    assert "manuscript" in entry and "references/workspaces.md" in entry
+    assert "## Theory Development And Revision" in guidance
+    assert "## Manuscript And Supporting Material" in guidance
+    assert "one justified transformation per line" in guidance
+    assert "verify its relevant conditions" in guidance
+    assert "source owner authors the correction" in guidance
+    assert "synchronize dependent definitions" in guidance
+    assert "do not force it into false equalities" in guidance
+    assert "/Users/" not in entry + guidance
+    assert "~/.codex/skills" not in entry + guidance
+
+
 @pytest.mark.parametrize("discovery", [".agents/skills", ".claude/skills"])
 def test_portable_project_link_keeps_relative_references(tmp_path, discovery):
     copied = tmp_path / "skills" / SKILL.name

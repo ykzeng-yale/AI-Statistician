@@ -128,6 +128,7 @@ One claim index locates the mathematical documents and their dependencies. Probl
 The validator checks only typed handoff structure and formal artifacts depend on intent. Historical packets remain readable, but fresh no-intent authoring exposes only the mathematical core until the Architect binds a request-scoped plan.
 Durable Markdown/LaTeX is the publishable current argument, not a transcript of false starts. An integrated replication report is a separate workspace document and cannot be the sole mathematical document in a Theory packet. Exploration stays in scratch or is explicitly delimited as `SCRATCH` or `REJECTED`; a later correction does not silently deactivate earlier active text.
 
+The shared model reasoning prompt used by TheoryDeveloper, its independent referee and final Critic adapts local derivation practices: justified aligned transitions, invoked-theorem conditions, exact object meaning and honest uncertainty. These are model instructions, not runtime mathematics rules; personal skill files are not implicit API context. The portable skill separately includes manuscript and supporting-material guidance, without establishing a standalone manuscript-writing capability.
 Discovery and revision share exact parent and reviewer artifacts. Theory authors and
 referees execute ordinary Python/R scripts; hash-bound output and errors return to
 the same model. Scratch requires no function or JSON return; confirmation retains

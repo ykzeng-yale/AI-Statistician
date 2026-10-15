@@ -88,6 +88,13 @@ prescribe a statistical method, proof decomposition, tactic sequence or response
 to a particular error. Search queries, code, derivations and every revision remain
 the coding agent's decisions.
 
+For manuscript tasks, the workspace reference connects the contribution to its
+actual argument and evidence, and describes complete supporting mathematical,
+simulation and application material. Revisions revisit affected definitions,
+algorithms, tables and conclusions. This is writing and review guidance adapted
+from the owner's research workflows, not a fixed paper template, automatic
+scientific acceptance or a demonstrated improvement in manuscript quality.
+
 Actual mathematical content lives in ordinary files. Compact references identify
 claims, dependencies and checkpoints when needed; JSON is not the authoritative
 medium for a long derivation. A researcher can inspect and revise those same files

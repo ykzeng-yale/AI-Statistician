@@ -149,6 +149,14 @@ before relying on that path for document-backed judgments; retaining redundant
 claim lists would not resolve it. The canonical preflight and executable-evaluator
 research path retain their existing independent document checks.
 
+Local derivation and manuscript skills are now selectively adapted into the
+existing shared reasoning prompt and portable workspace reference; the
+[reuse/access record](publication_sources_20261001.md#harness-access-follow-up-and-local-skill-reuse)
+distinguishes their actual deployment from the still unavailable Meta health-study
+bundle. This is prompt/guidance availability, not a scientific quality result or
+an implemented standalone manuscript writer. The next workflow must demonstrate
+source-grounded argument and report quality under its prospective conditions.
+
 ## Next Work
 
 1. **Finish scientific task qualification (Q02/Q04, T02--T04, E01).** Correct the

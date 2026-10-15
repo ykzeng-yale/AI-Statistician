@@ -49,6 +49,60 @@ outcomes. Same-model findings remain limited to the tested configuration.
 This follow-up changes the execution goal and paper positioning. It supplies no
 new model run, clinical result, mathematical verdict or qualified benchmark.
 
+### Harness Access Follow-Up And Local Skill Reuse
+
+The user supplied contributor/networking leads. Only the harness-related public
+claims were investigated; private connection routes and the full directory are
+not research-system inputs or public release material. The search tool could not
+read the two exact X posts. A subsequent logged-out browser check read
+[Boone Calhoun's contribution statement](https://x.com/TheBooneCalhoun/status/2110473206046040243)
+and [Ben Tang's contribution statement](https://x.com/bennyjtang/status/2110471696188645708).
+Both confirm involvement in the harness used for the announced work; neither
+visible post body supplies a code or skill-bundle link. This was not a complete
+reply/thread audit. No outreach, account change or software installation occurred.
+
+[Tang's own homepage](https://benjtang.dev/) also describes an internal engineering
+agent harness, not an offered health-study source release. The official
+[Muse Code announcement](https://research.meta.ai/blog/introducing-muse-code-and-muse-spark-1-2)
+offers an installable general coding agent and describes its event log and skills;
+that is different from obtaining this clinical research scaffold, its study
+skills, data definitions or review process. No such complete, licensed package was
+verified in this bounded search. Author-provided access could change that result.
+An attributable version, reuse permission and the actual scientific workflow would
+need inspection before integration; the proprietary patient data are a separate
+access question.
+
+The [obra/muse-skills README](https://github.com/obra/muse-skills) identifies itself
+as an unofficial container-skill mirror. Only its README and directory inventory
+were inspected. It is not verified as the health-research bundle; reuse rights and
+scientific relevance were not qualified. No mirror content was installed, copied
+into prompts or executed. Similarly named third-party meta-harness projects are
+not evidence of an official Meta health-scaffold release.
+
+The directly usable resources are the owner's installed research skills. This
+adaptation inspected their SKILL definitions and the October 8 observed-edit ledger
+for bounded writing lessons. These are working practices, not verified statistical
+answers or evidence that a collaborator approved a theorem. Exact inspected SKILL
+hashes on October 15:
+
+| Installed skill | SHA-256 |
+| --- | --- |
+| `chain-equation-derivations` | `e2f9b2eb59b1e2ccf7dc0512a8d4afb61d6661376de667f7953f215aeb67f625` |
+| `fan-paper-writing` | `f93c74bfe66e21cc185127e2f8f2e48bff3b72227be0957a8b3a2e3950c79434` |
+| `fan-paper-revision` | `4538ec1dbe696bb9d978a3db39a3c01b54eeb9fca8430cd43ceb397161ee642e` |
+| `fan-paper-review` | `0bcae3994a72b515513d2835993272688d10cb8ed3038325aaad3768a4f62ae0` |
+
+The existing shared reasoning prompt now asks TheoryDeveloper, the independent
+referee and final Critic to expose justified derivation transitions and verify
+invoked-result conditions. The existing portable skill's workspace reference
+adapts theory development, evidence-focused writing and dependency-aware revision.
+It remains self-contained; an API agent does not automatically inherit the
+operator's personal skills. No paper-specific formula, example, preferred answer,
+new validator, repair action or extra research stage was imported. The revision
+changes future prompt conditions (preflight protocol 51), not consumed results.
+Availability in a prompt is not demonstrated uptake or scientific improvement;
+standalone complete-manuscript authoring remains unqualified.
+
 ## Biostatistical Method Source Screen: 2026-10-15
 
 Purpose: investigate two method families relevant to longitudinal health research
