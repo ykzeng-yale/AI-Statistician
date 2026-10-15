@@ -1,0 +1,17 @@
+{
+  "frozen_at_utc": "2026-10-15T21:41:00Z",
+  "project_commit": "d2e8e6b0dd78f4537d6938f418b548ee554dbc89",
+  "parent_condition": "precall.json",
+  "purpose": "Fresh development condition after the documented pre-client launch failure; not an official comparison, a rescore or a model-capacity claim.",
+  "change": "Short node-local /tmp for launcher sockets and bounded logs; explicit fresh AISTAT_RUN_ROOT. The actual zero-inference verification job 29683607 completed. Reuse the installed pinned upstream, Headless and Python environment; do not patch upstream or supply a solved candidate.",
+  "unchanged": "Task/evaluator scientific bytes, blank seed, public source access, metric rubric, instruction contrast, arm order, managed Qwen/Pi alias, budgets and assessment scope are identical to the parent condition. No cross-arm or previous-output access.",
+  "arms_in_order": ["stock", "statistical"],
+  "resources_per_arm": {"account": "pi_fl426", "partition": "devel", "cpus": 2, "memory_gib": 8, "wall_minutes": 135, "allocated_gpus": 0, "host_author_seconds": 5400, "evaluator_seconds": 1800},
+  "route_reason": "Both authorized accounts passed identical standard-tier test-only requests with similar estimates; reuse the task's installed environment and pi_fl426 storage. No current task job exists. Shared inference requires CPU hosting, not a duplicate owned GPU allocation.",
+  "bundle": "runs/bouchet_v3_pi_shorttmp_20261015/frozen_inputs.tar.gz",
+  "bundle_sha256": "bfa1eaad9cbb3cb3588556525982466b69e1e01c2daa985f059be0164a8be635",
+  "run_script_sha256": "f8aa0effb645ae75e534707d8d569befe67140114a9178c6d04eda8fcdfff12c",
+  "remote_root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-v3-Pi-shorttmp-20261015",
+  "verification": "2436 default tests passed, 90 skipped, one existing xfail; separate evaluator/preparation tests 46 passed. Input generation is fresh and has no candidate solution. Model revision/effective sampling remain unverified managed-service properties, so this cannot be a pinned publication condition.",
+  "completion_boundary": "One existing upstream module attempt per arm, not the full campaign. Computational compliance and complete numerical study are separate from mathematical assessment; theory remains UNASSESSED. Preserve every terminal outcome and do not retry a model-authored candidate for credit."
+}
