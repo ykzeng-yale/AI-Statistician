@@ -71,7 +71,11 @@ on two Macs establish a limited release mechanism, not research efficacy.
 StepMix and ebnm are now consumed development families, excluded from official
 held-out comparisons. Bizicount is the only unconsumed candidate in the original
 three-family set; its scientific obligations and numerical authority are still
-unfinished. The original preparations remain historical records, not a qualified
+unfinished. The [source qualification note](../benchmarks/publication_case_candidates/published_methods/bizicount_scientific_qualification.md)
+now separates the exact joint model from the software's clipped numerical
+objective and flags an unresolved boundary-null reference distribution. These
+are assessment-preparation findings, not model results or a substitute for a
+complete methods study. The original preparations remain historical records, not a qualified
 current roster. TSCI remains the
 exposed substantive case with missing source/aggregation/data-rights dependencies.
 Historical Haiku and consumed Qwen outcomes stay unchanged. Exact records belong

@@ -20,6 +20,10 @@ The original proposal selected three inspected software/method studies. Only
 bizicount remains an unconsumed candidate in this set; its eligibility is not yet
 qualified. The intended access condition is **paper plus
 original code and data**, excluding cached outputs and operator/evaluator findings.
+The [bizicount scientific qualification note](bizicount_scientific_qualification.md)
+distinguishes its exact probability model, clipped numerical objective and
+unresolved inferential calibration. It is evaluator preparation, not an author
+hint, accepted mathematical authority or a reduction of the full task.
 Both papers may use the same qualified questions with distinct frozen draws:
 host bare/package for H, four existing standalone modes for S. A shared question
 does not make their experiments independent; task overlap is disclosed.

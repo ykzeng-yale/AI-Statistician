@@ -427,6 +427,12 @@ The existing reference scopes impose these endpoint-specific limits:
   completed-fit summaries and the source's numerical conventions distinct.
   Numerical reconstruction and assessment of the convention are separate;
   neither failed fits nor unexplained journal differences disappear from review.
+  The [scientific qualification note](bizicount_scientific_qualification.md)
+  records the exact source's two-sided probability clipping and a boundary-null
+  issue in the application test. It does not establish realized estimator error,
+  a corrected test law or an accepted mathematical verdict. Qualify the intended
+  model and numerical/inferential endpoints separately; agreement with the
+  package is not a general correctness oracle. Keep this note outside author inputs.
 
 An absent endpoint, unqualified parser/tolerance or unresolved scientific
 convention remains unconfigured/unresolved under the frozen assessment process,
