@@ -34,3 +34,11 @@ against separately prepared source-grounded reference reasoning. Agreement of
 labels, execution, numerical checks and model confidence are not proof. The
 current native product reviewer and the common external publication endpoint
 are distinct authorities; qualifying one does not silently qualify the other.
+
+The prospective [native-review protocol](assessment_protocol.md) now fixes five
+source-grounded argument controls, isolated contexts, complete-panel execution
+and a separate examination of decisive reasons. `qualify.py` directly reuses the
+current read-only Markdown reviewer; `run_assessment.sh` uses the existing pinned
+runtime and deployment probe. These files are preparation, not inference or a
+qualified assessor. The old consumed 4B condition is unchanged. No repeated
+candidate-mode positive is added because this native workspace has no such mode.

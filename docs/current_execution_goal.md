@@ -158,6 +158,12 @@ is now running as 29733204. No Flash-Next inference or assessor condition is
 activated; first verify all weights and freeze the actual scientific assessment.
 
 **Qualify scientific references and assessment in parallel with development.**
+The [new fixed-model native review panel](../benchmarks/publication_assessment_flashnext_20261016/assessment_protocol.md)
+reuses unchanged source-checked arguments through the actual Markdown reviewer,
+not the old semantic-packet controller. Run the five declared controls once,
+retain every outcome and examine decisive reasons against the prewritten key.
+This can qualify only the scoped component, not the broader multi-family endpoint
+or either publication. Do not rerun or reinterpret the consumed 4B preparation.
 The [HonestDiD source preparation](../benchmarks/publication_reference_qualification_20261016/README.md)
 retains the original paper, supplement, archive, historical package and complete
 study topology. First application condition 29728552 completed Benzarti-Carloni
