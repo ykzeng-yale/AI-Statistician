@@ -56,7 +56,14 @@ The [first candidate observation](cycle01_observation.json) now records a comple
 60,000-dataset execution with zero compliant candidate outputs, caused by a
 source runtime error. Its theoretical argument was not assessed. The raw
 exception was stored but not exposed through the frozen history grants. The
-ongoing second cycle and statistical arm keep the original code and permissions;
+subsequent cycles and statistical arm keep the original code and permissions;
 the prospective public-artifact feedback correction does not repair this run.
+Stock is now [terminal](stock_terminal_observation.json): cycle 2 also failed
+numerically, while cycle 3 passed all 60,000 numerical comparisons but received
+`UNCERTAIN` for theory in its fresh source-only AI review. The fixed campaign
+ended incomplete with exit `2:0`; posthoc reporting did not run. This is not an
+independently established mathematical rejection or a successful research task.
+Statistical job 29726508 is now eligible but awaits cluster resources. Neither
+its model nor its inputs are changed to use the prospective iteration tools.
 No official H/S experiment or publication-checklist item is completed by this
 condition. Source-bound AI review remains fallible feedback, not proof.

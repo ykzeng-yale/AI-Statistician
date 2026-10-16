@@ -1,0 +1,27 @@
+{
+  "observed_at": "2026-10-16",
+  "job_id": "29726507",
+  "frozen_code_commit": "dfdb4b47c86a2173fa90f02521599545fe891b24",
+  "terminal": {"state": "FAILED", "exit_code": "2:0", "elapsed": "02:08:35", "campaign_reason": "fixed_requirements_not_satisfied"},
+  "scope": "One stock development draw with three candidate cycles; not an official H/S comparison, blind rediscovery, autonomous study design or a full methods investigation",
+  "candidates": [
+    {"cycle": 1, "completed_datasets": 60000, "candidate_compliant": 0, "theory": "UNASSESSED", "record": "cycle01_observation.json"},
+    {"cycle": 2, "completed_datasets": 60000, "candidate_compliant": 0, "theory": "UNASSESSED", "record": "cycle02_observation.json"},
+    {"cycle": 3, "completed_datasets": 60000, "candidate_compliant": 60000, "conventional_compliant": 60000, "reference_failures": 0, "source_unchanged": true, "theory_ai_review": "UNCERTAIN", "method_study_ai_review": "PASS", "overall_pass": false}
+  ],
+  "third_candidate": {
+    "review_scope": "A fresh same-model, source-only AI context reports proof-step concerns and uncertainty. These findings are not independently adjudicated mathematical errors, human review or proof. Numerical compliance does not close the theoretical requirement.",
+    "local_root": "runs/agentic_native_long_20261016/stock_cycle03_program_1",
+    "source_sha256": {"program.py": "e6b43bf9e344dcf600ab5afc0a23c48830032386d67ee7d251eca33319a86852", "study.md": "33d00d69b75feafedfaed2a3cd8038c882aaf209b222c0adad51bf36b5bbe1ce", "theory.md": "e22ffecd8483b2563a60f9025fbe41b057fa1376bcd7e7c2fed7fd44bf4ab009"},
+    "evaluation_receipt_sha256": "37e4d0921f6a83f06bfb94f6916a78e42f0b340e2c41c9c3fc8e71b273f58448",
+    "study_sha256": "c8f80c3b46cfdd0ed3adf0a99c119eef11d8ba0d3577d5c3a24fa89646ff9a3f",
+    "metrics_sha256": "dd3fce9176474880f850eeedd33dd81560ed24d5b1ab1715126417bf33691485",
+    "review_report_sha256": "bd6d78d423325d2f7af206a930b417a58ac3ce0b9f3f6b8c7bd0532125d8a6e2",
+    "review_receipt_sha256": "fc8b70a5d33b7ea59cd1200c8d785eb3f80350fab58816971d37d0c8cf8a5c0b",
+    "raw_replicates_sha256": "be7900418a421b54c7274b210fd74021072d634c8769f8e014900036e08d1059",
+    "checks": "Seventeen downloaded source/evidence files match the consumed receipt. Raw replicates remain remote and their hash was checked over SSH. Twenty-six private review-state files remain remote and were not disclosed as source evidence."
+  },
+  "campaign": {"task_complete": false, "best_combined_score": null, "best_correct": null, "posthoc_report": "NOT_RUN; investigation returned nonzero", "outer_state_sha256": "1610334c22b6bde02c31f2ca848629c6932bce74ba97bea49161661af8ed83d9", "pipeline_events_sha256": "e7f017883922c56540af16476900e7669446e906a59853e7a5b8d33ba263f47b"},
+  "boundary": "Preserve every candidate and assessment without source repair, retry or rescoring. The prospective retained-iteration extension is not part of this frozen condition. Three candidates and 180000 dataset executions are not additional independent agent draws. No full-task acceptance, scientific efficacy or checklist credit.",
+  "statistical_arm": "29726508 remains pending after the dependency cleared; latest scheduler reason is unavailable/drained/reserved nodes. Do not restart or substitute its fixed deployment."
+}

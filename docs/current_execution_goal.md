@@ -109,12 +109,15 @@ our benchmark nor evidence of this system's scientific benefit.
 **Finish the current fixed native condition without changing it.** Jobs
 29726507 (stock) and 29726508 (statistical, dependent on stock) use the same
 pinned 27B BF16 API and separately declared complete-workflow resources. Stock
-is in cycle 3; its first two candidates completed 60,000 numerical calls each
-with zero compliant candidate outputs. Theory remains unassessed. This exposed
-development family is not an official H/S comparison or 120,000 agent draws.
+is now terminal: its first two candidates failed numerical compliance;
+the third passed all 60,000 numerical comparisons but received an uncertain
+source-only AI theory assessment. The fixed campaign ended incomplete and
+posthoc reporting did not run. Statistical is eligible but awaiting cluster
+resources after its dependency cleared. This exposed development family is not
+an official H/S comparison or 180,000 agent draws.
 Preserve all outcomes, source and private state without patching, rerunning or
 rescoring them. See the [long-workflow condition](../benchmarks/agentic_scientist_native_hc0_long_20261016/README.md)
-and [first-candidate observation](../benchmarks/agentic_scientist_native_hc0_long_20261016/cycle01_observation.json).
+and [terminal stock observation](../benchmarks/agentic_scientist_native_hc0_long_20261016/stock_terminal_observation.json).
 Its native 262K model uses prospectively declared 1M static YaRN; service startup
 does not establish long-context quality.
 

@@ -1,0 +1,21 @@
+{
+  "observed_at": "2026-10-16",
+  "scope": "Completed second stock candidate inside the unchanged running development condition; not a terminal arm or official comparison",
+  "job_id": "29726507",
+  "candidate": "cycle02_ols_hc0_unadjusted_inference_attempt_01",
+  "author": {"status": "HANDED_OFF", "turns": 25, "provider_usage": {"input_tokens": 1724809, "output_tokens": 61698, "total_tokens": 1786507}, "session_sha256": "f271e71628e5070305808dc69565d5c419359d936fa0ee9a75eedaf02a75d662"},
+  "evaluation": {"status": "COMPLETE", "elapsed_seconds": 33.803066477994435, "scheduled_replicates": 60000, "completed_replicates": 60000, "candidate_compliant_replicates": 0, "conventional_compliant_replicates": 60000, "reference_failure_replicates": 0, "source_tree_unchanged": true, "theory": "UNASSESSED"},
+  "observed_failure": "The first raw replicate again reports TypeError: 'int' object is not subscriptable in the candidate array expression. The aggregate confirms zero usable compliant candidate outputs; no claim is made that every row has been individually examined or that the theoretical argument was assessed.",
+  "interpretation": "The source-only condition generates a new idea/session instead of retaining the author through official evaluation and revision; raw exceptions are also outside this task's declared public artifacts. The repeated failure motivates a prospective shared tool/feedback correction, not a hand-authored source fix, statistical rule or model switch.",
+  "retained_evidence": {
+    "local_root": "runs/agentic_native_long_20261016/stock_cycle02_program_1",
+    "remote_root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-native-HC0-long-20261016/stock/results/investigation/ideas/02_ols_inference_with_unadjusted_hc0_covariance_per_white_1980",
+    "source_sha256": {"program.py": "f50f43a8d8ce924623fe86e2f250f86ad3acec804a48db25546f224a6b7934b5", "study.md": "b66eb6a9eecec4b1aa68411da22f7421c51ca4bf111d7340116ee1609fb5e414", "theory.md": "8673c8061337d66cdc57872bd9ac36857d4709ebd47c19bdb4c9dd326a66b311"},
+    "study_sha256": "00686f724bdd8eaf2c70909c15f8bf14be4ac9cca1ca9351f5969ef7926b8fc0",
+    "metrics_sha256": "95fa6bc6301e6bb5565f1a4350f51dfd831a60f215f0da8054c12e5c332f494f",
+    "receipt_sha256": "9f923e92f51b611b877742c5e14f74558c1c2a4fae3046ffc6759f0fe48fb944",
+    "raw_replicates_sha256": "572de19c81ead9610704158e1111a15b90976ded9147e67c38c47b357b508df3",
+    "checks": "Thirteen downloaded source/evidence files match the consumed receipt. The raw replicate stream remains remote; its hash was separately checked over SSH. Private author state was not disclosed or supplied to a reviewer."
+  },
+  "continuation": "Stock cycle 3 remains running; statistical job 29726508 remains dependent. No source or consumed assessment was edited, executed again or rescored. The 60000 inner datasets are not independent agent draws. All 40 publication checklist states stay unchanged."
+}
