@@ -1,0 +1,18 @@
+{
+  "declared_at": "2026-10-16",
+  "scope": "Explicit remaining-dependency installation after a recorded setup failure; not model or scientific evaluation",
+  "previous_setup": {
+    "job_id": "29727530", "state": "FAILED", "exit_code": "1:0", "elapsed_seconds": 101,
+    "log_sha256": "17dfbfb1f6473cae4ac2ff13625e2c7c1bd19295671b01adf4804ea475f19ee0",
+    "observation": "lfe 3.1.1 compiled and installed. Exact HonestDiD install refused its missing declared latex2exp dependency. This was an incomplete operator preflight, not a mathematical, model or author-study failure."
+  },
+  "remaining_source_inputs": {
+    "latex2exp": {"version": "0.9.8", "url": "https://cran.r-project.org/src/contrib/latex2exp_0.9.8.tar.gz", "sha256": "8dd641f263989515d0c327550934e4954dc582230ca2bb9f280b6b28a46510a5"},
+    "HonestDiD": {"version": "0.2.0", "commit": "99b7e30cfd7cc7f9c3a9686eefadeba837d62e22", "archive_sha256": "87eec73481bf3ae6b2f3c9b863034dc09c94908f80f74f606386865828a08d29"}
+  },
+  "script": "complete_reference_environment.sh",
+  "script_sha256": "5277088c281fd8443a7f0585923506b6daafb1584875c889073c09e5e346f042",
+  "action": "Use the existing adapted R/CVXR module and owned library. Verify retained lfe version, install only the two remaining exact archives, then import and inventory dependencies. Do not rebuild lfe, change scientific source, create aliases, execute an application/simulation, call a model or retry automatically.",
+  "resources": {"account": "pi_gt353", "partition": "day", "qos": "normal", "cpus": 1, "memory_gib": 8, "wall_seconds": 1800, "gpus": 0},
+  "status_at_declaration": "Original failure/log preserved; no completion job submitted or import success claimed yet."
+}
