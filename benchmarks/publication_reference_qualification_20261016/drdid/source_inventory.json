@@ -1,0 +1,162 @@
+{
+  "observed_at": "2026-10-16",
+  "scope": "Source acquisition and original-byte checks, not complete mathematical reading or scientific execution",
+  "archives": [
+    {
+      "path": "runs/publication_method_sources_20261015/drdid/DRDID-replication-20261016.rar",
+      "bytes": 1897564,
+      "sha256": "50d2f6d8d9a6bac28551c8b856644aae5153ded514c29540aaad0f211a36f8af",
+      "member_count": 61
+    },
+    {
+      "path": "runs/publication_method_sources_20261015/drdid/arxiv-1812.01723v3-source.tar",
+      "bytes": 47721,
+      "sha256": "2c089ec9d9e4a504a717892a542460a3dd9eb8ae61608cc0eaf77e5935de1541",
+      "member_count": 4
+    }
+  ],
+  "extracted_files": [
+    {
+      "group": "replication-source-20261016",
+      "path": "Application/Main-ST-CPS.R",
+      "bytes": 4932,
+      "sha256": "0997cb674492f64b69549219112deaa3398a133d6b3c60526a1f8fb94f1999cc"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "Application/all.did.estimators.R",
+      "bytes": 1827,
+      "sha256": "95b33c65c366c23e5042fe37520274673c2b60cd405a65e5e801db42b3c0a0dd"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "Application/all.did.subsample.R",
+      "bytes": 1641,
+      "sha256": "46dd0de77f28773a29a1b98e192115544ba143ded1b4c6ce378157c8c9e104f9"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "Application/data/nsw.dta",
+      "bytes": 482803,
+      "sha256": "82a538f07091c5daa095fd962667eb8177024ef3021ae617d0b2ec974c06de76"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "Application/out.table.lalonde.R",
+      "bytes": 2302,
+      "sha256": "3c6f0e24e8ad05198cbd369c409b9bc78af5c3c46a943faad3590312dce58404"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "Application/subsamples.R",
+      "bytes": 2079,
+      "sha256": "81d1fc5d211f8c8a5234d1ade614cb7d8e388e048d8a9e8180245cb1d3de65ba"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "DR_DID_ReadMe.pdf",
+      "bytes": 66912,
+      "sha256": "32a39318fd73227d0dba53e87bde8b0f6830f4fe5f4f2ce81cb89eea3583116e"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "MonteCarlo/panel/dgps.KS.R",
+      "bytes": 26891,
+      "sha256": "935c26af30c81dbd745b7f1bcef71d7df4ce2bffc5c31d3ca0a2eb3d45d8e2e2"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "MonteCarlo/panel/dgps.KS.efficiency.R",
+      "bytes": 8134,
+      "sha256": "f99be5331392585affa2a730af2ea9716c649b648756bf43f9df12c9ec5fccd5"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "MonteCarlo/panel/main.panel.efficiency.R",
+      "bytes": 2080,
+      "sha256": "330ee98f1fcdfc61177b98c2b3a889d49a3ef51ba6579cc8cdd87c3bbaffca66"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "MonteCarlo/panel/main.panel.r",
+      "bytes": 2251,
+      "sha256": "ac8d500eb9ab17d3751e6a8ff1b6a6db4f5305009b6728f3a32fd2532afab38f"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "MonteCarlo/panel/sim.panel.R",
+      "bytes": 14159,
+      "sha256": "9b37688f13357a6cb27c2a556653e70b44f1895247d24f4fa6a575e8942eb489"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "MonteCarlo/panel/sim.panel.efficiency.R",
+      "bytes": 1807,
+      "sha256": "466d84f8ba096c3e98812522d589fc7d9eb94a58380a3c525edf8c7641e1e298"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "MonteCarlo/rc/dgps_KS_rc.R",
+      "bytes": 28335,
+      "sha256": "f297a9c53b0d02f3b95ef58fc9bc808a9d5376bd12b831bfc05c1c4f2f0eba1c"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "MonteCarlo/rc/dgps_KS_rc_efficiency.R",
+      "bytes": 9666,
+      "sha256": "8e988a4998679289c9740193150beabe64ab5efb09576d77faef0b469d7864da"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "MonteCarlo/rc/main_rc.R",
+      "bytes": 2376,
+      "sha256": "a0af666a6360d98b34800edc753b9070d7206255d6a20d9eeb92bbd7bd9635ed"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "MonteCarlo/rc/main_rc_efficiency.R",
+      "bytes": 2240,
+      "sha256": "7a7e14b453727f5d81e3db32cf5e8a8c1add6ae3227c5b56d6c3ad63cb3a2a62"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "MonteCarlo/rc/sim_rc.R",
+      "bytes": 16581,
+      "sha256": "d4fcd76acf345326d8d07e7122bef1abbd4cce4dd23d9c0b6f8f2cf840228818"
+    },
+    {
+      "group": "replication-source-20261016",
+      "path": "MonteCarlo/rc/sim_rc_efficiency.R",
+      "bytes": 1668,
+      "sha256": "1e6f6873edf393c53b48965b12d384b6a3195b1abab9aa0444581fe58079e45c"
+    },
+    {
+      "group": "arxiv-source-20261016",
+      "path": "dr-did-joe-final.bbl",
+      "bytes": 14619,
+      "sha256": "6ed138583dbb1202e34aa5ffdee87119d528d65b337fc2ae97d0a92ca8cbe321"
+    },
+    {
+      "group": "arxiv-source-20261016",
+      "path": "dr-did-joe-final.tex",
+      "bytes": 148543,
+      "sha256": "78ab4c02e6c209001cbff1b7c949deff8482328f5c6710b9aaa5341898257131"
+    },
+    {
+      "group": "arxiv-source-20261016",
+      "path": "dr-did-joe-final.thm",
+      "bytes": 1012,
+      "sha256": "f0052ed3f81894f93c629db8837500608b8f1f3cffd2ed470c4c55b40ca3f589"
+    },
+    {
+      "group": "arxiv-source-20261016",
+      "path": "jasa.bst",
+      "bytes": 26920,
+      "sha256": "8060ef5fd228a55784aef2b7dc6606ec14149ea18828dc8ba5026393d23f0db2"
+    }
+  ],
+  "excluded_from_source_tree": "Cached CSV/XLSX/RData/Rdata outcomes and command histories; their numeric contents were not inspected",
+  "package_commit": "85807cfbddbd64cc6f3f8ba37f52d07c6c3acc65",
+  "package_archive_sha256": "a326723a51caa33152cb2c624cd7515d366d832d45454ed130a98e630b1c17c3",
+  "reading": "Complete two-page replication README text, all five application source files, both MC main entries and separate efficiency main entries; source/entry inventory, not all DGP/proof/function bodies. The native TeX source and separate proof supplement remain unadjudicated beyond earlier scoped population checks."
+}

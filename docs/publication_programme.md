@@ -210,13 +210,13 @@ does not establish novelty or mathematical truth.
 | --- | --- | --- |
 | Portable host | Native host file/edit/search/execution tools and Agent Skills format | Clean installation, actual body activation, reference/tool access and a substantive reproducible use case |
 | Retained research session | `client_tool_loop.py`, hash-bound files and raw observations | Local Qwen conformance for every workspace and long-session recovery |
-| Collaboration | `agent_runtime.py`, scoped roles and reference handoffs | Dependency-aware independent work, exact-input joins and evidence invalidation; current execution is serial/interleaved |
+| Collaboration | Pinned v3 task/stage boundaries and retained file/tool sessions; preserve suitable legacy specialist tools, not their outer graph | Complete native single-API specialist migration, exact-input joins and invalidation; concurrent benefit remains unestablished |
 | Scientific execution | Existing local Python/R projects; native Python/R share the pinned local executor | Actual matched study access, environment reconstruction and clean-machine reproduction |
 | Verification | Independent review, frozen confirmation and exact Lean checks | Source-qualified, calibrated Qwen-era assessment, explicitly labelled AI-assessed |
 | Lean foundation | Pinned Mathlib/Statlib/StatInference and retrieval | Audited statement/proof/dependency maps and a compact curated public API |
 
-Extend the sole runtime if independent scheduling is justified; do not layer a
-second framework over it. Model authors all derivations and code revisions. The
+Extend only the selected upstream controller if independent scheduling is
+justified; never call the legacy `AgentRuntime` graph from it. Model authors all derivations and code revisions. The
 harness supplies tool state, execution, source identity, permissions and evidence
 authority. Do not add theorem-family logic, grammar repairs or generated-answer
 patches. A demonstration of a model error is not by itself a harness defect.

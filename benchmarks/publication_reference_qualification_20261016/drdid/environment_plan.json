@@ -1,0 +1,21 @@
+{
+  "declared_at": "2026-10-16",
+  "scope": "CPU-only dependency installation/import for a complete known-method source preparation; no model, original application, Monte Carlo producer, numerical reference or official study",
+  "root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-DRDID-source-20261016",
+  "runtime": "Yale R/4.4.2-gfbf-2024a; an explicit modern adaptation, not historical R 3.6.2",
+  "package": {
+    "repository": "https://github.com/pedrohcgs/DRDID",
+    "commit": "85807cfbddbd64cc6f3f8ba37f52d07c6c3acc65",
+    "version": "1.3.0",
+    "declared_license": "GPL-3",
+    "archive_sha256": "a326723a51caa33152cb2c624cd7515d366d832d45454ed130a98e630b1c17c3"
+  },
+  "preparer": {
+    "path": "prepare_environment.sh",
+    "sha256": "b0e2e906ee9e2bcfe696445baaf456f7ca75592f3f8ba79af9c1de7e8ce3d602"
+  },
+  "resources": {"nodes": 1, "cpus": 2, "memory_gib": 16, "wall_seconds": 3600, "gpus": 0, "tier": "normal"},
+  "dependencies": "Reuse the module's installed dependencies, install missing declared packages from CRAN into an owned library, then install the exact local DRDID source archive. Resolved versions, source-download hashes and sessionInfo are recorded before any scientific/model condition can be frozen.",
+  "expected_outputs": ["environment_complete.json", "resolved_packages.csv", "setup_session.txt", "downloaded_packages.sha256"],
+  "remaining": "Complete source reading/argument assessment, exact study/task definition, numerical-reference assessment, final model/resource/schedule freeze and original paper/data rights. Import success does not complete these requirements. No automatic retry or historical output correction."
+}
