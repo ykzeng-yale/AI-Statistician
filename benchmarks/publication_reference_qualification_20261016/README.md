@@ -104,6 +104,10 @@ process each, with a fixed seed and two-hour CPU allocation. The byte-bound fres
 roots contain 16 original files each plus the declared alias, with no cached
 outcomes. Preparation has not executed either application. This is a path-ported
 adapted-environment reference, not an unchanged literal historical run.
+Job **29728552** was submitted pending under `pi_gt353`, one CPU/16 GiB/two
+hours, with no requeue. The [submission receipt](application_submission.json)
+binds the committed plan, runner and staged inputs. Submission is not execution
+or scientific qualification; preserve each complete entry's eventual outcome.
 
 The Benzarti-Carloni analysis begins from supplied coefficient/covariance data;
 the underlying microdata are confidential. The Lovenheim-Willen analysis uses

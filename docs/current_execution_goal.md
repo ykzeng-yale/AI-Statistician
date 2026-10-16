@@ -151,6 +151,9 @@ and claim-level assessment without silently accepting printed mathematics or
 shrinking the study. The localized attainment counterexample is public operator
 preparation, not secret gold, agent output, product guidance or whole-paper
 rejection. It cannot be treated as an undisclosed rediscovery target.
+Complete original application job **29728552** is submitted pending with two
+declared same-byte filename aliases, unchanged statistical source and fresh
+outputs. This advances reference execution, not agent or theorem acceptance.
 
 **Use the actual upstream observation to qualify the full-study boundary.** The
 requested native stock-v3 run on the exposed White HC0 task is now terminal.

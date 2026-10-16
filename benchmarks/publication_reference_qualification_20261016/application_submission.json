@@ -1,0 +1,21 @@
+{
+  "submitted_at": "2026-10-16T09:10:28Z",
+  "job_id": "29728552",
+  "state_at_submission": "PENDING; no application or allocation inferred",
+  "frozen_plan_commit": "246a4817",
+  "account": "pi_gt353",
+  "partition": "day",
+  "qos": "normal",
+  "resources": {"cpus": 1, "memory_gib": 16, "wall_time": "02:00:00", "gpus": 0},
+  "requeue": false,
+  "workdir": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-HonestDiD-reference-20261016",
+  "command": "exec bash /nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-HonestDiD-reference-20261016/run_reference_applications.sh /nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-HonestDiD-reference-20261016",
+  "stdout_stderr": "applications-29728552.log",
+  "identities": {
+    "plan": {"path": "application_execution_plan.json", "sha256": "ed14cd026626a8dd60f4e90d6b236eef1c1eac69244c2ae7394af2e829adfbd1"},
+    "runner": {"path": "run_reference_applications.sh", "sha256": "5b67380c2ad7569e466dea407dfddde29600caae7edff26c632a188e20e5dfa4"},
+    "stager": {"path": "prepare_reference_applications.py", "sha256": "745542a153751d37b646b593698fdb3dff6c5c4241a031d7a11b045805e5d9f6"},
+    "staged_inputs": {"path": "applications_path_port_20261016/staged_inputs.json", "sha256": "5605b7e149077dca2d5b1330ad01886a5543eaebf16d038d6e74da1ca4e52610"}
+  },
+  "scope": "Two complete original-reference application entries, not model-generated research, full simulation qualification, mathematical acceptance or publication-checklist completion. Preserve failures and partial outputs; do not automatically retry."
+}

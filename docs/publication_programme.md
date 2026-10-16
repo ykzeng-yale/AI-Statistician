@@ -361,7 +361,9 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   The [October 16 reference preparation](../benchmarks/publication_reference_qualification_20261016/README.md)
   retains the complete HonestDiD author archive and exact historical package pin,
   rather than its newer package tutorial. Original normal-study topology,
-  application access and unresolved path portability are explicit. A localized
+  application access and the prospective path-only port are explicit. Complete
+  original application job 29728552 is submitted pending, not a reference result.
+  A localized
   closed-image/attainment counterexample is evaluator-side candidate assessment
   material, not an accepted whole-paper proof, product rule or author hint.
   No scientific source or model ran, and Q02/Q04/Q05 stay open.
