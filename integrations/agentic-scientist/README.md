@@ -106,7 +106,7 @@ The canonical submodule stays unmodified for the stock comparator. Apply
 separate checkout of the exact pinned commit. The first supports native
 `run.sh --agent local-api --harness-evaluated-attempt` and ideation through the
 investigation CLI. The second supports pre-authored fixed-requirement tasks.
-Drafting, paper generation, parallel workers and the full pipeline are not yet
+Drafting, paper generation, parallel workers and the full six-phase pipeline are not yet
 integrated with this API participant. It never routes through Headless,
 OpenCode, a cloud provider or the legacy `AgentRuntime` graph.
 
@@ -239,14 +239,21 @@ before execution, then the result bytes. Missing declared files cannot silently
 disappear. Do not add this declaration to a consumed study to obtain a new report.
 
 For this artifact-only API path, prospectively supply upstream-format
-`generation/posthoc_bundle.json` and `generation/posthoc_selection.json`, then
-run the existing `src.posthoc_pipeline.cli` stages `0,1,4,5,6` in a fresh output
-directory. Use `agent.name=local-api`, the same frozen API configuration,
+`task/posthoc/posthoc_bundle.json` and `task/posthoc/posthoc_selection.json`.
+The report question is a task input, frozen with the scientific brief before calls.
+The posthoc controller stages it into its fresh generation directory without
+replacing existing plans. Use the existing `src.posthoc_pipeline.cli` stages
+`0,1,4,5,6`, `agent.name=local-api`, the same frozen API configuration,
 `container.enabled=false`, `execution.checkpoint_mode=optional` and
 `execution.retrain_if_checkpoint_missing=false`. The supplied analysis specifies
 the report question and required outputs, not an expected scientific answer.
 Native generation/selection, checkpoint analysis and full manuscript production
-are not implemented by this path.
+are not implemented by this path. The same outer `src.pipeline.cli` can now run
+`execution.phases=investigation,posthoc` with native harness-owned evaluation.
+It forwards the consumed candidate's public results rather than an ablation
+directory. Other native phases remain unsupported; their existing verification
+requirements are unchanged. A complete HTTP process test covers a failed review,
+a new source candidate, completed evaluation and a report within this controller.
 
 Extraction verifies the consumed candidate receipt and stages only its declared
 public outputs under `evidence/`, using upstream's size/hash manifest with role
@@ -256,6 +263,11 @@ report instead of assuming arbitrary large replicate files are supported.
 The actual API process runs in the upstream attempt directory. Task, candidate
 source, permitted `resources/search` (including retained statistical skills) and
 result tables are read-only; declared report files are writable.
+Public `scientific_review.md` findings and the compact verdict receipt, when
+present, are also read-only report inputs. The private reviewer conversation is
+not granted. For a frozen non-winning study, extraction verifies the originating
+evaluation receipt through upstream's verified selection, preserving its identity
+instead of treating the copied snapshot as a newly evaluated program.
 There is no execution tool: this stage interprets existing results and must not
 claim it generated new calculations, figures or proof. An honest gap is not
 published as a completed analysis, even if output files exist.

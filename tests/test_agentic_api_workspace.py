@@ -161,6 +161,7 @@ def posthoc_root(tmp_path):
     (root / "task_bundle/task.md").write_text("Interpret the supplied opaque outcomes; do not repeat execution.")
     (root / "task_bundle/evidence/arbitrary-table.csv").write_text("condition,value\na,17\nb,23\n")
     (root / "task_bundle/program_0/src/theory.md").write_text("An unassessed argument.")
+    (root / "task_bundle/program_0/scientific_review.md").write_text("Public source-review findings; a gap remains.")
     (root / "task_bundle/program_0/evaluate.py").write_text("private evaluator")
     (root / "task_bundle/program_0/scientific_review_session.json").write_text("private review context")
     return root
@@ -172,7 +173,9 @@ def test_posthoc_reads_only_public_inputs_and_writes_declared_reports(posthoc_ro
     assert invoke(workspace, "read_file", path=table).content["content"] == "condition,value\na,17\nb,23\n"
     guidance = "task_bundle/resources/search/statistical-research/SKILL.md"
     assert "Retained statistical" in invoke(workspace, "read_file", path=guidance).content["content"]
-    for path in (table, guidance, "task_bundle/program_0/src/theory.md", "analysis_spec.json"):
+    review = "task_bundle/program_0/scientific_review.md"
+    assert "gap remains" in invoke(workspace, "read_file", path=review).content["content"]
+    for path in (table, guidance, review, "task_bundle/program_0/src/theory.md", "analysis_spec.json"):
         assert invoke(workspace, "write_file", path=path, content="changed", expected_sha256=None).is_error
     for path in ("task_bundle/program_0/evaluate.py", "task_bundle/program_0/scientific_review_session.json"):
         assert invoke(workspace, "read_file", path=path).is_error

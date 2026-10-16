@@ -8,6 +8,8 @@ upstream dry-run. An explicit extension now exercises native direct-API ideation
 source authoring, independent source-review feedback and artifact-only result
 reporting in deterministic process tests. Real-model scientific qualification
 and full manuscript production remain incomplete.
+The same upstream outer controller now connects investigation and reporting;
+native drafting, final verification and full paper stages remain unfinished.
 It does not nest the old runtime inside that pipeline. Native
 final verification, the single-API specialist path and live statistical capability
 are not yet migrated or demonstrated. The outer coordinator described below is

@@ -1,0 +1,16 @@
+{
+  "frozen_date": "2026-10-16",
+  "scope": "Deployment correction after a missing compiler; no scientific evaluation",
+  "prior_job": {"id": "29720252", "state": "FAILED", "exit_code": "1:0", "elapsed_seconds": 92,
+    "node": "a1117u29n01", "inference_requests": 0,
+    "server_log_sha256": "3a068f9607d984cefd85a86afbb2d6101eacdacfa05e7d6f4e21895f550086e2"},
+  "observations": "The same BF16 weights loaded in 18.56 seconds, using 50.22 GiB GPU memory. vLLM compiled its graph, then FlashInfer failed with 'Could not find nvcc'. Node-local runtime staging resolved the earlier shared-filesystem import delay. Full-context allocation and API inference remain unverified.",
+  "change": "Load the existing Yale CUDA/12.9.1 module to supply nvcc, headers and linker paths; preserve the PyTorch 2.13.0+cu130/vLLM 0.31.0 package archive. Verify the actual compiler and module list in the GPU job. Place FlashInfer's documented workspace in the job's local directory.",
+  "compiler": {"module": "CUDA/12.9.1", "cuda_home": "/apps/software/system/software/CUDA/12.9.1", "qualification": "Compiler/runtime interoperability must be established by the actual startup and transport probe; no compatibility success is inferred from module availability."},
+  "archive_sha256": "d322861877b4504d931ea7ec4a3175c1108437e85f65189783dd61712e8309a3",
+  "script_sha256": "47703140af106f1301e5c9b84fffb20835c2d09464f8bcde86a6403f32d0218e",
+  "unchanged": "Exact weights, BF16 precision, 262144 context, one-request concurrency, template/parsers/sampling, product 3301dff9 and all probe questions/timeouts from qwen27b_probe_precall.json. Prior failed attempts remain immutable.",
+  "resources": {"account": "pi_fl426", "partition": "gpu_devel", "qos": "normal", "nodes": 1, "gpus": 1, "gpu_type": "b200", "cpus": 8, "host_memory_gib": 128, "wall_seconds": 3600},
+  "stop_policy": "One explicit corrected launch, no automatic retry, scientific calls, commercial fallback or model/context/precision substitution. Stop the owned service on completion or failure.",
+  "status_at_freeze": "The previous job is terminal and no GPU service is running. New job not yet submitted."
+}

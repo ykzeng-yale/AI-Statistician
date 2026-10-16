@@ -1,0 +1,15 @@
+{
+  "frozen_date": "2026-10-16",
+  "scope": "Correct environment activation for the same deployment probe; no scientific evaluation",
+  "previous_job": {"id": "29721459", "state": "FAILED", "exit_code": "1:0", "elapsed_seconds": 72,
+    "server_log_sha256": "ab76846827115caa66d687444f60550d68e3c3dac1239697b24bca2c64ff4d6a",
+    "failure": "FlashInfer now found nvcc but could not launch ninja because the copied environment bin directory was not on PATH. No API request occurred."},
+  "change": "Prepend the extracted environment bin directory to PATH. Record and require successful ninja, nvcc and C++ version commands before starting the GPU server.",
+  "pre_submit_checks": "Existing environment ninja returns 1.13.2.git.kitware.jobserver-pipe-1; Python/3.12.3 plus CUDA/12.9.1 exposes GCC 13.3.0; the actual frozen product probe CLI imports and displays help with the required Python module and PYTHONPATH. No model calls in these checks.",
+  "script_sha256": "93c0523b1339d267809d25de9657b7af456362c093967770f9f54ea2a468936d",
+  "archive_sha256": "d322861877b4504d931ea7ec4a3175c1108437e85f65189783dd61712e8309a3",
+  "condition": "Same Qwen3.8-27B revision/BF16 weights, 262144 context, concurrency, parsers, template, sampling, vLLM/PyTorch archive, CUDA/12.9.1 compiler, product 3301dff9 and probe requests/timeouts. Preserve all earlier failures. No model, precision or context substitution.",
+  "resources": {"account": "pi_fl426", "partition": "gpu_devel", "qos": "normal", "nodes": 1, "gpus": 1, "gpu_type": "b200", "cpus": 8, "host_memory_gib": 128, "wall_seconds": 3600},
+  "stop_policy": "One corrected launch, with no automatic retries or scientific workload. Stop the owned service at completion or failure.",
+  "status_at_freeze": "Previous job terminal; no service running; new job not yet submitted."
+}

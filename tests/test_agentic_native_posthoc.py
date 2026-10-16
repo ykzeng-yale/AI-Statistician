@@ -6,6 +6,7 @@ import io
 import json
 import os
 from pathlib import Path
+import runpy
 import subprocess
 import sys
 import tarfile
@@ -43,7 +44,9 @@ from src.posthoc_pipeline.pipeline import run_posthoc_pipeline
 from src.posthoc_pipeline.cli import main as posthoc_main
 root = Path(sys.argv[1])
 scenario = sys.argv[2]
-task, results, output = root / "task", root / "results", root / "report"
+task = root / "task"
+results = root / "envelope/investigation" if scenario.startswith("outer") else root / "results"
+output = root / "envelope/posthoc" if scenario.startswith("outer") else root / "report"
 attempt = results / "ideas/attempt_1"
 attempt.mkdir(parents=True)
 task.mkdir()
@@ -60,6 +63,16 @@ for directory in (task, attempt):
     (directory / "task.md").write_text("Interpret the complete supplied results without repeating evaluation.")
     (directory / "target_rubrics.json").write_text(json.dumps(rubrics))
     (directory / "public_outputs.json").write_text(json.dumps(declaration))
+    plans = directory / "posthoc"
+    plans.mkdir()
+    candidate = {"id": "interpretation", "title": "Interpret supplied evidence", "family": "artifact_interpretation",
+        "hypothesis": "Assess the existing observations without a predetermined conclusion",
+        "relevance_reason": "Complete the report", "feasibility_reason": "Summaries will be available after evaluation",
+        "required_artifacts": ["evidence/tables/arbitrary.csv"], "requires_retrain": False,
+        "implementation_plan": ["Read the supplied table and source, then report limitations"],
+        "expected_claim": "Only what the observations support", "expected_outputs": ["analysis_summary.md"]}
+    (plans / "posthoc_bundle.json").write_text(json.dumps({"decision": "propose_analyses", "analyses": [candidate]}))
+    (plans / "posthoc_selection.json").write_text(json.dumps({"accepted": [{"id": "interpretation"}], "rejected": []}))
 evaluator = r"""import argparse, json, runpy
 from pathlib import Path
 p = argparse.ArgumentParser()
@@ -114,16 +127,15 @@ read_native_evaluation(program, rubrics, attempt_id="attempt_1", idea_id="idea_1
 before = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in attempt.rglob('*') if p.is_file()}
 (results / "best_program_manifest.json").write_text(json.dumps({"program_dir": str(program),
     "entrypoint_path": "src/program.py", "combined_score": 17, "correct": True, "source_attempt_id": "attempt_1"}))
-generation = output / "generation"
-generation.mkdir(parents=True)
-candidate = {"id": "interpretation", "title": "Interpret supplied evidence", "family": "artifact_interpretation",
-    "hypothesis": "Assess the existing observations without a predetermined conclusion",
-    "relevance_reason": "Complete the report", "feasibility_reason": "Summaries already exist",
-    "required_artifacts": ["evidence/tables/arbitrary.csv"], "requires_retrain": False,
-    "implementation_plan": ["Read the supplied table and source, then report limitations"],
-    "expected_claim": "Only what the observations support", "expected_outputs": ["analysis_summary.md"]}
-(generation / "posthoc_bundle.json").write_text(json.dumps({"decision": "propose_analyses", "analyses": [candidate]}))
-(generation / "posthoc_selection.json").write_text(json.dumps({"accepted": [{"id": "interpretation"}], "rejected": []}))
+if scenario == 'outer_no_winner':
+    from src.pipeline.config import investigation_completion_payload, investigation_completion_receipt_path
+    baseline = results / '.baseline/program_0'
+    shutil.copytree(task / 'program_0', baseline)
+    (results / 'best_program_manifest.json').write_text(json.dumps({'program_dir': str(baseline),
+        'entrypoint_path': 'src/program.py', 'combined_score': None, 'correct': None, 'source_attempt_id': 'bootstrap'}))
+    investigation_completion_receipt_path(results).write_text(json.dumps(investigation_completion_payload(results)))
+    (results / 'attempts_history.jsonl').write_text(json.dumps({'attempt_id': 'attempt_1', 'experiment_dir': str(attempt),
+        'metrics': {'combined_score': 17, 'correct': True}}) + '\n')
 cfg = PosthocPipelineConfig()
 cfg.agent.name, cfg.agent.model = "local-api", "pinned-fixture"
 cfg.paths.task_dir, cfg.paths.results_dir, cfg.paths.output_dir = str(task), str(results), str(output)
@@ -131,10 +143,18 @@ cfg.container.enabled = False
 cfg.execution.checkpoint_mode, cfg.execution.retrain_if_checkpoint_missing = "optional", False
 cfg.execution.max_attempts_per_analysis = 1
 cfg.execution.analysis_timeout_seconds = 30
-assert posthoc_main(['--stages', '0,1,4,5,6', 'agent.name=local-api', 'agent.model=pinned-fixture',
-    'paths.task_dir=' + str(task), 'paths.results_dir=' + str(results), 'paths.output_dir=' + str(output),
-    'container.enabled=false', 'execution.checkpoint_mode=optional', 'execution.retrain_if_checkpoint_missing=false',
-    'execution.max_attempts_per_analysis=1', 'execution.analysis_timeout_seconds=30']) == 0
+if scenario.startswith('outer'):
+    from src.pipeline.cli import main as pipeline_main
+    assert pipeline_main(['task.dir=' + str(task), 'paths.run_dir=' + str(root / 'envelope'),
+        'execution.phases=posthoc', 'agent.name=local-api', 'agent.model=pinned-fixture',
+        'container.enabled=false', 'versioning.enabled=false',
+        'posthoc.execution.max_attempts_per_analysis=1', 'posthoc.execution.analysis_timeout_seconds=30']) == 0
+    assert json.loads((output / 'integration_status.json').read_text())['status'] == 'completed'
+else:
+    assert posthoc_main(['--stages', '0,1,4,5,6', 'agent.name=local-api', 'agent.model=pinned-fixture',
+        'paths.task_dir=' + str(task), 'paths.results_dir=' + str(results), 'paths.output_dir=' + str(output),
+        'container.enabled=false', 'execution.checkpoint_mode=optional', 'execution.retrain_if_checkpoint_missing=false',
+        'execution.max_attempts_per_analysis=1', 'execution.analysis_timeout_seconds=30']) == 0
 assert (attempt / 'evaluation_count').read_text() == '1'
 assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest() == digest for p, digest in before.items())
 staged = json.loads((output / '_extracted_bundle/evidence_manifest.json').read_text())
@@ -167,8 +187,8 @@ def test_native_public_output_identity(upstream, tmp_path, scenario):
     assert "EXPECTED_REJECTION" in result.stdout
 
 
-@pytest.mark.parametrize("disposition", ["candidate", "gap"])
-def test_native_posthoc_full_upstream_path_reads_table_via_real_api(upstream, tmp_path, disposition):
+@pytest.mark.parametrize("route,disposition", [("posthoc", "candidate"), ("posthoc", "gap"), ("outer", "candidate"), ("outer_no_winner", "candidate")])
+def test_native_posthoc_full_upstream_path_reads_table_via_real_api(upstream, tmp_path, route, disposition):
     requests = []
     report = "# Results\nThe supplied table contains 17 and 23. This fixture does not establish a scientific claim.\n"
     ids = ["analysis_summary_present", "analysis_manifest_present", "interestingness_rubric_present",
@@ -221,7 +241,8 @@ def test_native_posthoc_full_upstream_path_reads_table_via_real_api(upstream, tm
         "AI_STATISTICIAN_API_ENTRYPOINT": str(ROOT / "scripts/run_agentic_api.py"),
         "AI_STATISTICIAN_API_CONFIG": str(config)}
     try:
-        result = subprocess.run([str(PYTHON), "-c", SETUP, str(tmp_path), "pipeline_gap" if disposition == "gap" else "pipeline"], cwd=upstream,
+        scenario = route if route.startswith("outer") else "pipeline_gap" if disposition == "gap" else "pipeline"
+        result = subprocess.run([str(PYTHON), "-c", SETUP, str(tmp_path), scenario], cwd=upstream,
             env=environment, text=True, capture_output=True, timeout=60)
     finally:
         server.shutdown()
@@ -252,4 +273,38 @@ except ValueError:
     sys.exit(0)
 raise AssertionError('Malformed output declaration accepted')
 """, str(tmp_path)], cwd=upstream, text=True, capture_output=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("arm", ["stock", "statistical"])
+def test_native_development_inputs_reach_real_upstream_consumers(upstream, tmp_path, arm):
+    benchmark = ROOT / "benchmarks/agentic_scientist_native_hc0_20261016"
+    previous = ROOT / "benchmarks/agentic_scientist_hc0_bouchet_20261015"
+    prepare = runpy.run_path(str(benchmark / "prepare.py"))["prepare"]
+    destination = tmp_path / arm
+    prepare(destination, arm)
+    assert (destination / "task/evaluate.py").read_bytes() == (previous / "evaluate.py").read_bytes()
+    assert (destination / "task/task.md").read_bytes() == (benchmark / "task.md").read_bytes()
+    assert "NotImplementedError" in (destination / "task/program_0/src/program.py").read_text()
+    assert not (destination / "results").exists()
+    assert (destination / "task/resources/search/statistical-research").exists() == (arm == "statistical")
+    manifest = json.loads((destination / "prepared_inputs.json").read_text())
+    for name, expected in manifest["files"].items():
+        assert hashlib.sha256((destination / name).read_bytes()).hexdigest() == expected
+    assert "task/posthoc/posthoc_bundle.json" in manifest["files"]
+    with pytest.raises(FileExistsError):
+        prepare(destination, arm)
+    result = subprocess.run([str(PYTHON), "-c", """
+import json, sys
+from pathlib import Path
+from src.investigation.idea_generation import load_fixed_target_rubrics
+from src.posthoc_pipeline.generate import _parse_posthoc_bundle
+task = Path(sys.argv[1])
+rubrics = load_fixed_target_rubrics(task)
+assert [item['id'] for item in rubrics] == ['computational_compliance', 'theory', 'method_study']
+decision, candidates = _parse_posthoc_bundle(json.loads((task / 'posthoc/posthoc_bundle.json').read_text()))
+assert decision == 'propose_analyses' and len(candidates) == 1
+assert candidates[0].requires_retrain is False
+assert candidates[0].expected_outputs == ['analysis_summary.md', 'appendix.md']
+""", str(destination / "task")], cwd=upstream, text=True, capture_output=True, timeout=15)
     assert result.returncode == 0, result.stdout + result.stderr

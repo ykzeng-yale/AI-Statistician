@@ -239,6 +239,11 @@ the interpretation in Markdown/LaTeX. This artifact-only stage cannot execute a
 new calculation or simulation. Upstream output and self-rubric checks select
 structurally complete reports for downstream writing; they do not assess whether
 the scientific interpretation is correct. No consumed evaluation is repeated.
+The report plan is frozen with the task. The same upstream outer controller
+now connects investigation to posthoc, including a new source candidate after
+failed review. Public reviewer findings can inform the report; its private
+conversation remains outside the reporting context. Frozen non-winning study
+snapshots retain the originating evaluation identity.
 
 Deterministic process tests establish these handoffs, failure observations and
 file permissions, including use of the actual upstream CLI and local API transport.

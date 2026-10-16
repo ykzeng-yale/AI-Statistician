@@ -44,7 +44,7 @@ ranking, scientific performance result or claim that Yale already hosts every ro
 | Candidate | Actual availability and intended use |
 | --- | --- |
 | [Qwen3.8-Flash-Next](https://huggingface.co/Qwen/Qwen3.8-Flash-Next) | Actual returned model in the new Pi authoring condition, not only a launcher alias. Shared weights/configuration remain unpinned. |
-| [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Exact BF16 weights and vLLM installed. B200 CUDA passed; first vLLM startup timed out. Node-local runtime staging is underway; no owned-model inference yet. |
+| [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Task-owned, exact BF16 deployment passed native schema and retained tool/error feedback in job 29722100. One B200, native configured context 262144; long-context quality and statistical capability are not yet established. |
 | [Qwen3-Coder-Next](https://huggingface.co/Qwen/Qwen3-Coder-Next) | Public 80B-total/3B-active coding model; useful coding-agent comparator. Non-thinking-only, so not presumed superior for mathematical theory. Not installed or called here. |
 | [DeepSeek-V4-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) | Public 284B-total/13B-active model; possible later cross-family comparison, not an observed Yale service or selected Qwen-only study condition. No deployment or calls. |
 
@@ -85,7 +85,8 @@ its supported reasoning and tool-call parsers, rather than adding model syntax
 handling to AI-Statistician. The installed Yale Transformers 4.55.2 module is not
 the recipe's Transformers 5.8+ environment. Pin a compatible runtime and its full
 resolved dependencies before serving; do not blindly install `latest` or assume
-PyPI availability implies driver compatibility. No runtime has been qualified yet.
+PyPI availability implies driver compatibility. The qualified startup and API
+transport, and their narrower evidence scope, are recorded below.
 
 The initial resource shape is one H200 with BF16 weights, native context and
 single-request concurrency. This is a feasibility estimate, not measured fit:
@@ -170,7 +171,42 @@ the exact archive hash. No startup timeout was relaxed and no commercial model
 or managed-service credential was substituted. The new condition's allocation and
 outcome must be recorded before calling it available. Job **29720252** was submitted
 once at `2026-10-16T01:49:33-04:00`, account `pi_fl426`, normal `gpu_devel`,
-one B200/eight CPUs/128 GiB/one hour. It is pending, not a working model API.
+one B200/eight CPUs/128 GiB/one hour. It failed after 92 seconds. The vLLM
+banner appeared within 19 seconds of allocation; weights loaded in 18.56 seconds,
+using 50.22 GiB. Compilation then failed because `nvcc` was unavailable. This
+resolves the earlier import-latency diagnosis but does not establish API readiness.
+The preserved server log SHA-256 is
+`3a068f9607d984cefd85a86afbb2d6101eacdacfa05e7d6f4e21895f550086e2`.
+
+The [compiler condition](../integrations/agentic-scientist/bouchet/qwen27b_nvcc_precall_20261016.json)
+loaded Yale's existing `CUDA/12.9.1` module. Job **29721459** failed after 72
+seconds because `ninja`, already installed in the unchanged environment, was not
+on `PATH`. No request reached the model. Its server log SHA-256 is
+`ab76846827115caa66d687444f60550d68e3c3dac1239697b24bca2c64ff4d6a`.
+This is a launcher omission, not a numerical or model-capacity result.
+
+The [activation correction](../integrations/agentic-scientist/bouchet/qwen27b_path_precall_20261016.json)
+prepends the extracted environment's bin directory to `PATH` and records compiler,
+`nvcc` and `ninja` versions before serving. Actual no-inference checks found ninja
+1.13.2 and GCC 13.3.0 and loaded the frozen product probe's CLI successfully.
+Job **29722100**, the same one-B200/128-GiB/one-hour standard allocation shape,
+completed in 3m08s with exit `0:0`. The actual API returned
+`Qwen3.8-27B-pinned`, passed the native structured response and two retained tool
+turns, and returned the exact opaque failed-tool observation. This establishes
+startup/compiler interoperability and transport, not statistical correctness or
+long-context quality. Weights, BF16, configured 262144 context, runtime archive,
+parsers and sampling remained fixed. Raw records are in
+`runs/bouchet_model_inventory_20261015/probe-29722100/`. The owned service stopped
+when the job completed; this is not an always-running endpoint.
+
+The separate native workflow preparation now includes a fresh hash-locked worker
+environment in CPU job **29722329**, outside the earlier Pi environments. It
+completed in 9m48s with exit `0:0`; all 83 installed packages pass `uv pip check`.
+Its archive SHA-256 is
+`5752b5f1e842bd89d5370a42cd4b4df123fb276c348dbdd72553c85d6342eaa6`.
+It supports the [continuous investigation/report condition](../benchmarks/agentic_scientist_native_hc0_20261016/README.md)
+after a prospective code/input/configuration freeze. Environment installation
+does not activate a scientific draw or official publication model comparison.
 
 ## Latest Managed-Host Observation
 

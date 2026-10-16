@@ -106,6 +106,18 @@ our benchmark nor evidence of this system's scientific benefit.
 
 ## Immediate Execution
 
+**Next actual run:** the
+[native HC0 workflow condition](../benchmarks/agentic_scientist_native_hc0_20261016/README.md)
+prepares the exposed problem for one pinned API across the real upstream
+investigation and posthoc phases. Complete process fixtures now cover review
+failure, model-owned source revision, evaluation and report publication within
+the same outer controller. The pinned 27B deployment has passed actual native
+API/retained-tool checks, and its separate locked worker environment is installed.
+Freeze the exact code, two task trees and API settings before scientific
+activation; no completed study or official comparison is claimed. Keep the
+original full-study evaluator and all prior failures. This development scope
+does not include autonomous simulation-design/code generation or an application.
+
 **Use the actual upstream observation to qualify the full-study boundary.** The
 requested native stock-v3 run on the exposed White HC0 task is now terminal.
 [Its record](../benchmarks/agentic_scientist_hc0_20261015/observed_results.json)
@@ -148,6 +160,13 @@ after CUDA succeeded; no owned-model inference occurred. Preserve this failure.
 An unchanged-runtime node-local staging condition addresses observed shared-file
 import latency; it is not a smaller model, a changed scientific result or a service
 claim. Its exact state is recorded in local Qwen testing.
+Node-local job 29720252 subsequently loaded all weights but lacked `nvcc`;
+29721459 supplied the compiler and exposed a missing environment `PATH` for
+`ninja`. Both stopped before inference. Corrected activation probe 29722100
+completed successfully in 3m08s, including a real schema response and two retained
+tool turns. Preserve every failed deployment. Worker installation 29722329 also
+completed. These checks are transport/environment evidence, not scientific
+acceptance or model-capacity measurements.
 The probe reuses our actual API transport/retained loop, not a coding CLI or new
 controller. It tests native schema and raw tool feedback, not research capability.
 Use the same pinned deployment across future matched scientific arms.

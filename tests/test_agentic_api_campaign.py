@@ -15,8 +15,8 @@ import pytest
 from test_agentic_api_backend_patch import ROOT, UPSTREAM, patched, upstream_copy
 
 
-@pytest.mark.parametrize("failure_kind", ["execution", "review"])
-def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path, failure_kind):
+@pytest.mark.parametrize("failure_kind,route", [("execution", "investigation"), ("review", "investigation"), ("review", "pipeline")])
+def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path, failure_kind, route):
     python = Path(os.environ.get("AI_STATISTICIAN_V3_PYTHON", UPSTREAM / ".venv/bin/python"))
     bash = Path(os.environ.get("AI_STATISTICIAN_V3_BASH", shutil.which("bash") or "/bin/bash"))
     version = subprocess.check_output([str(bash), "-c", "printf '%s' \"${BASH_VERSINFO[0]}\""], text=True)
@@ -26,7 +26,10 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
     shutil.copytree(patched, checkout)
     subprocess.run(["git", "apply", str(ROOT / "integrations/agentic-scientist/native_campaign_semantics.patch")],
                    cwd=checkout, check=True, capture_output=True)
-    task, results = tmp_path / "task", tmp_path / "results"
+    subprocess.run(["git", "apply", str(ROOT / "integrations/agentic-scientist/native_posthoc.patch")],
+                   cwd=checkout, check=True, capture_output=True)
+    task = tmp_path / "task"
+    results = tmp_path / "envelope/investigation" if route == "pipeline" else tmp_path / "results"
     initial = "raise NotImplementedError('unimplemented fixture')\n"
     (task / "program_0/src").mkdir(parents=True)
     (task / "program_0/src/program.py").write_text(initial)
@@ -38,6 +41,15 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
     if failure_kind == "review":
         fixed.append({"id": "argument", "type": "review", "description": "Opaque independent review fixture."})
     (task / "target_rubrics.json").write_text(json.dumps(fixed))
+    if route == "pipeline":
+        (task / "public_outputs.json").write_text(json.dumps([{"path": "metrics.json", "kind": "table"}]))
+        plan = task / "posthoc"
+        plan.mkdir()
+        (plan / "posthoc_bundle.json").write_text(json.dumps({"decision": "propose_analyses", "analyses": [{
+            "id": "interpretation", "title": "Interpret opaque observations", "family": "fixture",
+            "requires_retrain": False, "expected_outputs": ["analysis_summary.md"],
+            "expected_claim": "No scientific claim; interpret the actual fixture outcome."}]}))
+        (plan / "posthoc_selection.json").write_text(json.dumps({"accepted": [{"id": "interpretation"}], "rejected": []}))
     evaluator = task / "evaluate.py"
     evaluator.write_text(
         "import argparse, json, subprocess, sys\nfrom pathlib import Path\n"
@@ -80,6 +92,25 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
                 ("write_file", {"path": "review.md", "content": "# Opaque review\nopaque feedback 19\n", "expected_sha256": None}),
                 ("submit_review", {"verdicts": [{"id": "argument", "status": "FAIL" if cycle == 1 else "PASS"}]}),
             ])
+    if route == "pipeline":
+        ids = ["analysis_summary_present", "analysis_manifest_present", "interestingness_rubric_present",
+               "required_outputs_present", "claim_grounded", "checkpoint_guardrail_respected"]
+        reports = {
+            "analysis_summary.md": "# Opaque fixture\nThe selected result is 1. The public review remains AI feedback, not proof.\n",
+            "interestingness_rubric.json": json.dumps({"scope": "Fixture only"}),
+            "analysis_manifest.json": json.dumps({"analysis_id": "interpretation", "attempt_id": "attempt_1",
+                "summary": "Interpret fixture", "claim": "No scientific claim", "grounded": True,
+                "reran_evaluator": False, "outputs": {"reports": ["analysis_summary.md"]},
+                "evidence_paths": ["task_bundle/evidence/metrics.json"], "checkpoint_paths": []}),
+            "rubric_status.json": json.dumps({"analysis_id": "interpretation", "overall_pass": True,
+                "rubrics": [{"id": key, "pass": True, "evidence": "Fixture only"} for key in ids]}),
+        }
+        actions.extend([
+            ("read_file", {"path": "task_bundle/evidence/metrics.json"}),
+            ("read_file", {"path": "task_bundle/program_0/scientific_review.md"}),
+            *(("write_file", {"path": path, "content": content, "expected_sha256": None}) for path, content in reports.items()),
+            ("finish", {"disposition": "candidate", "summary": "Fixture report ready"}),
+        ])
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
@@ -117,19 +148,28 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
         "AI_STATISTICIAN_API_ENTRYPOINT": str(ROOT / "scripts/run_agentic_api.py"),
         "AI_STATISTICIAN_API_CONFIG": str(config), "AGENTIC_TEMP_ROOT": str(tmp_path)}
     try:
-        run = subprocess.run([str(python), "-m", "src.investigation.cli", "agent.name=local-api",
+        command = [str(python), "-m", "src.investigation.cli", "agent.name=local-api",
             "agent.model=pinned-fixture", "paths.task_dir=" + str(task), "paths.results_dir=" + str(results),
             "execution.harness_evaluated_attempts=true", "execution.max_idea_cycles=3",
             "execution.max_idea_generation_attempts=1", "execution.run_timeout_seconds=30",
             "execution.idea_timeout_seconds=30", "execution.harness_evaluation_timeout_seconds=30",
-            "versioning.enabled=false", "paper.enabled=false", "container.enabled=false"],
+            "versioning.enabled=false", "paper.enabled=false", "container.enabled=false"]
+        if route == "pipeline":
+            command = [str(python), "-m", "src.pipeline.cli", "agent.name=local-api", "agent.model=pinned-fixture",
+                "task.dir=" + str(task), "paths.run_dir=" + str(tmp_path / "envelope"),
+                "execution.phases=investigation,posthoc", "investigation.execution.harness_evaluated_attempts=true",
+                "investigation.execution.max_idea_cycles=3", "investigation.execution.max_idea_generation_attempts=1",
+                "investigation.execution.run_timeout_seconds=30", "investigation.execution.idea_timeout_seconds=30",
+                "investigation.execution.harness_evaluation_timeout_seconds=30", "versioning.enabled=false", "container.enabled=false",
+                "posthoc.execution.max_attempts_per_analysis=1", "posthoc.execution.analysis_timeout_seconds=30"]
+        run = subprocess.run(command,
             cwd=checkout, env=environment, capture_output=True, text=True, timeout=90)
     finally:
         server.shutdown()
         thread.join(timeout=5)
         server.server_close()
     assert run.returncode == 0, run.stdout + run.stderr
-    assert len(requests) == len(actions)
+    assert len(requests) == len(actions), run.stdout + run.stderr
     first, second = results / "ideas/01_first_attempt", results / "ideas/02_second_attempt"
     assert "opaque feedback 19" in (first / "program_1" / failure_file).read_text()
     if failure_kind == "execution":
@@ -150,3 +190,9 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
     assert best["correct"] is True and "02_second_attempt/program_1" in best["program_dir"]
     assert (task / "program_0/src/program.py").read_text() == initial
     assert (second / "evaluate.py").read_bytes() == evaluator.read_bytes()
+    if route == "pipeline":
+        posthoc = tmp_path / "envelope/posthoc"
+        assert json.loads((posthoc / "integration_status.json").read_text())["status"] == "completed"
+        report = json.loads((posthoc / "latest_manifest.json").read_text())["valid_analyses"][0]
+        assert "selected result is 1" in Path(report["analysis_summary_path"]).read_text()
+        assert "not proof" in json.loads((second / "program_1/scientific_review.json").read_text())["scope"]

@@ -86,6 +86,7 @@ def posthoc_workspace(root: Path) -> FileAuthorWorkspace:
         "analysis_spec.json", "rubric_contract.json", "target_rubrics.json",
         "task_bundle/task.md", "task_bundle/original_task.md", "task_bundle/evidence_manifest.json",
         "task_bundle/program_0/program_spec.toml",
+        "task_bundle/program_0/scientific_review.md", "task_bundle/program_0/scientific_review.json",
     ) if (root / name).is_file()]
     grants.extend((FileGrant("task_bundle/evidence", root / "task_bundle/evidence", directory=True),
                    FileGrant("task_bundle/resources/search", root / "task_bundle/resources/search", directory=True),

@@ -109,6 +109,53 @@ index 4fa81b9..af68038 100644
      status = _read_harness_json(program_dir / "rubric_status.json")
      if status != _read_harness_json(program_dir.parent / "rubric_status.json"):
          raise ValueError("native root and candidate rubric status disagree")
+diff --git a/src/pipeline/config.py b/src/pipeline/config.py
+index b3cfd57..2f60b2e 100644
+--- a/src/pipeline/config.py
++++ b/src/pipeline/config.py
+@@ -835,11 +835,6 @@ _PHASE_SECTION_USERS: dict[str, frozenset[str]] = {
+ 
+ def validate_pipeline_config(cfg: PipelineConfig) -> list[str]:
+     """Validate the config, returning a list of error messages (empty = valid)."""
+-    if cfg.agent.name == "local-api":
+-        return [
+-            "local-api supports native source authoring and the investigation CLI; "
+-            "full-pipeline orchestration is not supported"
+-        ]
+     errors: list[str] = []
+     if cfg.execution.no_winner_policy not in {"best_available", "skip"}:
+         errors.append("execution.no_winner_policy must be best_available or skip")
+@@ -850,6 +845,11 @@ def validate_pipeline_config(cfg: PipelineConfig) -> list[str]:
+     except ValueError as exc:
+         errors.append(f"execution.phases: {exc}")
+         return errors
++    if cfg.agent.name == "local-api" and (
++        not selected <= {"investigation", "posthoc"} or cfg.container.enabled
++        or ("investigation" in selected and not cfg.investigation.harness_evaluated_attempts)
++    ):
++        return ["local-api requires native harness-owned investigation/posthoc phases; full-pipeline orchestration is not supported"]
+ 
+     for phase_name, phases_using_it in _PHASE_SECTION_USERS.items():
+         if not selected.intersection(phases_using_it):
+diff --git a/src/pipeline/phases.py b/src/pipeline/phases.py
+index 7aaf160..74ee515 100644
+--- a/src/pipeline/phases.py
++++ b/src/pipeline/phases.py
+@@ -413,10 +413,13 @@ def build_posthoc_cmd(cfg: PipelineConfig, paths: PipelinePaths) -> list[str]:
+         "src.posthoc_pipeline.cli",
+         _hydra_string_override("paths.task_dir", paths.task_dir),
+         _hydra_string_override("paths.results_dir", paths.investigation_workspace_dir),
+-        _hydra_string_override("paths.evidence_dir", paths.ablations_dir),
+         _hydra_string_override("paths.output_dir", paths.posthoc_dir),
+         _hydra_string_override("agent.name", cfg.agent.name),
+     ]
++    if cfg.agent.name == "local-api":
++        cmd += ["--stages", "0,1,4,5,6"]
++    else:
++        cmd.append(_hydra_string_override("paths.evidence_dir", paths.ablations_dir))
+     if cfg.agent.model:
+         cmd.append(_hydra_string_override("agent.model", cfg.agent.model))
+     if cfg.agent.profile is not None:
 diff --git a/src/posthoc_pipeline/execute.py b/src/posthoc_pipeline/execute.py
 index 2117a51..25d5023 100644
 --- a/src/posthoc_pipeline/execute.py
@@ -152,10 +199,10 @@ index 2117a51..25d5023 100644
              status = "completed"
              break
 diff --git a/src/posthoc_pipeline/extract.py b/src/posthoc_pipeline/extract.py
-index 7938606..7fa63a5 100644
+index 7938606..bffecb3 100644
 --- a/src/posthoc_pipeline/extract.py
 +++ b/src/posthoc_pipeline/extract.py
-@@ -63,7 +63,25 @@ def extract_bundle(
+@@ -63,7 +63,26 @@ def extract_bundle(
          results_dir=results_dir,
          output_dir=bundle_dir,
      )
@@ -166,7 +213,8 @@ index 7938606..7fa63a5 100644
 +        if evidence_dir is not None:
 +            raise BundleValidationError("Select native results or ablation evidence, not both")
 +        extraction = json.loads((bundle_dir / "extraction_manifest.json").read_text())
-+        program = Path(extraction["source_best_program_dir"])
++        selection = extraction.get("downstream_selection")
++        program = Path(selection["source_program_dir"] if selection else extraction["source_best_program_dir"])
 +        receipt = json.loads((program / "evaluation_manifest.json").read_text())
 +        rubrics = json.loads((task_dir / "target_rubrics.json").read_text())
 +        read_native_evaluation(program, rubrics, attempt_id=receipt["attempt_id"], idea_id=receipt["idea_id"])
@@ -182,7 +230,7 @@ index 7938606..7fa63a5 100644
          _stage_evidence(evidence_dir, bundle_dir)
  
      _validate_bundle(bundle_dir)
-@@ -71,11 +89,12 @@ def extract_bundle(
+@@ -71,11 +90,12 @@ def extract_bundle(
      return bundle_dir
  
  
@@ -197,7 +245,7 @@ index 7938606..7fa63a5 100644
      destination_root = bundle_dir / "evidence"
      manifest_path = bundle_dir / "evidence_manifest.json"
      if destination_root.exists() or destination_root.is_symlink():
-@@ -92,13 +111,14 @@ def _stage_evidence(source_root: Path, bundle_dir: Path) -> None:
+@@ -92,13 +112,14 @@ def _stage_evidence(source_root: Path, bundle_dir: Path) -> None:
          manifest_files, total_bytes = _copy_evidence_candidates(
              source_root,
              staging_root,
@@ -213,7 +261,7 @@ index 7938606..7fa63a5 100644
                      "files": manifest_files,
                      "total_bytes": total_bytes,
                  },
-@@ -123,8 +143,10 @@ def _stage_evidence(source_root: Path, bundle_dir: Path) -> None:
+@@ -123,8 +144,10 @@ def _stage_evidence(source_root: Path, bundle_dir: Path) -> None:
  def _copy_evidence_candidates(
      source_root: Path,
      destination_root: Path,
@@ -225,7 +273,7 @@ index 7938606..7fa63a5 100644
      if len(candidates) > _MAX_EVIDENCE_FILES:
          raise BundleValidationError("Evidence file count exceeds safety limit")
      total_bytes = 0
-@@ -240,7 +262,7 @@ def verify_staged_evidence(bundle_dir: Path) -> dict[str, Any]:
+@@ -240,7 +263,7 @@ def verify_staged_evidence(bundle_dir: Path) -> dict[str, Any]:
      if (
          not isinstance(manifest, dict)
          or manifest.get("manifest_version") != 1
@@ -235,20 +283,48 @@ index 7938606..7fa63a5 100644
          or len(files) > _MAX_EVIDENCE_FILES
          or isinstance(total_bytes, bool)
 diff --git a/src/posthoc_pipeline/pipeline.py b/src/posthoc_pipeline/pipeline.py
-index 3083e5c..7706c18 100644
+index 3083e5c..9914478 100644
 --- a/src/posthoc_pipeline/pipeline.py
 +++ b/src/posthoc_pipeline/pipeline.py
-@@ -50,6 +50,13 @@ def run_posthoc_pipeline(
+@@ -50,6 +50,22 @@ def run_posthoc_pipeline(
          Path(cfg.paths.evidence_dir).expanduser().resolve() if cfg.paths.evidence_dir else None
      )
      output_dir = _resolve_output_dir(cfg)
 +    if cfg.agent.name == "local-api":
 +        if (stages != {0, 1, 4, 5, 6} or cfg.container.enabled
 +            or cfg.execution.checkpoint_mode != "optional" or cfg.execution.retrain_if_checkpoint_missing
-+            or not all((output_dir / "generation" / name).is_file()
-+                       for name in ("posthoc_bundle.json", "posthoc_selection.json"))
 +            or (output_dir / "_extracted_bundle").exists()):
 +            raise ValueError("Native artifact-only reporting requires a fresh 0,1,4,5,6 run, prospective analysis/selection, optional checkpoints and no retraining")
++        plans = {}
++        for name in ("posthoc_bundle.json", "posthoc_selection.json"):
++            source = task_dir / "posthoc" / name
++            if source.resolve() != source or not source.is_file():
++                raise ValueError("Native report plans must be regular task/posthoc input files")
++            plans[name] = source.read_bytes()
++        generation = output_dir / "generation"
++        generation.mkdir(parents=True, exist_ok=True)
++        for name, content in plans.items():
++            with (generation / name).open("xb") as stream:
++                stream.write(content)
      output_dir.mkdir(parents=True, exist_ok=True)
      generation_dir = output_dir / "generation"
      generation_dir.mkdir(parents=True, exist_ok=True)
+diff --git a/src/scripts/run.sh b/src/scripts/run.sh
+index 82d8579..449bbe0 100755
+--- a/src/scripts/run.sh
++++ b/src/scripts/run.sh
+@@ -816,9 +816,11 @@ for helper_path in "$SEARCH_EVALUATOR_SOURCE_DIR"/*.py; do
+   should_stage_python_helper "$helper_name" || continue
+   cp "$helper_path" "$EXPERIMENT_DIR/$helper_name"
+ done
+-if [ -f "$SEARCH_EVALUATOR_SOURCE_DIR/task.md" ]; then
+-  cp "$SEARCH_EVALUATOR_SOURCE_DIR/task.md" "$EXPERIMENT_DIR/task.md"
+-fi
++for task_input in task.md public_outputs.json; do
++  if [ -f "$SEARCH_EVALUATOR_SOURCE_DIR/$task_input" ]; then
++    cp "$SEARCH_EVALUATOR_SOURCE_DIR/$task_input" "$EXPERIMENT_DIR/$task_input"
++  fi
++done
+ 
+ if [ -n "$IDEA_FILE" ]; then
+   cp "$IDEA_FILE" "$EXPERIMENT_DIR/active_idea.json"
