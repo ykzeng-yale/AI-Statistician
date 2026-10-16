@@ -1,10 +1,10 @@
 {
-  "schema_version": 541,
+  "schema_version": 542,
   "updated_at": "2026-10-16",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The native two-publication goal is active. Use Sakana Agentic Scientist v3 as the sole new outer backbone while preserving validated statistical workspaces and intent-selected Lean. Following the October 15 clarification, deliver complete reviewable theory, algorithm and simulation; no mandatory small-simulation stage. Default scientific execution is evaluator-owned, with additional diagnostics only when the public task permits them. Actual findings may require source-owner revision; completeness does not imply one-shot generation. Use authorized SSH/Bouchet capacity for demonstrated compute needs. H requires matched host/v3 comparisons; S still requires the actual single-local-model-API system. Keep the sole 40-item checklist and immutable outcomes.",
-  "execution_status": "Both 27B draws are terminal and incomplete. Fixed-task ideation now leaves criterion attachment to the host; sessions expose budgets and nonzero investigation exits mark failure. Full Bash-5 regression passes, not live efficacy. Flash-Next job 29735341 is RUNNING on four B200s/1 TiB: startup compilation/warmup, no readiness or panel receipt yet. No accepted research task, official H/S effect or checklist credit.",
+  "execution_status": "Flash-Next job 29735341 is terminal: native transport passed and five review cases completed, but scientific qualification is NOT_ESTABLISHED. Declared examination preserves the label mismatch and auxiliary report errors. DR-DID original sources and R environment job 29738082 are ready; no scientific entry ran. Next is complete known-method native development, not another assessor retry. Both 27B draws stay incomplete. No accepted full research task, official H/S effect or checklist credit.",
   "latest_native_api_condition": {
     "record": "benchmarks/agentic_scientist_native_hc0_long_20261016/submission.json",
     "code_commit": "dfdb4b47c86a2173fa90f02521599545fe891b24",
@@ -35,7 +35,7 @@
     "source_location": "third_party/ai-scientist-v3",
     "integration": "integrations/agentic-scientist/README.md",
     "paper_review": "docs/ai_scientist_v3_evidence_review_20261015.md",
-    "actual_scope": "Native investigation/posthoc, retained evaluation/clone, optional public sources and fixed-task idea handoff pass process tests. Gap/exhaustion cannot enter posthoc; hard parent death is not covered by a failed-child marker. Both consumed 27B draws remain incomplete. Flash-Next startup is active, with no panel result established. Full specialist migration, live new-tool efficacy and official H/S comparisons remain unfinished.",
+    "actual_scope": "Native investigation/posthoc, retained evaluation/clone, optional public sources and fixed-task handoff pass process tests. Gap/exhaustion cannot enter posthoc; hard parent death is not covered by a failed-child marker. Both 27B draws remain incomplete. Flash-Next completed API/tool transport and five review cases, not scientific qualification. Full specialist migration, live efficacy and official H/S comparisons remain unfinished.",
     "preservation": "Latest user clarification: retain the validated statistical specialization, not only generic upstream co-scientist behavior. The integration reuse map binds existing theory/file/session tools, source qualification, Python/R workspaces, outcome-blind confirmation, independent reviewers, Statlib/RAG/Lean and local-Qwen/evaluator assets to the new boundaries. Existing scientific source and Lean proofs are unchanged. Skill staging is integrated; other new-boundary uses still require actual verification, not assumed parity. The optional OCI project tool is not a migration prerequisite.",
     "verification": "Full suite with Bash 5: 2654 passed, 90 skipped, 1 existing xfail in 867.44s. Report runs/agentic_native_handoff_20261016/regression.xml SHA-256 74e0ecd45a2d6f5518c0753f562972a5a757becef85813957cbef1094470cd3a. Includes actual upstream source-only/retained campaigns and pipelines, fixed-criteria attachment, independent review, gap/exhaustion termination, and unchanged unfixed rubric authoring. Compileall and diff checks pass. Earlier reports, including initial fixture failures corrected before this final run, remain unchanged. No model calls, consumed scientific reevaluation, new scheduler or package-budget increase.",
     "remaining": "Native drafting/final verification boundary, scientific full-study evaluator, per-request model-setting capture, live single-API specialist/R/Lean collaboration, full claim/evidence joins, statistical venue and fresh matched comparisons. The new exact-source AI review mechanism needs scientific qualification; same-model agreement and hashes are not proof or independent empirical confirmation. Missing review is not mathematical rejection. Native project execution is verified, not scientific acceptance or standalone-system completion. Prior incomplete Qwen assessment remains unchanged and unqualified."
@@ -46,7 +46,7 @@
   "current_goal_document": "docs/current_execution_goal.md",
   "operating_principle": "Model-owned long-horizon research in retained file/tool workspaces, backed by task-intent evidence and independent authority. Restore complete product scope without mandatory Lean, benchmark-answer patches, repetitive task substitution or another framework.",
   "model_policy": {
-    "tests_and_live_evaluations": "Pinned open-weight Qwen on authorized Macs/Bouchet; neither 4B nor 27B is a ceiling. Consumed 27B draws are terminal. Flash-Next BF16 revision de4b8e4d43b917e7706784d8bb445c9af86a3540 has 144 verified files; job 29735341 has allocated four B200s/1 TiB, not qualified an assessor. Frozen conditions and current observations are in publication_assessment_flashnext_20261016. Match model/runtime/sampling/resources within each comparison. No Anthropic, Opus or cloud fallback.",
+    "tests_and_live_evaluations": "Pinned open-weight Qwen on authorized Macs/Bouchet; neither 4B nor 27B is a ceiling. Flash-Next BF16 revision de4b8e4d43b917e7706784d8bb445c9af86a3540 served native API/tool requests on four B200s/1 TiB; its terminal panel did not qualify scientific assessment. Frozen configuration and outcomes: publication_assessment_flashnext_20261016. Use a consistent capable condition across roles/arms; no result-conditioned model switch, Anthropic, Opus or cloud fallback.",
     "legacy_evaluation_boundary": "Existing Haiku protocols, qualifications and consumed judgments remain archived and unchanged. Exclude them from official publication results and baselines; their gates do not govern the new studies. Independently qualify new open-weight authority before scientific evaluation; never requalify a consumed preparation.",
     "production_allowed_tiers": [
       "haiku",
@@ -82,8 +82,8 @@
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "9efc6645e85953e77853d697b640515fa4e8f992",
-    "working_tree_before_current_change": "Clean canonical branch, synchronized with origin/main. Scoped native handoff simplification, transparent budgets and failed-child marker; source/Lean pins, active model condition and all 40 checklist states unchanged. Direct atomic main/canonical delivery; no PR or force."
+    "remote_before_current_change": "4f19a35c31ee3373aa580ac3c9b46725901b8d2e",
+    "working_tree_before_current_change": "Canonical branch ahead by DR-DID source/environment preparation; new Flash terminal/examination and R environment observations only. No shared product change, source patch, consumed rerun or checklist credit. Direct atomic main/canonical delivery; no PR or force."
   },
   "latest_scientific_workflow_observation": {
     "record": "benchmarks/publication_development/bizicount_integrated_20261015/observed_results.json",
@@ -359,11 +359,11 @@
     "implementation_vs_design": "Existing retained MD/LaTeX and code workspaces are implemented. True independent concurrency, arbitrary paper environment reconstruction and demonstrated autonomous verified-library growth remain incomplete."
   },
   "latest_assessment_qualification": {
-    "record": "benchmarks/publication_assessment_qualification_20261015/observed_results.json",
-    "report_examination": "benchmarks/publication_assessment_qualification_20261015/report_assessment.md",
-    "frozen_commit": "abcc861afe4b829b15406bda94ada35a8e5861e6",
-    "outcome": "Not established: two completed native PASS reports; third control incomplete, all later controls/candidate phases unrun. Seven attempted and returned wire responses, 931.586 seconds. No mathematical rejection or assessor accuracy estimate.",
-    "limitation": "Population identification only, operator-AI references and same local Qwen; no human/kernel proof, whole-method qualification or product research outcome. Second report overstates its symbolic scratch evidence; central analytic argument is not thereby disproved.",
-    "next": "Preserve original failure and actual truncation/usage metadata through decode errors. Reconcile a coherent prospective complete-workflow condition; do not retry this qualification, add content-specific rules or begin an official study."
+    "record": "benchmarks/publication_assessment_flashnext_20261016/terminal_observation.json",
+    "report_examination": "benchmarks/publication_assessment_flashnext_20261016/report_examination.md",
+    "frozen_commit": "f9eb01c69a3d254ec0ad14840713ef79a498facc",
+    "outcome": "NOT_ESTABLISHED: all five native Flash-Next reports completed in 76 panel requests, 820.273 seconds. LABEL_MISMATCH on honest-gap control; no timeout or truncation. API/schema and retained failed-tool transport passed. Job 29735341 ended FAILED 1:0 because qualification failed, not startup.",
+    "limitation": "Exposed population argument controls, not full-method or general assessor accuracy. Completion/truth semantics explain the sole label mismatch; auxiliary report mathematics also contains errors. No consumed label changed, human/kernel endorsement, capacity effect or research success.",
+    "next": "Complete a prospectively scoped known-method native task using prepared DR-DID sources/R, with fallible internal review and separate final authority. No label-tuning retry, content-specific guards or official study before broader qualification. Earlier 4B outcome remains unchanged in publication_assessment_qualification_20261015."
   }
 }

@@ -97,7 +97,7 @@ capacity authorization. Shared coding hosts are convenient for development;
 task-owned deployments freeze model/runtime/settings for research comparisons.
 Select one adequate condition before a comparison and use it across roles and
 arms. Upgrading capacity starts a new condition, not a repaired old result.
-The next preferred capacity candidate is a task-owned
+The selected larger development condition is a task-owned
 [`Qwen/Qwen3.8-Flash-Next`](https://huggingface.co/Qwen/Qwen3.8-Flash-Next),
 not an automatic switch to Yale's shared service. Public metadata checked on
 October 16 identifies revision `de4b8e4d43b917e7706784d8bb445c9af86a3540`,
@@ -108,8 +108,8 @@ The main model, N-gram embeddings and MTP weights all matter for memory sizing;
 
 The [upstream serving recipe](https://recipes.vllm.ai/Qwen/Qwen3.8-Flash-Next)
 reports about 335.28 GiB of BF16 checkpoint storage. At inventory time, four B200s
-were a prospective deployment shape with headroom, not measured fit. The later
-allocation below supersedes the earlier unsubmitted state, not the fit caveat.
+were a prospective deployment shape with headroom. The terminal observation below
+now establishes actual serving on that allocation, not long-context quality.
 Use upstream tensor/expert parallelism and supported parsers; verify runtime,
 memory, context and API behavior before freezing the complete research comparison.
 Do not equate B200 with the recipe's GB200/GB300 hardware. FP8, embedding offload
@@ -138,18 +138,26 @@ pinned Hugging Face client and a separate model directory. It requested one CPU,
 40 GiB and two hours, no GPU or inference. The pinned license is Qwen Community
 License 1.0 (SHA-256 `a0dc422560841fd68e06d974907f8b4c709bca44a67daad2b528437bdf676c08`),
 not Apache-2.0. This academic preparation does not resolve downstream redistribution
-or commercial rights. Serving fit and scientific assessment remain unestablished.
+or commercial rights. The CPU stage alone established neither serving fit nor
+scientific assessment.
 All 144 files now match pinned identities; receipt SHA-256
 is `383ebbfc1af8275e945a4a44403f13c9701bb14436e12ff310ef03250acc669f`.
-Native-review job **29735341** allocated four B200s and 1 TiB host memory under
-its 48-hour envelope, using the prospectively frozen source-review panel. At the
-allocation observation it was preparing inputs/runtime, with no panel requests.
-The later [startup observation](../benchmarks/publication_assessment_flashnext_20261016/startup_observation.json)
-records active Blackwell kernel compilation, not yet an API-readiness receipt.
-Allocation is not model availability or scientific qualification. The CPU stage's
-shared-storage overlap is disclosed rather than assumed irrelevant to timing.
+Native-review job **29735341** is now [terminal](../benchmarks/publication_assessment_flashnext_20261016/terminal_observation.json).
+The fixed BF16 model served actual requests on four B200s and 1 TiB host memory
+with native 262144-token configuration. API/schema and retained failed-tool
+feedback passed. All five declared source-review cases completed in 76 panel
+requests, but the frozen qualification returned `LABEL_MISMATCH`, not a qualified
+assessor. The [declared report examination](../benchmarks/publication_assessment_flashnext_20261016/report_examination.md)
+records completion-versus-truth ambiguity and auxiliary mathematical errors;
+original reports and labels remain unchanged. Total allocation was 4704 seconds,
+including preparation/startup, or 5.226667 allocated GPU-hours. The owned server
+stopped. Native maximum-context quality, 1M context, full research efficacy and
+any capacity effect over the 27B condition are unestablished. Earlier allocation
+and compilation observations remain historical; the staging overlap remains
+disclosed. Reuse the verified fixed configuration for fresh scoped full-method
+development, not another result-conditioned assessor retry or model escalation.
 
-The prospective first task-owned model is `Qwen/Qwen3.8-27B`, revision
+The first task-owned model was `Qwen/Qwen3.8-27B`, revision
 `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`. The public Hugging Face metadata lists
 18 BF16 weight shards totaling 55,563,006,776 bytes (about 51.75 GiB), Apache-2.0
 licensing and no access gate. Its native context is 262144 tokens. These are

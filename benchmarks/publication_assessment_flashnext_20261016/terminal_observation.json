@@ -1,0 +1,33 @@
+{
+  "observed_at": "2026-10-16",
+  "job": {"id": "29735341", "state": "FAILED", "exit_code": "1:0", "elapsed_seconds": 4704, "batch_max_rss_kib": 532934960, "allocated_gpus": 4, "allocated_gpu_hours": 5.226667},
+  "terminal_cause": "The complete panel returned LABEL_MISMATCH. This is not a model startup failure, timeout or truncated/missing report. The failed observer-only .2 step was ps with no matching child process, separate from this main exit.",
+  "runtime_source_commit": "f9eb01c69a3d254ec0ad14840713ef79a498facc",
+  "model": "Qwen3.8-Flash-Next-BF16-native-pinned",
+  "model_revision": "de4b8e4d43b917e7706784d8bb445c9af86a3540",
+  "served_context": 262144,
+  "transport": {"status": "TRANSPORT_PASSED", "schema_and_retained_feedback": true, "success_sha256": "0f34a34556d02ad1d9d32f0e48a09a6ec2fd0cef6a9ec41f54f190c7341c5227", "models_sha256": "8786c069a465866faa4d6a6494d03e6038d70093a28c68aebe824511a7f310e9"},
+  "panel": {
+    "status": "LABEL_MISMATCH", "scientific_qualification": "NOT_ESTABLISHED",
+    "completed_cases": 5, "model_requests": 76, "elapsed_seconds": 820.2732124598697,
+    "turns_by_case": [30, 8, 13, 9, 16],
+    "expected_overall": ["PASS", "PASS", "FAIL", "UNCERTAIN", "FAIL"],
+    "actual_overall": ["PASS", "PASS", "FAIL", "FAIL", "FAIL"],
+    "provider_usage": {"input_tokens": 1124119, "output_tokens": 81890, "total_tokens": 1206009},
+    "inputs_unchanged": true,
+    "result_path": "runs/bouchet_flashnext_20261016/native_terminal/result.json",
+    "result_sha256": "92e36594d242b9becf3738a52e0a0e67602863db510bc59c4a9ec7641d8483e8",
+    "log_sha256": "527c860028135a1414dbeebd95cd0fada6ac15fd03ac1a18753c6860fb2a7162"
+  },
+  "reports": [
+    {"case": "case-01", "sha256": "b168e73b874b1555af2b56b71208e5b4baaa373fa469132f507282637fbc6365"},
+    {"case": "case-02", "sha256": "eaa035591da12efaa13782b546b7cb1097d96d70c506c9ddfafbb9186e5d8c4d"},
+    {"case": "case-03", "sha256": "465dc44d831c6c1bd85c2f7dd140fae8a99f03b4a26984bb46bbe3d182141d9e"},
+    {"case": "case-04", "sha256": "f7559b44f4cf2c98308e2053990806b2be0ff8676171efed60efcc01f1964584"},
+    {"case": "case-05", "sha256": "5ea320fdbadb6db6a2623599fad163a5fdabccfa653090e108c4d14e125632ea"}
+  ],
+  "declared_examination": {"path": "report_examination.md", "sha256": "52c1829802360204fd142d0fa0277b4e147b146d806369956dc138579f3dc250", "result": "Not qualified. Completion-versus-truth semantics explain the sole label mismatch; auxiliary mathematical errors remain in the reports. No original disposition was changed."},
+  "provenance": "All five report hashes, exact native session hashes and read-observation hashes match their receipts. Every frozen source file was delivered in full to its own reviewer. Private reasoning remains remote and was not inspected.",
+  "scope": "Task-bound exposed-source diagnostic, not a population accuracy estimate, isolated capacity effect, full statistical research draw or completed H/S study. Repeated-prefix input tokens are not unique tokens or measured compute. Startup and assessment are included in the Slurm resource total.",
+  "preservation": "No rerun, repair, rescore, replacement judge or result-conditioned model switch. Earlier staging/startup records and consumed 27B/4B conditions remain unchanged. No publication checklist credit."
+}

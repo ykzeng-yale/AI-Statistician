@@ -56,6 +56,13 @@ establish literal reproduction of the published tables. The environment job
 installs/imports only, recording downloaded source-package hashes and resolved
 versions. It does not execute the original entries or call a model.
 
+The [environment observation](environment_observation.json) records CPU job
+29738082: completed in 458 seconds, with DRDID 1.3.0 and all twelve declared
+packages imported under R 4.4.2. Source-package hashes and 120 resolved package
+rows are retained. Headless graphics warnings remain in the log; the final
+imports passed. This is environment readiness, not numerical or theoretical
+reproduction. No original application, simulation or efficiency-bound entry ran.
+
 Use these materials to declare a complete known-method native research task:
 reviewable argument, estimator and inference, full specified comparative study,
 substantive application and report. Select and disclose the exact scientific

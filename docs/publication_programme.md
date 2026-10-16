@@ -18,9 +18,13 @@ The long native condition is now terminal in both arms: stock reached numerical
 compliance with uncertain AI theory review; statistical exhausted 96 author tool
 turns before submission or evaluation. Its unsubmitted files are preserved in the
 [terminal record](../benchmarks/agentic_scientist_native_hc0_long_20261016/statistical_terminal_observation.json).
-The separately frozen [Flash-Next native-review job](../benchmarks/publication_assessment_flashnext_20261016/submission.json)
-has allocated compute after successful weight staging, not completed an assessor or study.
-No checklist state changes.
+The separately frozen [Flash-Next native-review job](../benchmarks/publication_assessment_flashnext_20261016/terminal_observation.json)
+completed native transport and all five review cases but did not establish
+scientific qualification. Its declared examination retains the label mismatch
+and auxiliary referee errors without rerun or rescore. A complete known-method
+task is next, not another label-tuning panel. Original DR-DID sources and the
+[pinned R environment](../benchmarks/publication_reference_qualification_20261016/drdid/README.md)
+are prepared; no scientific entry has run. No checklist state changes.
 
 The latest user instruction selects [Agentic Scientist as the main backbone](../integrations/agentic-scientist/README.md).
 The pinned integration now connects native investigation and artifact-only

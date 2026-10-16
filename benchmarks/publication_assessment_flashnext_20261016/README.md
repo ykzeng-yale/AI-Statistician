@@ -1,5 +1,17 @@
 # Fixed Flash-Next Assessment Preparation
 
+## Terminal Outcome
+
+Job 29735341 is [terminal](terminal_observation.json): native API/schema and
+retained-tool feedback passed, all five source-review cases completed in 76
+panel requests, and the result is `LABEL_MISMATCH`, scientific qualification
+`NOT_ESTABLISHED`. The [declared report examination](report_examination.md)
+distinguishes incomplete delivery from a false theorem and records auxiliary
+mathematical errors in the referee's added reasoning. Neither labels nor
+reports are repaired or rerun. The following preparation records remain historical.
+
+## Frozen Preparation
+
 This is a new model-condition preparation, not a retry of the consumed 4B
 assessor or either consumed 27B research arm. No assessor or official publication
 draw is activated by downloading weights. The consumed 27B statistical arm keeps
@@ -48,7 +60,7 @@ candidate-mode positive is added because this native workspace has no such mode.
 identities verified. The frozen [assessment job 29735341](submission.json) is
 submitted under `pi_fl426`, with four B200s, 32 CPUs, 1 TiB host memory and
 48 hours, after successful staging. It has now [allocated those resources](allocation_observation.json).
-The subsequent [startup observation](startup_observation.json) records active
-Blackwell kernel compilation, without API-readiness or panel receipts. No serving
-fit, completed panel or scientific qualification is established by allocation
-or compilation progress.
+The intermediate [startup observation](startup_observation.json) recorded active
+Blackwell kernel compilation before API readiness. It is historical; the terminal
+outcome above now establishes successful transport and complete panel execution,
+but not scientific qualification. The job has ended and its owned server stopped.

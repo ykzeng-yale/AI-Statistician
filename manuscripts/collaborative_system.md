@@ -601,6 +601,16 @@ estimate a harness effect or establish a mathematical defect. The larger-model
 review panel is separately frozen and not pooled with them.
 [Native development records](../benchmarks/agentic_scientist_native_hc0_long_20261016/README.md)
 
+A separately specified Flash-Next BF16 component diagnostic completed all five
+source-review cases through the native API in 76 requests. Its frozen result
+was `LABEL_MISMATCH`: an honest incomplete argument received `FAIL` rather than
+the expected `UNCERTAIN`. The declared examination distinguishes delivery
+completion from claim truth and identifies additional mathematical errors in
+auxiliary referee reasoning; neither original labels nor reports were changed.
+The component remains unqualified. These exposed controls do not estimate general
+review accuracy, a model-capacity effect, or full-system scientific efficacy.
+[Diagnostic and examination](../benchmarks/publication_assessment_flashnext_20261016/README.md)
+
 Mechanism tests cover artifact identity, observations, owner iteration and
 evaluation boundaries. They do not establish derivation correctness or autonomous
 research capability. Selected library checks are not an agent proof success

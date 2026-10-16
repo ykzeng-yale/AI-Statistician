@@ -161,28 +161,34 @@ actual upstream pipeline connection before activating a fresh scientific run;
 do not manually supply a benchmark solution or migrate active conditions.
 
 **Keep one capable model condition across roles and arms.** Neither 4B nor 27B
-is a ceiling. A task-owned fixed Flash-Next is the next capacity candidate;
+is a ceiling. Task-owned fixed Flash-Next has now served real native requests;
 [verified resources and source metadata](local_qwen_testing.md#larger-consistent-deployment)
-separate that proposal from the actual 27B allocation. Larger models and standard
+separate its fixed condition from the earlier 27B allocation. Larger models and standard
 Bouchet long runs are authorized, without repeatedly seeking permission or
 shrinking the science. Do not confound a capacity upgrade with a harness change.
 Managed Yale coding hosts remain useful development routes, not assumed fixed
 weights or the single-API publication system.
 CPU-only [weight staging](../benchmarks/publication_assessment_flashnext_20261016/weight_staging_observation.json)
 29733204 completed: all 144 files match their pinned identities. The frozen
-native source-review [job 29735341](../benchmarks/publication_assessment_flashnext_20261016/submission.json)
-has [allocated four B200s and 1 TiB host memory](../benchmarks/publication_assessment_flashnext_20261016/allocation_observation.json)
-under its 48-hour envelope. The subsequent [startup observation](../benchmarks/publication_assessment_flashnext_20261016/startup_observation.json)
-records active Blackwell kernel compilation, still without readiness receipts;
-serving fit, panel completion and argument examination remain unestablished.
+native source-review [job 29735341 is terminal](../benchmarks/publication_assessment_flashnext_20261016/terminal_observation.json).
+It served the pinned BF16 model on four B200s with 1 TiB host memory and native
+262144-token configuration. Schema/tool-feedback transport passed and all five
+review cases completed in 76 panel requests. The original result remains
+`LABEL_MISMATCH`, scientific qualification `NOT_ESTABLISHED`; neither long-context
+quality nor research efficacy follows from serving fit. The owned server stopped.
 
 **Qualify scientific references and assessment in parallel with development.**
 The [new fixed-model native review panel](../benchmarks/publication_assessment_flashnext_20261016/assessment_protocol.md)
-reuses unchanged source-checked arguments through the actual Markdown reviewer,
-not the old semantic-packet controller. Run the five declared controls once,
-retain every outcome and examine decisive reasons against the prewritten key.
-This can qualify only the scoped component, not the broader multi-family endpoint
-or either publication. Do not rerun or reinterpret the consumed 4B preparation.
+reused unchanged source-checked arguments through the actual Markdown reviewer,
+not the old semantic-packet controller. Its five controls and declared
+[report examination](../benchmarks/publication_assessment_flashnext_20261016/report_examination.md)
+are complete. The sole label mismatch confounds incomplete proof delivery with
+an asserted false theorem; auxiliary mathematical errors also occur in the
+reviewer's added reasoning. Do not repair labels, rerun reports or install
+content-specific guards. Future assessment criteria must distinguish the actual
+obligation using the existing per-requirement interface. This exposed component
+does not qualify the broader endpoint or either publication. Preserve the older
+4B preparation unchanged as well.
 The [HonestDiD source preparation](../benchmarks/publication_reference_qualification_20261016/README.md)
 retains the original paper, supplement, archive, historical package and complete
 study topology. First application condition 29728552 completed Benzarti-Carloni
@@ -194,6 +200,17 @@ is not accepted numerical reproduction. The [separate terminal observation](../b
 retains those differences. Full simulations, mathematical assessment and release
 rights remain separate obligations. The localized attainment finding is public
 operator preparation, not secret gold, agent output or whole-paper rejection.
+
+The [DR-DID preparation](../benchmarks/publication_reference_qualification_20261016/drdid/README.md)
+now supplies byte-verified original code/data and native TeX, alongside the paper
+and proof supplement. CPU job 29738082 installed and imported the pinned R 4.4.2 /
+DRDID 1.3.0 environment; it ran no scientific entry. The next scientific work is a
+prospectively scoped complete known-method native task, not another five-case
+label-tuning retry. The model must own the argument, implementation, full study,
+application and report. Original simulation settings and historical/modern
+environment differences are explicit; preparation is not accepted reproduction.
+Internal model review remains fallible. Broader independent assessment is needed
+before official H/S claims, not another prerequisite for every development edit.
 
 The [source-bound AI-assessor preparation](../benchmarks/publication_assessment_qualification_20261015/README.md)
 is terminal and unqualified: seven model requests, two completed reports, then a
