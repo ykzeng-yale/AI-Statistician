@@ -327,6 +327,9 @@ def test_idea_receives_prior_source_feedback_without_evaluator_access(tmp_path):
     (prior / "evaluate.py").write_text("private evaluator")
     (results / "attempts_history.jsonl").write_text('{"attempt_status":"fail"}\n')
     idea = stage_workspace(results / "_idea_generation/next", source, stage="idea", results=results)
+    assert "the host owns global memory bookkeeping" in idea.instructions
+    assert "operator's fixed acceptance contract" in idea.instructions
+    assert "Upstream workflow instructions apply only where compatible" in idea.instructions
     assert invoke(idea, "read_file", path="history/ideas/01_prior/program_1/harness_evaluate_stderr.log").content["content"] == "opaque raw execution failure"
     assert invoke(idea, "read_file", path="history/ideas/01_prior/evaluate.py").is_error
     assert invoke(idea, "write_file", path="task_requirements.json", content="weaker", expected_sha256=sha("[]")).is_error

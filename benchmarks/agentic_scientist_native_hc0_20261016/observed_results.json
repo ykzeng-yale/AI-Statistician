@@ -1,0 +1,42 @@
+{
+  "status": "TERMINAL_BEFORE_SCIENTIFIC_AUTHORING",
+  "frozen_product_commit": "a799e03fceb5ef51140c8ddaab125e045b063e6f",
+  "job": {"id": "29722963", "state": "FAILED", "exit_code": "1:0", "elapsed_seconds": 2112},
+  "model": "Pinned Qwen3.8-27B BF16, vLLM 0.31.0, B200, configured 262144 context, xhigh template default, 32768 output tokens per request; all prospective inputs unchanged",
+  "arms": {
+    "stock": {
+      "outer_exit_code": 2, "terminal_stage": "investigation/ideation, cycle 1",
+      "model_turns": 12, "completed_tool_calls": 11, "tool_errors": 0,
+      "provider_usage": {"input_tokens": 114796, "output_tokens": 54359, "total_tokens": 169155},
+      "last_request": {"input_tokens": 13608, "output_tokens": 32768, "finish_reason": "length", "elapsed_seconds": 357.114090062998},
+      "idea_bundle_present": false, "rubric_proposal_present": false,
+      "source_authoring_attempts": 0, "candidate_evaluations": 0,
+      "theory_reviews": 0, "simulation_datasets": 0, "reports": 0,
+      "result_sha256": "33a833ca616a482a56b3c238ca024af4883edc3c42c29b11df4de1c226fbbfa7",
+      "archive_sha256": "577e514d9582f588d342baf066dc417ee963bf264b10b9296cd90e34541ff0c0"
+    },
+    "statistical": {
+      "outer_exit_code": 2, "terminal_stage": "investigation/ideation, cycle 1",
+      "model_turns": 14, "completed_tool_calls": 13, "tool_errors": 0,
+      "provider_usage": {"input_tokens": 159282, "output_tokens": 34013, "total_tokens": 193295},
+      "last_request": {"input_tokens": 15529, "output_tokens": 32768, "finish_reason": "length", "elapsed_seconds": 356.3719246119981},
+      "idea_bundle_present": false, "rubric_proposal_present": false,
+      "source_authoring_attempts": 0, "candidate_evaluations": 0,
+      "theory_reviews": 0, "simulation_datasets": 0, "reports": 0,
+      "result_sha256": "a28f006fee7ac1756636e0b58e5197e330675d0dcbb3768fbc2208dc2e3f403a",
+      "archive_sha256": "cd9edf26e75bed1e55fe324b31e6f16de87085f1700f6df5668becb0d1c87b26"
+    }
+  },
+  "reported_usage_total": {"input_tokens": 274078, "output_tokens": 88372, "total_tokens": 362450},
+  "interpretation": "Both last responses reached the declared output limit without a complete tool call. These are pre-scientific workflow failures, not rejection of a theorem, an estimator or observed simulation. No numerical method metric exists; do not enter zero coverage or power.",
+  "recorded_limits": "One idea attempt per cycle; exhaustion stops the campaign, so cycles 2/3 and source/review/posthoc never ran. No whole-job deadline or HTTP timeout caused the observed stops. A larger-model capacity ceiling or causal explanation of the long generation is not established.",
+  "source_findings": "The frozen adapter discarded native reasoning fields from subsequent assistant requests; inherited memory requirements also conflicted with the native stage's host-owned memory contract. These source-level defects are established, but their causal contributions to these outcomes are not isolated.",
+  "evidence_root": "runs/agentic_prompt_contract_20261016",
+  "log_sha256": {
+    "stock": "e3c4491ce4453879193dbf4af2a7776a80f5b039fc62c5b98d8faa3212f9b636",
+    "statistical": "06859867f3b41aaab028323f137563a8592fe06274e8be4a5fa47ca4d932a5eb",
+    "server": "21bf2b9ebe607e4434bba9e50866d95acc8a03e2af47903547d635b5226fcb6f"
+  },
+  "preservation": "Both terminal trees archived unchanged. No resume, output repair, candidate execution, reassessment, score change or model substitution. The owned service shut down and the allocation ended. Later prompt/state fixes do not alter this consumed condition.",
+  "scope": "Exposed two-arm development condition through the native adaptation, not unmodified v3, Paper H's portable-package contrasts, the complete four-arm Paper S study or scientific qualification. All publication checklist states remain unchanged."
+}

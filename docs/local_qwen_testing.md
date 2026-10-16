@@ -208,6 +208,29 @@ It supports the [continuous investigation/report condition](../benchmarks/agenti
 after a prospective code/input/configuration freeze. Environment installation
 does not activate a scientific draw or official publication model comparison.
 
+## Native State And Complete-Workflow Observation, October 16
+
+The [native 27B condition](../benchmarks/agentic_scientist_native_hc0_20261016/analysis.md)
+is terminal. Both arms stopped at the 32768-output limit in ideation, without
+scientific source, evaluation or simulation. No HTTP timeout or tool-permission
+failure caused those recorded stops. This does not measure theorem correctness
+or establish a model-capacity ceiling.
+
+Installed [vLLM 0.31.0](https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/entrypoints/openai/chat_completion/protocol.py)
+returns native `reasoning`, with `reasoning_content` as an older alias. The
+frozen adapter discarded both before subsequent requests. The prospective fix
+preserves each returned field as opaque assistant state, including through
+session storage; it introduces no reasoning-text parser or statistical rule.
+Private state is not a mathematical deliverable or an external review input.
+The earlier short transport probe did not test this preservation path.
+
+The [pinned model card](https://huggingface.co/Qwen/Qwen3.8-27B/blob/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0/README.md)
+also distinguishes its coding-benchmark output allowance from larger long-agent
+budgets under extended context. Future complete-workflow conditions must qualify
+state continuity and coherent context/output/stage timing before calls. Do not
+change the consumed 262144-context condition or silently claim that an extended
+context is already deployed. No new service is running after job 29722963.
+
 ## Latest Managed-Host Observation
 
 The [full-study module condition](../benchmarks/agentic_scientist_hc0_bouchet_20261015/README.md)

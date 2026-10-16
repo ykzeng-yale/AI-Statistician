@@ -155,7 +155,10 @@ unrelated directories and environment variables are not author tools. Linked
 paths are rejected; this is an application file boundary, not an OS sandbox for
 arbitrary shell execution. There is no shell tool in this source-only participant.
 The idea stage writes only its idea/rubric proposals; the host keeps the frozen
-task criteria and owns global memory bookkeeping. Both stages can read selected
+task criteria and owns global memory bookkeeping. This existing native ownership
+contract now lives in system instructions, above incompatible inherited workflow
+instructions, rather than in a user-message preamble. No file grant is widened
+and the upstream research prompt is unchanged. Both stages can read selected
 prior source, public status and raw execution logs through `history/` file
 references. Prior evaluator source is not granted. A new stage has a new model
 conversation; file-backed history is not a claim of uninterrupted context.
@@ -185,6 +188,12 @@ development job or backfill any consumed record.
 Per-attempt API evidence is under `.local-api/session`: deployment/input
 references, exact source hashes, transcript, observations and actual returned
 usage. These records are not parsed as Headless cost or reported as zero usage.
+Native assistant `reasoning`/`reasoning_content` fields are now preserved as opaque
+continuation state and passed back under their original field names. This uses
+the existing thinking-block/session representation, not a new reasoning agent or
+markup parser. That private state is not a source proof and is not granted to
+independent reviewers or reporters. The consumed a799e03f condition predates this
+fix and remains unchanged; fresh live qualification is pending.
 The current file participant does not yet attach source-discovery execution,
 Python/R exploratory tools or Lean/RAG specialist tools to the new controller.
 Those validated assets remain intact. This extension

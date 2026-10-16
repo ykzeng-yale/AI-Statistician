@@ -113,7 +113,7 @@ def stage_workspace(root: Path, source: Path, *, stage="research", results: Path
         *campaign_history_grants(results, current=root),
     )
     if stage == "idea":
-        return FileAuthorWorkspace((
+        workspace = FileAuthorWorkspace((
             FileGrant("task.md", source / "task.md"),
             FileGrant("task_requirements.json", source / "target_rubrics.json"),
             FileGrant("program_0", source / "program_0", directory=True),
@@ -121,6 +121,14 @@ def stage_workspace(root: Path, source: Path, *, stage="research", results: Path
             FileGrant("target_rubrics.json", root / "target_rubrics.json", writable=True),
             *shared,
         ))
+        workspace.instructions += (
+            " Native API stage contract: write idea_bundle.json and target_rubrics.json. "
+            "Keep author notes in notes_for_agent; the host owns global memory bookkeeping. "
+            "Use only granted logical paths, including history for prior source and raw observations. "
+            "task_requirements.json, when present, is the operator's fixed acceptance contract. "
+            "Upstream workflow instructions apply only where compatible with this stage contract."
+        )
+        return workspace
     if stage != "research":
         raise ValueError("Unknown native API stage.")
     grants = [
@@ -178,12 +186,6 @@ def main() -> int:
         workspace = (posthoc_workspace(root) if args.stage == "posthoc" else
                      stage_workspace(root, Path(os.environ["TASK_SOURCE_DIR"]), stage=args.stage, results=results))
         prompt = args.prompt_file.read_text()
-        if args.stage == "idea":
-            prompt = ("Native API stage contract: write idea_bundle.json and target_rubrics.json. "
-                      "Keep author notes in notes_for_agent; the host owns global memory bookkeeping. "
-                      "Use only granted logical paths, including history for prior source and raw observations. "
-                      "task_requirements.json, when present, is the operator's fixed acceptance contract.\n\n"
-                      + prompt)
         result = run_file_session(
             backend=backend, workspace=workspace, prompt=prompt,
             model=args.model, max_tokens=config["max_tokens"], temperature=config["temperature"],

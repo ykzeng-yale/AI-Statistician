@@ -193,7 +193,7 @@ def test_unsupported_history_is_not_silently_dropped():
         _chat_messages(request)
 
 
-def _mock_local_completion(monkeypatch, *, usage=None, tool_calls=None, error=False, finish_reason="stop"):
+def _mock_local_completion(monkeypatch, *, usage=None, tool_calls=None, error=False, finish_reason="stop", assistant_state=None):
     requests = []
     raw = {"model": "Qwen3-4B-Instruct-2507", "choices": [{
         "message": {"content": "transport fixture", "tool_calls": tool_calls or []},
@@ -202,6 +202,7 @@ def _mock_local_completion(monkeypatch, *, usage=None, tool_calls=None, error=Fa
                      "predicted_ms": 8.0, "not_a_timing": "omitted"}}
     if usage is not None:
         raw["usage"] = usage
+    raw["choices"][0]["message"].update(assistant_state or {})
 
     class Opener:
         def open(self, request, *, timeout):
@@ -213,6 +214,65 @@ def _mock_local_completion(monkeypatch, *, usage=None, tool_calls=None, error=Fa
 
     monkeypatch.setattr("urllib.request.build_opener", lambda *args: Opener())
     return requests
+
+
+@pytest.mark.parametrize("state", [
+    {"reasoning": "opaque-native-state\nunchanged"},
+    {"reasoning_content": "opaque-compatible-state\nunchanged"},
+    {"reasoning": "opaque-a", "reasoning_content": "opaque-b"},
+])
+def test_local_native_continuation_survives_serialization_and_session_storage(monkeypatch, tmp_path, state):
+    calls = [{"id": "native-state", "function": {"name": "observe", "arguments": "{}"}}]
+    _mock_local_completion(monkeypatch, tool_calls=calls, assistant_state=state)
+    response = LocalChatGeneratorBackend().generate_client_tool_turn(_request())
+    assert response.text == "transport fixture"
+    request = replace(_request(), messages=(
+        *_request().messages,
+        {"role": "assistant", "content": list(response.content_blocks)},
+        {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "native-state",
+            "content": "opaque raw feedback", "is_error": True}]},
+    ))
+    reference = persist_client_tool_session(session_dir=tmp_path, session_id="native-state",
+        request=request, messages=request.messages)
+    restored = replace(request, messages=load_client_tool_session(reference,
+        session_dir=tmp_path, session_id="native-state", request=request))
+    native = _chat_messages(restored)
+    assert {key: native[2][key] for key in state} == state
+    assert native[2]["tool_calls"][0]["id"] == "native-state"
+    assert json.loads(native[3]["content"]) == {"content": "opaque raw feedback", "is_error": True}
+    assert all(not set(state).intersection(message) for message in (native[0], native[1], native[3]))
+
+
+def test_local_two_turn_loop_returns_native_state_with_actual_tool_feedback(monkeypatch):
+    bodies = []
+
+    class Opener:
+        def open(self, request, *, timeout):
+            bodies.append(json.loads(request.data))
+            finishing = len(bodies) == 2
+            message = {"content": "", "reasoning": "opaque-state-2" if finishing else "opaque-state-1",
+                "tool_calls": [{"id": "finish-2" if finishing else "read-1", "function": {
+                    "name": "finish" if finishing else "observe", "arguments": "{}"}}]}
+            return BytesIO(json.dumps({"model": _request().model,
+                "choices": [{"message": message, "finish_reason": "tool_calls"}]}).encode())
+
+    monkeypatch.setattr("urllib.request.build_opener", lambda *args: Opener())
+    request = replace(_request(), tools=(*_request().tools, ClientToolDefinition(
+        name="finish", description="Finish the opaque fixture.", input_schema={"type": "object"}, terminal=True)))
+    result = run_bounded_client_tool_loop(backend=LocalChatGeneratorBackend(), request=request,
+        execute_tool=lambda call, context: ClientToolExecutionResult(content="raw-failure-17",
+            is_error=call.name == "observe", terminal=call.name == "finish", terminal_payload={"fixture": True}),
+        max_turns=2, max_tool_calls=2, max_no_progress_turns=2)
+    assert result.terminal_payload == {"fixture": True}
+    assert len(bodies) == 2
+    assert bodies[1]["messages"][2]["reasoning"] == "opaque-state-1"
+    assert json.loads(bodies[1]["messages"][3]["content"]) == {"content": "raw-failure-17", "is_error": True}
+
+
+def test_invalid_native_state_does_not_authorize_tool_execution(monkeypatch):
+    _mock_local_completion(monkeypatch, assistant_state={"reasoning": {"unexpected": "object"}})
+    with pytest.raises(ClientToolResponseDecodeError):
+        LocalChatGeneratorBackend().generate_client_tool_turn(_request())
 
 
 @pytest.mark.parametrize("finish_reason", ["length", "stop", "tool_calls", "content_filter", "unknown"])

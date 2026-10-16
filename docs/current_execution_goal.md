@@ -106,7 +106,7 @@ our benchmark nor evidence of this system's scientific benefit.
 
 ## Immediate Execution
 
-**Next actual run:** the
+**Latest actual run:** the
 [native HC0 workflow condition](../benchmarks/agentic_scientist_native_hc0_20261016/README.md)
 prepares the exposed problem for one pinned API across the real upstream
 investigation and posthoc phases. Complete process fixtures now cover review
@@ -114,10 +114,19 @@ failure, model-owned source revision, evaluation and report publication within
 the same outer controller. The pinned 27B deployment has passed actual native
 API/retained-tool checks, and its separate locked worker environment is installed.
 Freeze the exact code, two task trees and API settings before scientific
-activation. This freeze is now submitted as job **29722963**, initially pending;
-no completed study or official comparison is claimed. Keep the
+activation. Job **29722963** is now terminal: both arms stopped in ideation at
+the declared output limit, with no scientific source or numerical execution.
+The [terminal analysis](../benchmarks/agentic_scientist_native_hc0_20261016/analysis.md)
+separates that outcome from the demonstrated prompt-ownership and dropped native
+reasoning-state defects. No arm is resumed, repaired or rescored. Keep the
 original full-study evaluator and all prior failures. This development scope
 does not include autonomous simulation-design/code generation or an application.
+
+**Next complete-workflow condition:** finish the native state/prompt corrections
+and qualify coherent context, output and stage timing from the pinned model's
+documented capabilities. Keep the complete question and theory/code/study/report
+obligations; do not narrow the task or add statistical answers. A new model or
+resource condition is prospectively frozen, not an automatic retry of this one.
 
 **Use the actual upstream observation to qualify the full-study boundary.** The
 requested native stock-v3 run on the exposed White HC0 task is now terminal.

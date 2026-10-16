@@ -170,6 +170,11 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
         server.server_close()
     assert run.returncode == 0, run.stdout + run.stderr
     assert len(requests) == len(actions), run.stdout + run.stderr
+    idea_system = requests[0]["messages"][0]
+    assert idea_system["role"] == "system"
+    assert "the host owns global memory bookkeeping" in idea_system["content"]
+    assert "operator's fixed acceptance contract" in idea_system["content"]
+    assert not requests[0]["messages"][1]["content"].startswith("Native API stage contract:")
     first, second = results / "ideas/01_first_attempt", results / "ideas/02_second_attempt"
     assert "opaque feedback 19" in (first / "program_1" / failure_file).read_text()
     if failure_kind == "execution":

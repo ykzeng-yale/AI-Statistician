@@ -8,6 +8,10 @@ time, completed research or an official comparison.
 The subsequent [live observation](runtime_observation.json) records allocation,
 successful startup and the first nine completed API/tool turns, with ideation
 still in flight. It is not a terminal outcome or a completed scientific study.
+The [terminal record](observed_results.json) now supersedes that live status:
+both arms stopped at the ideation output limit, before authoring or evaluation.
+The [analysis](analysis.md) separates these outcomes from source-level interface
+findings and future resource decisions. Neither arm is resumed or rescored.
 This reuses the exposed HC0 family and unchanged full-study evaluator from the
 October 15 Bouchet observation. Earlier candidates, reviews, results and scores
 remain consumed and unchanged.

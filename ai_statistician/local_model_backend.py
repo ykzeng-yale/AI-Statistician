@@ -40,12 +40,19 @@ def _chat_messages(request: ClientToolTurnRequest) -> list[dict[str, Any]]:
             messages.append({"role": role, "content": content})
             continue
         text: list[str] = []
+        reasoning: dict[str, str] = {}
         calls: list[dict[str, Any]] = []
         results: list[dict[str, Any]] = []
         for block in content:
             kind = block["type"]
             if kind == "text":
                 text.append(str(block["text"]))
+            elif kind == "thinking" and role == "assistant":
+                field = block.get("provider_field", "reasoning")
+                value = block.get("thinking")
+                if field not in {"reasoning", "reasoning_content"} or not isinstance(value, str) or field in reasoning:
+                    raise ValueError("invalid local assistant continuation field")
+                reasoning[field] = value
             elif kind == "tool_use" and role == "assistant":
                 calls.append({
                     "id": block["id"], "type": "function",
@@ -61,8 +68,8 @@ def _chat_messages(request: ClientToolTurnRequest) -> list[dict[str, Any]]:
                 raise ValueError(f"local text backend does not support {role} block {kind!r}")
         if results:
             messages.extend(results)
-        if text or calls:
-            row: dict[str, Any] = {"role": role, "content": "\n".join(text)}
+        if text or calls or reasoning:
+            row: dict[str, Any] = {"role": role, "content": "\n".join(text), **reasoning}
             if calls:
                 row["tool_calls"] = calls
             messages.append(row)
@@ -191,6 +198,12 @@ class LocalChatGeneratorBackend:
             message = raw["choices"][0]["message"]
             text = message.get("content") or ""
             blocks: list[dict[str, Any]] = [{"type": "text", "text": text}] if text else []
+            for field in ("reasoning", "reasoning_content"):
+                value = message.get(field)
+                if value is not None:
+                    if not isinstance(value, str):
+                        raise TypeError("local assistant continuation must be text")
+                    blocks.insert(0, {"type": "thinking", "thinking": value, "provider_field": field})
             calls: list[ClientToolCall] = []
             for item in message.get("tool_calls") or []:
                 function = item["function"]

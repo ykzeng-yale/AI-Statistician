@@ -217,6 +217,13 @@ The host owns execution of the completed candidate. Its observations enter the
 existing attempt history, where the next source owner can inspect the failure
 and submit a new candidate. Within a session, tool observations are retained;
 between stages, file-backed history is not an uninterrupted model conversation.
+Native assistant reasoning fields are retained as opaque continuation state in
+their own conversation and returned through the provider's interface. They are
+not parsed into mathematical conclusions or supplied to independent reviewers.
+The complete mathematical argument still belongs in the selected source files.
+Deterministic native-request and persistence tests verify this transport; the
+first 27B development condition predates the correction and is not retroactively
+treated as reasoning-state-qualified research.
 The explicit source-only policy is the current evaluated interface, not a claim
 that all scientific work should exclude exploratory execution.
 
