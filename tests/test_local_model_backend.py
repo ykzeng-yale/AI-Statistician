@@ -22,7 +22,7 @@ from ai_statistician.client_tool_loop import (
 )
 from ai_statistician.local_model_backend import LocalChatGeneratorBackend, _chat_messages
 from ai_statistician.model_backend import (
-    ClientToolDefinition, ClientToolTurnRequest, GeneratorRequest,
+    ClientToolDefinition, ClientToolResponseDecodeError, ClientToolTurnRequest, GeneratorRequest,
     default_generator_model, default_generator_provider,
 )
 
@@ -143,8 +143,11 @@ def test_tool_transport_does_not_execute_or_repair_calls(monkeypatch):
     assert response.content_blocks[1]["id"] == "native-id"
     assert response.metadata["tools_executed_by_backend"] is False
     raw["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] = "broken json"
-    with pytest.raises(json.JSONDecodeError):
+    with pytest.raises(ClientToolResponseDecodeError) as failed:
         LocalChatGeneratorBackend().generate_client_tool_turn(_request())
+    assert failed.value.response.raw == raw
+    assert failed.value.response.tool_calls == ()
+    assert isinstance(failed.value.__cause__, json.JSONDecodeError)
 
 
 def test_inline_critic_uses_required_single_tool_on_actual_local_wire(monkeypatch):
@@ -239,6 +242,50 @@ def test_local_output_limit_reaches_shared_loop_without_executing_truncated_turn
         assert "provider_tool_input_truncated" in row["tool_calls"][0]["result_excerpt"]
     else:
         assert "ended at max_tokens" in stopped.value.reason
+
+
+@pytest.mark.parametrize("arguments,finish_reason,decode_error", [
+    ('{"unfinished":', "length", "JSONDecodeError"),
+    ('not json', "tool_calls", "JSONDecodeError"),
+    ('[]', "stop", "ValueError"),
+])
+def test_received_but_undecodable_turn_preserves_usage_and_raw_response(
+    monkeypatch, tmp_path, arguments, finish_reason, decode_error,
+):
+    import hashlib
+
+    calls = [
+        {"id": "complete-first", "function": {"name": "observe", "arguments": "{}"}},
+        {"id": "incomplete-second", "function": {"name": "observe", "arguments": arguments}},
+    ]
+    requests = _mock_local_completion(monkeypatch, tool_calls=calls,
+        finish_reason=finish_reason, usage={"prompt_tokens": 31, "completion_tokens": 8, "total_tokens": 39})
+    executed = []
+    with pytest.raises(ClientToolLoopError) as stopped:
+        run_bounded_client_tool_loop(backend=LocalChatGeneratorBackend(), request=_request(),
+            execute_tool=lambda call, context: executed.append(call),
+            max_turns=3, max_tool_calls=3, max_no_progress_turns=3,
+            session_dir=tmp_path, session_id="decode-fixture")
+    error = stopped.value
+    assert len(requests) == 1 and executed == []
+    assert error.messages == list(_request().messages)
+    assert error.tool_calls == 0
+    assert error.provider_usage == {"input_tokens": 31, "output_tokens": 8, "total_tokens": 39}
+    row = error.history[-1]
+    assert row["provider_output_truncated"] is (finish_reason == "length")
+    metadata = row["response_metadata"]
+    assert metadata["provider_stop_reason"] == ("max_tokens" if finish_reason == "length" else finish_reason)
+    assert metadata["provider_decode_error"] == decode_error
+    assert metadata["automatic_turn_restart"] is False
+    assert metadata["provider_usage_complete"] is True
+    assert error.final_response_metadata["provider_response_ref"] == metadata["provider_response_ref"]
+    reference = metadata["provider_response_ref"]
+    encoded = (tmp_path / reference["relative_path"]).read_bytes()
+    assert len(encoded) == reference["byte_size"]
+    assert hashlib.sha256(encoded).hexdigest() == reference["sha256"]
+    raw = json.loads(encoded)
+    assert raw["choices"][0]["message"]["tool_calls"] == calls
+    assert raw["choices"][0]["finish_reason"] == finish_reason
 
 
 @pytest.mark.parametrize("limit", [None, 4, 3])

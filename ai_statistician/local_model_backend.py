@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 from .agent_runtime import agent_runtime_local_model_request
 from .model_backend import (
     ClientToolCall,
+    ClientToolResponseDecodeError,
     ClientToolTurnRequest,
     ClientToolTurnResponse,
     GeneratorRequest,
@@ -186,18 +187,25 @@ class LocalChatGeneratorBackend:
                 "parameters": dict(tool.input_schema), "strict": tool.strict,
             }} for tool in request.tools],
         })
-        message = raw["choices"][0]["message"]
-        text = message.get("content") or ""
-        blocks: list[dict[str, Any]] = [{"type": "text", "text": text}] if text else []
-        calls: list[ClientToolCall] = []
-        for item in message.get("tool_calls") or []:
-            function = item["function"]
-            arguments = json.loads(function["arguments"])
-            if not isinstance(arguments, dict):
-                raise ValueError("local tool arguments must be a JSON object")
-            calls.append(ClientToolCall(call_id=item["id"], name=function["name"], input=arguments))
-            blocks.append({"type": "tool_use", "id": item["id"],
-                           "name": function["name"], "input": arguments})
+        try:
+            message = raw["choices"][0]["message"]
+            text = message.get("content") or ""
+            blocks: list[dict[str, Any]] = [{"type": "text", "text": text}] if text else []
+            calls: list[ClientToolCall] = []
+            for item in message.get("tool_calls") or []:
+                function = item["function"]
+                arguments = json.loads(function["arguments"])
+                if not isinstance(arguments, dict):
+                    raise ValueError("local tool arguments must be a JSON object")
+                calls.append(ClientToolCall(call_id=item["id"], name=function["name"], input=arguments))
+                blocks.append({"type": "tool_use", "id": item["id"],
+                               "name": function["name"], "input": arguments})
+        except (KeyError, IndexError, TypeError, ValueError, AttributeError) as exc:
+            raise ClientToolResponseDecodeError(ClientToolTurnResponse(
+                content_blocks=(), tool_calls=(), text="", provider=self.provider_name,
+                model=request.model, raw=raw,
+                metadata={**metadata, "provider_decode_error": type(exc).__name__},
+            )) from exc
         return ClientToolTurnResponse(
             content_blocks=tuple(blocks), tool_calls=tuple(calls), text=text,
             provider=self.provider_name, model=raw.get("model") or request.model,

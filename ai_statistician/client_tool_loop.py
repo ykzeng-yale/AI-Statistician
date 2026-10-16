@@ -13,6 +13,7 @@ from .fingerprint import stable_hash
 from .model_backend import (
     ClientToolCall,
     ClientToolDefinition,
+    ClientToolResponseDecodeError,
     ClientToolTurnRequest,
     ClientToolTurnResponse,
 )
@@ -1109,6 +1110,7 @@ def run_bounded_client_tool_loop(
             },
         ):
             provider_failure: tuple[str, str] | None = None
+            received: Mapping[str, Any] = {}
             try:
                 response = generate_turn(
                     replace(
@@ -1126,6 +1128,31 @@ def run_bounded_client_tool_loop(
                 )
             except Exception as exc:
                 provider_failure = (type(exc).__name__, type(exc).__module__)
+                if isinstance(exc, ClientToolResponseDecodeError):
+                    last_response = exc.response
+                    if session_dir is not None:
+                        encoded = json.dumps(last_response.raw, ensure_ascii=False,
+                                             sort_keys=True).encode("utf-8")
+                        sha256 = hashlib.sha256(encoded).hexdigest()
+                        relative = Path(CLIENT_TOOL_SESSION_DIRECTORY, "responses", sha256 + ".json")
+                        root = session_dir.resolve()
+                        target = (root / relative).resolve()
+                        if not target.is_relative_to(root):
+                            raise ValueError("provider response escapes its session directory")
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        if target.exists():
+                            if target.read_bytes() != encoded:
+                                raise ValueError("stored provider response has different bytes")
+                        else:
+                            with target.open("xb") as stream:
+                                stream.write(encoded)
+                        last_response = replace(last_response, metadata={
+                            **dict(last_response.metadata), "provider_response_ref": {
+                                "relative_path": relative.as_posix(), "sha256": sha256,
+                                "byte_size": len(encoded),
+                            },
+                        })
+                    received = last_response.metadata
             if provider_failure is not None:
                 exception_type, exception_module = provider_failure
                 history.append(
@@ -1136,10 +1163,13 @@ def run_bounded_client_tool_loop(
                         ),
                         "model": request.model,
                         "stop_reason": "provider_terminal_error",
-                        "provider_output_truncated": False,
+                        "provider_output_truncated": (
+                            received.get("provider_stop_reason") == "max_tokens" if received else None
+                        ),
                         "n_tool_calls": 0,
                         "tool_calls": [],
                         "response_metadata": {
+                            **_compact_tool_response_metadata(received),
                             "exception_type": exception_type,
                             "exception_module": exception_module,
                             "pending_workspace_input_preserved": True,
@@ -1561,6 +1591,8 @@ def _compact_tool_response_metadata(
         "provider_reported_model",
         "request_model_tier",
         "provider_reported_model_tier",
+        "provider_decode_error",
+        "provider_response_ref",
     )
     return {
         key: deepcopy(metadata[key])

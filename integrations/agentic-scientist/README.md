@@ -176,8 +176,11 @@ existing state and start a new cycle without rerunning a consumed evaluation;
 this is not permission to resume a terminated scientific study. Partial or stale
 evidence is rejected, not repaired. Native evaluation timeout recovery remains
 unfinished. The existing local
-transport can also lose last-response metadata on malformed tool JSON; this
-extension does not claim to have fixed that separate defect.
+transport now retains received stop/usage metadata when tool JSON decoding
+fails, and stores the rejected parsed-provider response separately by hash.
+No call from that response is executed or repaired; an unobserved response keeps
+truncation unknown. This prospective fix does not alter the frozen a799e03f
+development job or backfill any consumed record.
 
 Per-attempt API evidence is under `.local-api/session`: deployment/input
 references, exact source hashes, transcript, observations and actual returned

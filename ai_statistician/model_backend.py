@@ -700,6 +700,14 @@ class ClientToolTurnResponse:
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
+class ClientToolResponseDecodeError(ValueError):
+    """A received response that cannot authorize any client-tool execution."""
+
+    def __init__(self, response: ClientToolTurnResponse) -> None:
+        super().__init__("Received client-tool response could not be decoded")
+        self.response = response
+
+
 class GeneratorBackend(Protocol):
     """A restricted LLM backend used as a generator, not as an acting agent."""
 
