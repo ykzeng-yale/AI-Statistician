@@ -1,0 +1,40 @@
+{
+  "kind": "operator_declared_task_owned_deployment",
+  "frozen_date": "2026-10-16",
+  "model": "Qwen/Qwen3.8-27B",
+  "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+  "served_model": "Qwen3.8-27B-pinned",
+  "precision": "bfloat16; no weight quantization; automatic KV cache dtype",
+  "model_root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-Qwen38-27B-20261015/model",
+  "verified_model_files_sha256": "3b138394437dc1c4959330965db95b40c7c1400d0b9479c5105cd96f03d50dfd",
+  "chat_template_sha256": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+  "generation_config_sha256": "e70c136c1b78ddc1fb0905bac8e733a4dc448d4f852a5dd75143fffc70be550e",
+  "vllm": "0.31.0",
+  "torch": "2.13.0+cu130",
+  "python": "3.12.3",
+  "serving_archive_sha256": "d322861877b4504d931ea7ec4a3175c1108437e85f65189783dd61712e8309a3",
+  "serving_lock_sha256": "77df8a4c761d31626671a829ed344985eeeb3935ad1a75e3bc7fcd0e16dff2f1",
+  "serving_freeze_sha256": "7601c963977f3d69b05dbbe64cc21344afd5f2dd024aa46df8f60a8f48fb8d1f",
+  "modules": ["Python/3.12.3-GCCcore-13.3.0", "CUDA/12.9.1"],
+  "resource_shape": {"gpu": "one NVIDIA B200", "cpus": 8, "host_memory_gib": 128},
+  "serving": {
+    "host": "127.0.0.1", "port": 8081, "context_tokens": 262144,
+    "concurrency": 1, "max_batched_tokens": 8192, "gpu_memory_utilization": 0.9,
+    "seed": 20261015, "reasoning_parser": "qwen3", "tool_call_parser": "qwen3_coder",
+    "enable_auto_tool_choice": true, "language_model_only": true,
+    "generation_config": "pinned model directory", "OMP_NUM_THREADS": 8
+  },
+  "generation": {
+    "temperature": 1.0, "top_p": 0.95, "top_k": 20,
+    "thinking": "Pinned template defaults to enabled/xhigh; no per-role override or Anthropic thinking budget. Effective requests and returned usage are retained.",
+    "scientific_max_output_tokens": 32768,
+    "request_timeout_seconds": 1800, "max_turns_and_tool_calls_per_session": 96
+  },
+  "qualification": {
+    "job_id": "29722100", "state": "COMPLETED", "exit_code": "0:0", "elapsed_seconds": 188,
+    "success_sha256": "4e4fc99062d96dda474d192c8157cdd9163c6c1f08e2c5ce445137750889e884",
+    "server_log_sha256": "fb496a658defc5772300e72c9d90efa3744e770dadd9e0ddd0f1f4a8ad7ec333",
+    "scope": "Real schema response and two retained tool turns returning exact opaque error text; probe max output 8192. Not long-context quality, mathematical correctness or whole-system qualification. The probe service stopped."
+  },
+  "authority": "Operator-declared exact files/runtime; response model identity is checked, not a remote attestation of server internals. No cloud fallback or model substitution."
+}

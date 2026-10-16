@@ -1,0 +1,12 @@
+{
+  "model": "Qwen3.8-27B-pinned",
+  "base_url": "http://127.0.0.1:8081/v1",
+  "max_tokens": 32768,
+  "temperature": 1.0,
+  "timeout_seconds": 1800,
+  "max_turns": 96,
+  "deployment_ref": {
+    "path": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-native-HC0-20261016/deployment_receipt.json",
+    "sha256": "247d1cbe201bb0dbd5b1d373a68abb71a6627d1a7b9ff047376d485067bdff4f"
+  }
+}

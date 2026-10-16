@@ -1,6 +1,10 @@
 # Native API HC0 Workflow Development
 
-Prepared October 16, 2026. No scientific call has been made in this condition.
+Prepared October 16, 2026. Frozen and submitted once as job **29722963**; its
+first observed state is `PENDING`, with no scientific calls in this condition.
+See [prospective configuration](precall.json), [deployment](deployment_receipt.json)
+and [submission receipt](submission.json). Submission does not establish a start
+time, completed research or an official comparison.
 This reuses the exposed HC0 family and unchanged full-study evaluator from the
 October 15 Bouchet observation. Earlier candidates, reviews, results and scores
 remain consumed and unchanged.

@@ -114,7 +114,8 @@ failure, model-owned source revision, evaluation and report publication within
 the same outer controller. The pinned 27B deployment has passed actual native
 API/retained-tool checks, and its separate locked worker environment is installed.
 Freeze the exact code, two task trees and API settings before scientific
-activation; no completed study or official comparison is claimed. Keep the
+activation. This freeze is now submitted as job **29722963**, initially pending;
+no completed study or official comparison is claimed. Keep the
 original full-study evaluator and all prior failures. This development scope
 does not include autonomous simulation-design/code generation or an application.
 

@@ -1,0 +1,48 @@
+{
+  "frozen_date": "2026-10-16",
+  "condition_id": "native_hc0_20261016",
+  "scope": "Exposed development reconstruction/workflow observation, not official H/S, historical blind discovery, autonomous simulation design, real-data application or a full publication.",
+  "product_commit": "a799e03fceb5ef51140c8ddaab125e045b063e6f",
+  "product_archive_sha256": "6b0d30424fb52f5eb1f81d8a351ece6a6ac4b27094762157744e195fbe079714",
+  "upstream_commit": "2b8aa39285c35aaca3b0e06dd121061ef8a2d854",
+  "upstream_archive_sha256": "d915fa9ed422d4ef717b0603c1ea88b6348c4cbcb9668e9cf9549bf1c4f1ffda",
+  "patches_in_order": {
+    "local_api_backend.patch": "0bf2978d9aa13559db1bfbe9628a7acb3a6fc4c6d63f3cff8afc2fded10f83b1",
+    "native_campaign_semantics.patch": "3b1ea70d562d3da2583873f2f2ec7bed1d4606ce452ad3aae9651b29f3aa0a9d",
+    "native_posthoc.patch": "fdfb6ef6973a34a258f6c8c06fd65024d3e15672700918d5b0d55fb12c9745e2"
+  },
+  "controller": "Actual upstream src.pipeline.cli; investigation,posthoc; serial workers=1; no legacy graph, coding CLI or second scheduler.",
+  "order": ["stock", "statistical"],
+  "draws_per_arm": 1,
+  "intervention": "Upstream investigation prompt versus statistical investigation prompt plus portable guidance. Common native API adaptation, AI review and reporting in both arms. Not a model-size contrast or unmodified-v3 efficacy comparison.",
+  "prepared_inputs_sha256": {
+    "stock": "706ed430a20a6828c96e88c8cc61d954e466aed677f5261f99b861eb61746a4b",
+    "statistical": "6219a281a5d4983cc64b20ceab443448c908a1fd63b99a598dacefc2ebf62bf8"
+  },
+  "scientific_study": "Exact retained full-study evaluator; 12 cells, 5000 paired datasets per cell, seed 2026101517, HC0 and conventional OLS with statsmodels reference. Numerical compliance is not theory acceptance. No new coverage/power threshold or task-answer patch.",
+  "source_access": "Known method and bibliographic citation; original full paper absent. No Internet search tool, other-arm access, private evaluator source or hidden gold granted. Prior exposed family is excluded from future official test pools.",
+  "assessment": "Common source-bound fresh-context AI review of theory and method/study, without author history or numerical outcomes. Reviewer is uncalibrated; dispositions are feedback, not proof. Reporting reads only selected source, public review and declared actual summaries; no execution tools. Host checks report structure, not scientific interpretation correctness.",
+  "budgets": {
+    "candidate_cycles_per_arm": 3, "idea_attempts_per_cycle": 1,
+    "idea_seconds": 3600, "author_seconds": 14400,
+    "host_evaluation_seconds": 1800, "source_review_seconds": 1800,
+    "report_attempts": 3, "report_seconds_per_attempt": 3600,
+    "api": "Same frozen api_config.json and deployment receipt for all roles/arms. No cloud fallback, model change, precision change or timeout extension after outcomes."
+  },
+  "worker": {
+    "setup_job": "29722329 COMPLETED 0:0; 588 seconds; 83 packages compatible",
+    "archive_sha256": "5752b5f1e842bd89d5370a42cd4b4df123fb276c348dbdd72553c85d6342eaa6",
+    "requirements_sha256": "8aa5df2c022c51e5696de06d169d3dc4081c8a807e5a4a4a633e1ff140b62941",
+    "freeze_sha256": "20717dc0e1438882426f3065f6eeca8fe173d64c3e4978070e61f5ff8b6ca626",
+    "threads": "OMP/OpenBLAS/MKL=1 for scientific worker; serving OMP=8"
+  },
+  "resources": {
+    "account": "pi_fl426", "qos": "normal", "partition": "gpu_b200",
+    "gpu_type": "b200", "gpus": 1, "cpus": 8, "host_memory_gib": 128,
+    "wall_seconds": 172800,
+    "routing": "Identical 48-hour one-B200 shapes under both authorized accounts returned the same 2026-10-16T05:13:35 estimate; use existing task storage/account pi_fl426. Test-only is not allocation; no duplicate race jobs."
+  },
+  "run_script_sha256": "601d6b4f3f14b971a441da42126ef6b60c2ff86aea0a0fdd4ff4323a8798e947",
+  "stop_and_preservation": "One submitted job, owned loopback service stops at terminal exit. No automatic infrastructure retry, consumed candidate rerun/rescore or operator output repair. Preserve failed/absent artifacts and all effective requests, usage, source and review identities. Pipeline exit zero is not scientific acceptance. Attempt statistical after stock terminates unless infrastructure/job failure prevents it.",
+  "status_at_freeze": "Deployment transport and locked worker qualified; prepared source/tasks have no scientific model calls or results in this condition; scientific job not yet submitted."
+}

@@ -1,0 +1,18 @@
+{
+  "submitted_at": "2026-10-16T02:45:40-04:00",
+  "job_id": "29722963",
+  "state_observed": "PENDING",
+  "start_time_observed": "Unknown; scheduler estimates are not commitments",
+  "account": "pi_fl426", "qos": "normal", "partition": "gpu_b200",
+  "resources": {"nodes": 1, "gpus": 1, "gpu_type": "b200", "cpus": 8, "host_memory_gib": 128, "wall_seconds": 172800},
+  "requeue": false,
+  "condition_root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-native-HC0-20261016",
+  "precall_sha256": "3812aba8112cfc6aba70ea20ddf8964f1480f8ae0108200110ad599477072061",
+  "deployment_receipt_sha256": "247d1cbe201bb0dbd5b1d373a68abb71a6627d1a7b9ff047376d485067bdff4f",
+  "api_config_sha256": "e88d87b7aa5c645002d2c3125edd90785c987b2b9a94f3e15a116bb85c7cc66f",
+  "frozen_files_sha256": "14d754eda47a7f32b4c559222436b70300dd1ea472bd549d973b00d3c37f627f",
+  "frozen_files_count": 2766,
+  "freeze_scope": "Source archives and patched code, worker locks, task trees, exact model files and configuration; job verifies manifest identity and contents before serving. Worker/serving archives have additional exact hash checks.",
+  "entrypoint": "bash run_condition.sh; existing src.pipeline.cli investigation,posthoc for stock then statistical",
+  "status_scope": "Submission is not allocation, completed inference, scientific acceptance or an official publication result. No model calls in this new condition at this observation. No duplicate job or automatic retry."
+}
