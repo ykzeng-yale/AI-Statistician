@@ -34,6 +34,7 @@ export VLLM_CACHE_ROOT="$local_root/vllm-cache" FLASHINFER_WORKSPACE_BASE="$loca
 export OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 export AI_STATISTICIAN_LOCAL_BASE_URL=http://127.0.0.1:8081/v1
 unset HF_TOKEN HUGGING_FACE_HUB_TOKEN ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN OPENAI_API_KEY OPENROUTER_API_KEY
+"$worker_python" -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",8081)); s.close()'
 mkdir "deployment-$SLURM_JOB_ID"
 deployment="$root/deployment-$SLURM_JOB_ID"
 nvidia-smi --query-gpu=name,uuid,driver_version,memory.total --format=csv > "$deployment/gpu.csv"
@@ -59,6 +60,7 @@ until curl --noproxy '*' --silent --fail --max-time 5 http://127.0.0.1:8081/heal
   sleep 5
 done
 curl --noproxy '*' --silent --fail http://127.0.0.1:8081/v1/models > "$deployment/models.json"
+"$worker_python" -c 'import json,sys; data=json.load(open(sys.argv[1]))["data"]; assert len(data)==1 and data[0]["id"]=="Qwen3.8-Flash-Next-BF16-native-pinned" and data[0]["max_model_len"]==262144' "$deployment/models.json"
 "$worker_python" code/integrations/agentic-scientist/bouchet/probe_local_api.py \
   --model Qwen3.8-Flash-Next-BF16-native-pinned --output "$deployment/transport" > "$deployment/transport.log" 2>&1
 "$worker_python" -m benchmarks.publication_assessment_flashnext_20261016.qualify --plan condition.json
