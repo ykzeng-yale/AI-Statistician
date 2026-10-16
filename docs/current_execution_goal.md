@@ -122,11 +122,14 @@ reasoning-state defects. No arm is resumed, repaired or rescored. Keep the
 original full-study evaluator and all prior failures. This development scope
 does not include autonomous simulation-design/code generation or an application.
 
-**Next complete-workflow condition:** finish the native state/prompt corrections
-and qualify coherent context, output and stage timing from the pinned model's
-documented capabilities. Keep the complete question and theory/code/study/report
-obligations; do not narrow the task or add statistical answers. A new model or
-resource condition is prospectively frozen, not an automatic retry of this one.
+**Next complete-workflow condition:** the native state/prompt corrections pass
+full regression. The [fresh long-workflow preparation](../benchmarks/agentic_scientist_native_hc0_long_20261016/README.md)
+keeps the same 27B BF16 weights, complete question and evaluator, with documented
+1M static-YaRN context, a 393216 combined-output cap, four-hour requests and a
+separate 48-hour one-B200 allocation per arm. This is a joint prospective
+development condition, not a component-effect comparison or a native-1M quality
+claim. Do not narrow the science, add answers or change consumed records. Verify
+startup before calls; keep mathematical assessment separate from numerical checks.
 
 **Use the actual upstream observation to qualify the full-study boundary.** The
 requested native stock-v3 run on the exposed White HC0 task is now terminal.

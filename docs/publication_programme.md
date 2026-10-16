@@ -5,8 +5,9 @@ The real upstream outer investigation/report join passes deterministic process
 tests; pinned Qwen3.8-27B BF16 passes API/tool transport. Frozen development job
 [29722963](../benchmarks/agentic_scientist_native_hc0_20261016/README.md) ended before
 scientific authoring in both arms, not a completed investigation or official
-comparison. Its prompt/state corrections and future resource decisions add no
-scientific credit. The native chat
+comparison. Its prompt/state corrections and the prospectively declared
+[long-workflow condition](../benchmarks/agentic_scientist_native_hc0_long_20261016/README.md)
+add no scientific credit. The native chat
 goal remains active for both publications. Earlier ebnm, StepMix and bizicount
 failures remain unchanged. The unsuccessful source-grounded AI-assessor
 qualification and its declared examination remain

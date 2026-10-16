@@ -229,7 +229,17 @@ also distinguishes its coding-benchmark output allowance from larger long-agent
 budgets under extended context. Future complete-workflow conditions must qualify
 state continuity and coherent context/output/stage timing before calls. Do not
 change the consumed 262144-context condition or silently claim that an extended
-context is already deployed. No new service is running after job 29722963.
+context is already deployed. No new service remained after job 29722963.
+
+The [fresh long-workflow condition](../benchmarks/agentic_scientist_native_hc0_long_20261016/README.md)
+reuses these exact BF16 weights and locked runtimes, not another model download
+or manager. It prospectively declares static YaRN factor 4/1M context, 393216
+combined output, four-hour requests and a separate 48-hour B200 allocation for
+each arm. The card's reasoning/final recommendations are not separate enforced
+caps in this API. Static scaling can affect shorter contexts; startup is not
+quality qualification. Both arms and all roles must keep the same settings.
+The existing full study and scientific requirements are unchanged; no automatic
+fallback, reduced task or retroactive rerun is permitted.
 
 ## Latest Managed-Host Observation
 

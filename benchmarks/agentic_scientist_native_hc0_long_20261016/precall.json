@@ -1,0 +1,50 @@
+{
+  "frozen_date": "2026-10-16",
+  "condition_id": "native_hc0_long_20261016",
+  "scope": "Fresh exposed known-method workflow development; not official H/S efficacy, blind discovery, autonomous simulation design, application or full publication evidence.",
+  "product_commit": "dfdb4b47c86a2173fa90f02521599545fe891b24",
+  "product_archive_sha256": "196a29a49674c54e5d11ad8b063eaa999ac632794256c178e90ba885d2345494",
+  "upstream_commit": "2b8aa39285c35aaca3b0e06dd121061ef8a2d854",
+  "upstream_archive_sha256": "d915fa9ed422d4ef717b0603c1ea88b6348c4cbcb9668e9cf9549bf1c4f1ffda",
+  "patches_in_order": {
+    "local_api_backend.patch": "0bf2978d9aa13559db1bfbe9628a7acb3a6fc4c6d63f3cff8afc2fded10f83b1",
+    "native_campaign_semantics.patch": "3b1ea70d562d3da2583873f2f2ec7bed1d4606ce452ad3aae9651b29f3aa0a9d",
+    "native_posthoc.patch": "fdfb6ef6973a34a258f6c8c06fd65024d3e15672700918d5b0d55fb12c9745e2"
+  },
+  "prepared_inputs_sha256": {
+    "stock": "706ed430a20a6828c96e88c8cc61d954e466aed677f5261f99b861eb61746a4b",
+    "statistical": "6219a281a5d4983cc64b20ceab443448c908a1fd63b99a598dacefc2ebf62bf8"
+  },
+  "controller": "Existing patched upstream src.pipeline.cli investigation/posthoc, serial workers=1; no nested legacy graph, CLI agent or extra scheduler",
+  "order": ["stock", "statistical"],
+  "draws_per_arm": 1,
+  "contrast": "Upstream investigation instructions versus statistical instructions plus portable guidance; identical model, API, independent AI reviewer, complete evaluator, report boundary and allocation shape. One draw each and bundled instructions do not identify a package effect or population efficacy.",
+  "changes_from_previous": "Joint prospective correction of native continuation-state retention and system-level stage ownership, plus declared 1M static-YaRN context, 393216 combined output, four-hour request timeout and longer stage/arm budgets. No component-causal attribution.",
+  "scientific_study": "Identical exposed White HC0 task and unsolved starter; exact retained evaluator, 12 cells x 5000 paired datasets, seed 2026101517, HC0 and conventional OLS plus statsmodels reference. No task-answer patch or changed numerical threshold; compliance is not theory acceptance.",
+  "source_access": "Known method/citation, not original full paper. No web-search tool, other-arm access, private evaluator source or hidden gold. Exposed family excluded from official test pools.",
+  "assessment": "Fresh-context source-bound same-model AI review without author history or numerical outcomes. Dispositions remain uncalibrated feedback, not proof. Report reads only selected sources, public review and declared outputs; no execution. Structure checks cannot establish scientific interpretation.",
+  "budgets": {
+    "candidate_cycles_per_arm": 3, "idea_attempts_per_cycle": 1,
+    "idea_seconds": 43200, "author_seconds": 86400,
+    "host_evaluation_and_each_source_review_seconds": 43200,
+    "report_attempts": 3, "report_seconds_per_attempt": 43200,
+    "arm_wall_seconds": 172800,
+    "api": "Same api_config.json and deployment receipt for every role/arm; combined output cap does not impose separate reasoning/final caps. No result-conditioned model/precision/budget change.",
+    "cumulative_limit": "Each arm's own 48-hour Slurm allocation can terminate the cumulative workflow before all per-stage allowances are consumed; preserve pending/incomplete science honestly. No automatic resume."
+  },
+  "worker": {
+    "archive_sha256": "5752b5f1e842bd89d5370a42cd4b4df123fb276c348dbdd72553c85d6342eaa6",
+    "requirements_sha256": "8aa5df2c022c51e5696de06d169d3dc4081c8a807e5a4a4a633e1ff140b62941",
+    "freeze_sha256": "20717dc0e1438882426f3065f6eeca8fe173d64c3e4978070e61f5ff8b6ca626",
+    "threads": "OMP/OpenBLAS/MKL=1 for science; serving OMP=8"
+  },
+  "resources_per_arm": {
+    "account": "pi_fl426", "qos": "normal", "partition": "gpu_b200",
+    "gpu_type": "b200", "gpus": 1, "cpus": 8, "host_memory_gib": 128,
+    "wall_seconds": 172800,
+    "routing": "Both authorized accounts eligible; identical one-B200/48h test-only shapes estimated 2026-10-16T07:50:06. Retain pi_fl426 task storage (1885/4096 GiB versus pi_gt353 3861/4096). No duplicate race jobs. Existing CPU jobs untouched."
+  },
+  "run_script_sha256": "9287935194c55e8f9edd46f14384ae258ad601df773ae58401b43cbe3b7d8127",
+  "preservation": "Exactly one job per arm, second afterany first; same startup seed/config recorded independently. No arm output sharing, consumed candidate rerun/rescore, generated-source repair or automatic infrastructure retry. Loopback service ends with allocation. Preserve native request settings/usage, source/review identities and every failure. No long-context quality or mathematical certification from startup.",
+  "status_at_freeze": "No model call in this condition. Full regression 2632 passed/90 skipped/1 existing xfail; latest core 10 passed. Prior consumed conditions unchanged. Scientific jobs not yet submitted."
+}
