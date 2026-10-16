@@ -92,6 +92,11 @@ across arms. There is no need for repeated operator approval of ordinary bounded
 standard-tier work. A larger model does not fix a broken launch or certify theory.
 
 The October 16 follow-up reaffirms that neither 4B nor 27B is a capacity ceiling.
+Do not design the harness around a small-machine limit or make the user repeat
+capacity authorization. Shared coding hosts are convenient for development;
+task-owned deployments freeze model/runtime/settings for research comparisons.
+Select one adequate condition before a comparison and use it across roles and
+arms. Upgrading capacity starts a new condition, not a repaired old result.
 The next preferred capacity candidate is a task-owned
 [`Qwen/Qwen3.8-Flash-Next`](https://huggingface.co/Qwen/Qwen3.8-Flash-Next),
 not an automatic switch to Yale's shared service. Public metadata checked on
@@ -102,8 +107,9 @@ The main model, N-gram embeddings and MTP weights all matter for memory sizing;
 6B active parameters do not mean a 6B resident model.
 
 The [upstream serving recipe](https://recipes.vllm.ai/Qwen/Qwen3.8-Flash-Next)
-reports about 335.28 GiB of BF16 checkpoint storage. Four B200s are a prospective
-single-node deployment shape with headroom, not measured fit or a submitted job.
+reports about 335.28 GiB of BF16 checkpoint storage. At inventory time, four B200s
+were a prospective deployment shape with headroom, not measured fit. The later
+allocation below supersedes the earlier unsubmitted state, not the fit caveat.
 Use upstream tensor/expert parallelism and supported parsers; verify runtime,
 memory, context and API behavior before freezing the complete research comparison.
 Do not equate B200 with the recipe's GB200/GB300 hardware. FP8, embedding offload
@@ -138,6 +144,8 @@ is `383ebbfc1af8275e945a4a44403f13c9701bb14436e12ff310ef03250acc669f`.
 Native-review job **29735341** allocated four B200s and 1 TiB host memory under
 its 48-hour envelope, using the prospectively frozen source-review panel. At the
 allocation observation it was preparing inputs/runtime, with no panel requests.
+The later [startup observation](../benchmarks/publication_assessment_flashnext_20261016/startup_observation.json)
+records active Blackwell kernel compilation, not yet an API-readiness receipt.
 Allocation is not model availability or scientific qualification. The CPU stage's
 shared-storage overlap is disclosed rather than assumed irrelevant to timing.
 

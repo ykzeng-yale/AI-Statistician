@@ -1,7 +1,7 @@
 # Fixed Flash-Next Assessment Preparation
 
 This is a new model-condition preparation, not a retry of the consumed 4B
-assessor or either current 27B research arm. No assessor or official publication
+assessor or either consumed 27B research arm. No assessor or official publication
 draw is activated by downloading weights. The consumed 27B statistical arm keeps
 its original model, code, inputs and resource envelope.
 
@@ -22,8 +22,9 @@ no download manager, model fallback or new agent controller.
 
 The declared CPU allocation and source hashes are in
 [weight_staging_plan.json](weight_staging_plan.json). Submission and actual
-verification remain separate evidence. The proposed later four-B200 BF16 shape
-is a feasibility estimate, not allocated capacity or measured serving fit.
+verification remain separate evidence. The four-B200 BF16 shape was a feasibility
+estimate at plan freeze; subsequent allocation is recorded below. Neither is
+measured serving fit.
 Any inference condition still needs pinned runtime/configuration and an actual
 assessment design before model calls. Reuse the native retained file/review
 components, not the legacy research scheduler or a new referee framework.
@@ -47,5 +48,7 @@ candidate-mode positive is added because this native workspace has no such mode.
 identities verified. The frozen [assessment job 29735341](submission.json) is
 submitted under `pi_fl426`, with four B200s, 32 CPUs, 1 TiB host memory and
 48 hours, after successful staging. It has now [allocated those resources](allocation_observation.json).
-The last observation was pre-serving preparation; no serving fit, completed
-panel or scientific qualification is established by that allocation.
+The subsequent [startup observation](startup_observation.json) records active
+Blackwell kernel compilation, without API-readiness or panel receipts. No serving
+fit, completed panel or scientific qualification is established by allocation
+or compilation progress.

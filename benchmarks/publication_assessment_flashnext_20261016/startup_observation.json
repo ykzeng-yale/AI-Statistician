@@ -1,0 +1,15 @@
+{
+  "observed_at": "2026-10-16T12:54:54Z",
+  "job_id": "29735341",
+  "state": "RUNNING",
+  "elapsed": "00:39:44",
+  "resources": "Four B200 GPUs and 1 TiB host memory; existing normal-tier 48-hour allocation, not a new submission.",
+  "stage": "vLLM startup: FlashInfer/CuTe-DSL Blackwell kernel compilation is recorded, including a persisted kernel at 08:53:31 EDT.",
+  "observed_deployment_files": [
+    "gpu.csv", "modules.txt", "nvcc.txt", "serve_command.txt", "server.log"
+  ],
+  "readiness": "No models.json, transport receipt or panel files observed. Serving fit, inference and scientific assessment remain unestablished.",
+  "evidence_root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-Qwen38-FlashNext-20261016/assessment-native-20261016",
+  "method": "Read-only BatchMode SSH: sacct status, deployment-file inventory, panel-file search and tail of the active server log. This is a timestamped observation, not a sealed complete server log.",
+  "boundary": "The active frozen condition is unchanged. No duplicate deployment, model substitution, extra scientific request, consumed-output revision or publication completion claim. A running scheduler state and compilation progress do not establish service readiness."
+}
