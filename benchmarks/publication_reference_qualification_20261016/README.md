@@ -118,9 +118,11 @@ cached result values or statistical source edits. The first failed condition is
 not repaired or rescored, and Benzarti-Carloni is not repeated. Its exact original
 stager/runner remain at commit `246a4817` and in the preserved tools archive.
 Current helper options identify the new workspace/application explicitly.
-The new original-layout job **29729363** was submitted and observed running;
-[receipt](original_layout_submission.json). No outcome is inferred before its
-complete entry terminates. No original cached output is copied into either tree.
+The new original-layout job **29729363** completed with exit `0:0` in 36m51s;
+[terminal observation](original_layout_observation.json). The complete entry
+produced six figures, eight output RDS objects and two temporary RDS objects;
+all 16 retrieved file hashes match. No original cached output was copied into
+either execution tree. Execution alone is not numerical reproduction.
 
 ## Original-Object Comparison
 
@@ -133,6 +135,13 @@ trees or model inputs. This diagnostic chooses no post-outcome acceptance
 tolerance, reruns no scientific source and does not certify a statistical theorem
 or complete numerical reproduction. Grid/solver/RNG and interpretation differences
 still need scientific adjudication before reference qualification.
+
+The complete Lovenheim-Willen comparison now finds all ten RDS objects present
+and none strictly identical. Differences include covariance/standard errors and
+interval endpoints, not only serialization metadata. Exact diagnostics remain
+in the terminal observation and linked CSV. No discrepancy is normalized away,
+assigned an inferred cause or converted into a passing reference. The prior
+Benzarti-Carloni comparison and first failed condition remain unchanged.
 
 The Benzarti-Carloni analysis begins from supplied coefficient/covariance data;
 the underlying microdata are confidential. The Lovenheim-Willen analysis uses

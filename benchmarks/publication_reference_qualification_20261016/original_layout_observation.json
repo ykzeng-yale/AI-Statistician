@@ -1,0 +1,36 @@
+{
+  "observed_at": "2026-10-16",
+  "job_id": "29729363",
+  "frozen_code_commit": "d672cc0c",
+  "plan": "original_layout_plan.json",
+  "scope": "Complete original Lovenheim-Willen application in the prospectively declared adapted environment; not an agent result or full-paper replication",
+  "terminal": {"state": "COMPLETED", "exit_code": "0:0", "elapsed": "00:36:51", "batch_max_rss_kib": 525512},
+  "application": {
+    "exit_code": 0,
+    "finished_at": "2026-10-16T10:08:31Z",
+    "figures": 6,
+    "output_rds": 8,
+    "temp_rds": 2,
+    "checks": "All 16 generated file hashes match the retrieved output inventory. Original source/input bytes and declared aliases are retained. No cached results were copied into execution."
+  },
+  "preservation": {
+    "local_tree": "runs/honestdid_source_qualification_20261016/applications_original_layout_20261016",
+    "exits_sha256": "f2744b136ce3d2b6583d48a1aab5f4c4534c009bef75f4e68fc811c9a3311689",
+    "output_inventory_sha256": "d8fe64368817477298d14b6d3de492b4a1cc3e6c730eab88e5ea62a84c5596e5",
+    "session_sha256": "f5fb0c2e786b34a5d5c99eacfd45a0564aa80e78d62e36e64377713f8680af71",
+    "stdout_sha256": "c88b5063701568909d12d6ad1fd90b688656fa3064794a28efef11743c5e9dbf",
+    "stderr_sha256": "3063650b7a80dd3213cc8d2839090e53d4f9274a187b24f1ece91f8f3bdcce80"
+  },
+  "original_object_comparison": {
+    "reader_sha256": "8c25359637240985f431a83a4b45398ea4c644706a22eb62515f4b63a9ec50a6",
+    "method": "Previously declared complete union of Outputs/Temp RDS paths; identical and all.equal(tolerance=0, check.attributes=TRUE). No source re-execution, normalization or post-outcome acceptance threshold.",
+    "objects": 10,
+    "missing": 0,
+    "strictly_identical": 0,
+    "not_identical": 10,
+    "diagnostics": "The two temporary estimation objects have coefficient differences near 1e-13, covariance mean-relative differences about 0.0315 and standard-error differences about 0.0156. Interval objects have nonzero endpoint differences; identified-set objects also differ in factor/character metadata. These remain unresolved discrepancies, not accepted numerical correspondence or an established cause.",
+    "csv": {"path": "runs/honestdid_source_qualification_20261016/lovenheim_object_comparison_20261016/object_comparison.csv", "sha256": "91c6910c83ed8a23430788d9c5ec23568e8d6c52c8660152c960b826d4b299ce"},
+    "session_sha256": "6cf41242db086d78f96830e43fa7072956871e06a157c0763d0665e17c2e82cc"
+  },
+  "boundary": "The failed first-layout condition and its observations remain unchanged. No theorem correctness, full simulation reproduction, independent reference qualification, model success or official H/S efficacy is established. Q02/Q04/Q05 and all 40 checklist states remain open at their existing scope."
+}
