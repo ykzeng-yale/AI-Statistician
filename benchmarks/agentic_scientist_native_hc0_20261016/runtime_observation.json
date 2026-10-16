@@ -1,0 +1,23 @@
+{
+  "observed_at": "2026-10-16T07:10:50Z",
+  "kind": "live_prefix_observation_not_terminal_outcome",
+  "job_id": "29722963", "state": "RUNNING",
+  "started_at": "2026-10-16T02:50:50-04:00", "node": "a1116u25n01",
+  "frozen_product_commit": "a799e03fceb5ef51140c8ddaab125e045b063e6f",
+  "input_status": "Frozen manifest and its 2766 entries, all model files and both environment archive checks passed before serving. No active input or source was updated.",
+  "actual_hardware": "One NVIDIA B200, 183359 MiB, driver 580.178.04; GPU identity in the retained gpu.csv",
+  "models_sha256": "f0f962c70e1d73d68625ae5469ca8fa0614f95e5aef54d0214a80d23414556fa",
+  "gpu_record_sha256": "204af153aedc79fc12cab2893bcc5c4a73553a0a045b3e3854ce6dbc0e6cead5",
+  "serving_command_sha256": "9bd08e4674e5df44b15e0e66c72185db61fea5e36038df97cb912a65f687a384",
+  "stage": "Stock arm, upstream investigation, cycle 1 of at most 3, native API ideation",
+  "session_observation": {
+    "path": "stock/results/investigation/_idea_generation/cycle_0001_attempt_01_1792134500203270756/.local-api/session/result.json",
+    "status": "INCOMPLETE", "phase": "model_in_flight", "completed_turns": 9,
+    "provider_usage": {"input_tokens": 74201, "output_tokens": 928, "total_tokens": 75129},
+    "last_completed_stop_reason": "tool_calls",
+    "scope": "Reported usage of completed turns in this live ideation prefix, not final arm/job cost. INCOMPLETE with model_in_flight denotes ongoing work, not a terminal scientific failure."
+  },
+  "runtime_observation": "Pinned FlashInfer generates kernels at startup and fetches NVIDIA kernel artifacts. Server logs retain URLs and compiler activity; runtime archive identity is not a bitwise attestation of generated kernels or server internals.",
+  "raw_snapshot_directory": "runs/agentic_decode_evidence_20261016",
+  "boundary": "No terminal candidate evaluation, source-review acceptance, full study or report observed yet. Statistical arm has not started. This is not official H/S evidence. The subsequent response-recording fix and revised H design do not modify this frozen job."
+}

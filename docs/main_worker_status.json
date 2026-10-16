@@ -1,10 +1,10 @@
 {
-  "schema_version": 529,
+  "schema_version": 530,
   "updated_at": "2026-10-16",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The native two-publication goal is active. Use Sakana Agentic Scientist v3 as the sole new outer backbone while preserving validated statistical workspaces and intent-selected Lean. Following the October 15 clarification, deliver complete reviewable theory, algorithm and simulation; no mandatory small-simulation stage. Default scientific execution is evaluator-owned, with additional diagnostics only when the public task permits them. Actual findings may require source-owner revision; completeness does not imply one-shot generation. Use authorized SSH/Bouchet capacity for demonstrated compute needs. H requires matched host/v3 comparisons; S still requires the actual single-local-model-API system. Keep the sole 40-item checklist and immutable outcomes.",
-  "execution_status": "Actual upstream outer investigation-to-report join passes process tests. Pinned Qwen3.8-27B BF16 passes API/tool transport in completed job 29722100; locked worker job 29722329 completed. Frozen native HC0 development job 29722963 is PENDING, no scientific calls yet. No completed research or official H/S comparison; all 40 checklist states and consumed outcomes unchanged.",
+  "execution_status": "Frozen native HC0 job 29722963 is RUNNING on B200; verified inputs and service startup, nine completed API/tool turns in stock ideation, next turn in flight. No terminal science or official H/S result. Prospective decoder-evidence fix passes full regression. H design now isolates package effects within native-host and v3 workflows; all 40 checklist states and consumed outcomes unchanged.",
   "latest_bouchet_module_observation": {
     "record": "benchmarks/agentic_scientist_hc0_bouchet_20261015/short_tmp_analysis.md",
     "frozen_commit": "d84ade4a",
@@ -27,7 +27,7 @@
     "source_location": "third_party/ai-scientist-v3",
     "integration": "integrations/agentic-scientist/README.md",
     "paper_review": "docs/ai_scientist_v3_evidence_review_20261015.md",
-    "actual_scope": "Pinned upstream outer controller connects native investigation and artifact-only posthoc. Process tests cover cold start, failed execution/review, new model-owned source, evaluation and actual public-result/report joins. Private review contexts stay separate. Live Pi records remain single-attempt observations; the frozen task-owned 27B API campaign is pending. Mechanism evidence, not mathematical acceptance, guidance efficacy, full manuscript production or a second scheduler.",
+    "actual_scope": "Pinned upstream outer controller joins native investigation and artifact-only posthoc in process tests. Frozen 27B job 29722963 now reaches actual API/file tools in stock ideation; no terminal candidate or study yet. Private review contexts remain separate. Prior Pi outcomes remain single-attempt observations. Neither mechanism tests nor this prefix establish mathematical acceptance, guidance efficacy, full manuscript production or specialist completion.",
     "preservation": "Latest user clarification: retain the validated statistical specialization, not only generic upstream co-scientist behavior. The integration reuse map binds existing theory/file/session tools, source qualification, Python/R workspaces, outcome-blind confirmation, independent reviewers, Statlib/RAG/Lean and local-Qwen/evaluator assets to the new boundaries. Existing scientific source and Lean proofs are unchanged. Skill staging is integrated; other new-boundary uses still require actual verification, not assumed parity. The optional OCI project tool is not a migration prerequisite.",
     "verification": "Final focused integration/preparer/portable-skill/core tests: 32 passed, 5 existing opt-in host checks skipped, 0.85 seconds; runs/agentic_scientist_backbone_20261015/final_focused.xml. Actual pinned-upstream conformance includes the child config's custom instruction surviving harness mode, byte-identical task copy and Markdown/LaTeX candidate clone, complete prompt rendering and real CLI preview. Full default run: 2401 passed, 74 skipped, one existing xfail and one document-size failure in 773.89 seconds. JUnit runs/agentic_scientist_backbone_20261015/verified_regression.xml SHA-256 0aefb413a7220771e36f4374f4acc548eecaebf667f6e025e6f1a07a8f2a8863. That failure observed 413 design-document lines before the correction to 398; the exact budget test and latest integration code pass in the final focused run, not a second all-green full run. Compileall and diff checks pass. The earlier full attempt has no retrievable terminal/JUnit and is not counted as passing. Only disposable uv cache was cleaned; scientific records and consumed outcomes were not deleted.",
     "remaining": "Native drafting/final verification boundary, scientific full-study evaluator, per-request model-setting capture, live single-API specialist/R/Lean collaboration, full claim/evidence joins, statistical venue and fresh matched comparisons. The new exact-source AI review mechanism needs scientific qualification; same-model agreement and hashes are not proof or independent empirical confirmation. Missing review is not mathematical rejection. Native project execution is verified, not scientific acceptance or standalone-system completion. Prior incomplete Qwen assessment remains unchanged and unqualified."
@@ -38,7 +38,7 @@
   "current_goal_document": "docs/current_execution_goal.md",
   "operating_principle": "Model-owned long-horizon research in retained file/tool workspaces, backed by task-intent evidence and independent authority. Restore complete product scope without mandatory Lean, benchmark-answer patches, repetitive task substitution or another framework.",
   "model_policy": {
-    "tests_and_live_evaluations": "Pinned open-weight Qwen on authorized Macs/Bouchet; 4B is not a ceiling. Qwen3.8-27B BF16/vLLM 0.31.0 passes real API and retained-tool transport in job 29722100. Fresh matched condition frozen before calls; scientific job 29722963 pending. No Anthropic, Opus, cloud fallback or silent model change. Shared Flash-Next is separately unpinned; see local_qwen_testing.md.",
+    "tests_and_live_evaluations": "Pinned open-weight Qwen on authorized Macs/Bouchet; 4B is not a ceiling. Qwen3.8-27B BF16/vLLM 0.31.0 passes transport and now runs the frozen native API condition 29722963. No Anthropic, Opus, cloud fallback or silent model change. Shared Flash-Next is separately unpinned; see local_qwen_testing.md.",
     "legacy_evaluation_boundary": "Existing Haiku protocols, qualifications and consumed judgments remain archived and unchanged. Exclude them from official publication results and baselines; their gates do not govern the new studies. Independently qualify new open-weight authority before scientific evaluation; never requalify a consumed preparation.",
     "production_allowed_tiers": [
       "haiku",
@@ -74,8 +74,8 @@
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "4cab87da",
-    "working_tree_before_current_change": "Started clean at 4cab87da. Join native investigation/posthoc through the actual outer controller; qualify pinned 27B transport and freeze a fresh development condition. Upstream/Lean pins and consumed records preserved. Direct atomic main/canonical delivery after verification; no PR or force."
+    "remote_before_current_change": "fd316c27",
+    "working_tree_before_current_change": "Started clean at fd316c27. Preserve received-but-undecodable response evidence and correct H package/workflow attribution. The active a799e03f job, upstream/Lean pins and consumed records remain unchanged. Direct atomic main/canonical delivery after verification; no PR or force."
   },
   "latest_scientific_workflow_observation": {
     "record": "benchmarks/publication_development/bizicount_integrated_20261015/observed_results.json",
@@ -295,7 +295,7 @@
     "theory_workspace_lines": 4599,
     "scientific_code_workspace_lines": 3615,
     "research_architect_lines": 3742,
-    "client_tool_loop_lines": 1596,
+    "client_tool_loop_lines": 1630,
     "agentic_api_workspace_lines": 260,
     "research_control_lines": 740,
     "agent_runtime_lines": 1459,
@@ -306,11 +306,11 @@
     "codex_adoption_lines": 246
   },
   "latest_validated_change": {
-    "code_commit": "a799e03fceb5ef51140c8ddaab125e045b063e6f",
+    "code_commit": "a13aa1e1fa1b11c5c28b874221b95786c3d4abcc",
     "lean_commit": "db6c7718349f3c14a7e37905f3529675f1ebaa52",
-    "summary": "The actual upstream outer controller now joins native investigation and artifact-only reporting. Stage the public-output declaration into real attempts, preserve originating identity for selected nonwinner snapshots and grant public review findings readonly. Tests cover failure, source-owner revision, full evaluation and result interpretation in one controller. Pinned 27B deployment qualifies after preserved startup failures; no statistical answer patch or consumed rerun.",
-    "verification": "Full product: 2624 passed, 90 skipped, 1 existing xfail in 876.00s; runs/agentic_native_posthoc_20261016/pipeline_regression.xml SHA-256 6dfa24a084203eb8b73ea104603e38da5fe5fed1e07d81c137239d8daa9cd942. Campaign tests actually ran. Final Bash5/core/join checks: 63 passed in 18.07s; runs/agentic_native_pipeline_20261016/final_bash5_focused.xml SHA-256 890640235b221663ee46c9b48bded2e7ed00994002d3d69e44ad894c53c4b0e2. Default-Bash focused run: 60 passed, 3 skipped. Patched upstream selected posthoc/pipeline/selection suite: 150 passed, 1 known macOS descriptor-path publication failure; upstream_regression.xml SHA-256 bb17d4c9ff955bb142f6860c9806e4813e3ce5b381ed6b87784dcb097da291ea. The initial continuous fixture exposed the missing declaration; its failing JUnit is preserved. Compileall, shell syntax, diff and clean canonical submodule pins pass. No scientific/model calls in regression tests.",
-    "capability_effect": "Transport qualification 29722100 is not research acceptance. Native HC0 precall.json pins a799e03f, exact model/runtime and two prepared arms; one B200/8 CPU/128GiB/48h job 29722963 is pending. Live single-API science, qualified theory assessment, specialists and full manuscript remain incomplete. No checklist or official H/S credit."
+    "summary": "Rejected local tool-response JSON now keeps received stop/usage metadata and a hash-bound parsed-response artifact; no partial call, content repair or automatic restart. Unobserved response truncation stays unknown. H primary holds the native host fixed with/without the released package; a separate v3 pair holds that workflow fixed. Custom system prompts/reviewers are not silently part of H. Active frozen science is unchanged.",
+    "verification": "Full product: 2627 passed, 90 skipped, 1 existing xfail in 879.91s; runs/agentic_decode_evidence_20261016/full_regression.xml SHA-256 d4bfc82c23cdeeb1efde083a650d36945d54569cfd2c507b670f02ae7b3351ed. Focused backend/loop/review/core: 158 passed, 1 existing opt-in skip in 1.09s; focused.xml SHA-256 04d7c01303ae2faaaa3dc86a954978e40ca98d5368a6ae40fe7564961d3f20f5. Real upstream HTTP campaign/posthoc: 23 passed in 16.42s; native_join.xml SHA-256 bb64a357bf89ac0af6a90cb0b7152cd0df280fdf77abd11247e0361a35e32116. XMLs share that directory. Compileall and diff pass; 40 checklist states unchanged. No model/scientific call in regression tests. Earlier upstream macOS descriptor-path failure remains unchanged, not claimed fixed.",
+    "capability_effect": "Job 29722963 is a live development prefix, not a completed study or official H/S comparison; see benchmarks/agentic_scientist_native_hc0_20261016/runtime_observation.json. Response accounting and contrast correction add no scientific credit. Qualified theory authority, specialist integration, full manuscript and official comparisons remain incomplete."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-analytic-gaussian-20260911-v1",
