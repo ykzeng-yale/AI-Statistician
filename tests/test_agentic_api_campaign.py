@@ -13,6 +13,8 @@ import threading
 import pytest
 
 from test_agentic_api_backend_patch import ROOT, UPSTREAM, patched, upstream_copy
+from test_agentic_api_workspace import public_source_fixture
+from ai_statistician.research_source_discovery import PublicResearchSourceDiscovery, PublicResearchSourceDiscoveryConfig
 
 
 @pytest.mark.parametrize("failure_kind,route,iterative", [
@@ -22,7 +24,7 @@ from test_agentic_api_backend_patch import ROOT, UPSTREAM, patched, upstream_cop
     ("artifact_execution", "investigation", True), ("review", "investigation", True),
     ("review", "pipeline", True),
 ])
-def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path, failure_kind, route, iterative):
+def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path, failure_kind, route, iterative, public_source_fixture):
     python = Path(os.environ.get("AI_STATISTICIAN_V3_PYTHON", UPSTREAM / ".venv/bin/python"))
     bash = Path(os.environ.get("AI_STATISTICIAN_V3_BASH", shutil.which("bash") or "/bin/bash"))
     version = subprocess.check_output([str(bash), "-c", "printf '%s' \"${BASH_VERSINFO[0]}\""], text=True)
@@ -88,6 +90,16 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
             "(out/'metrics.json').write_text(json.dumps({'combined_score':int(correct)}))\n"
             "(out/'correct.json').write_text(json.dumps({'correct':correct}))\n")
     requests, actions = [], []
+    source_enabled = iterative and route == "pipeline"
+    work, _, source_fetcher = public_source_fixture
+    if source_enabled:
+        provider = PublicResearchSourceDiscovery(config=PublicResearchSourceDiscoveryConfig(source_horizon="2026-10-16"),
+            json_fetcher=source_fetcher)
+        handle = provider.search("opaque fixture", source_kind="paper")["results"][0]["source_handle"]
+        actions.extend([
+            ("discover_research_sources", {"query": "author-selected source query", "source_kind": "paper"}),
+            ("read_discovered_research_source", {"source_handle": handle}),
+        ])
     failure_file = "harness_evaluate_stderr.log" if failure_kind == "execution" else "scientific_review.md"
     if failure_kind == "artifact_execution":
         failure_file = "execution_observation.json"
@@ -112,6 +124,8 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
             actions.append(("read_file", {"path": failure_path}))
             if iterative:
                 actions.append(("clone_program", {}))
+        if source_enabled and cycle == 1:
+            actions.append(("read_discovered_research_source", {"source_handle": handle}))
         if iterative and cycle == 1:
             spec = (task / "program_0/program_spec.toml").read_text()
             actions.extend([
@@ -131,6 +145,12 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
         actions.append(("evaluate_program", {}) if iterative else
             ("finish", {"disposition": "candidate", "summary": "Research handoff, not accepted science."}))
         if failure_kind == "review":
+            if source_enabled:
+                actions.extend([
+                    ("read_discovered_research_source", {"source_handle": handle}),
+                    ("discover_research_sources", {"query": "independent reviewer source query", "source_kind": "paper"}),
+                    ("read_discovered_research_source", {"source_handle": handle}),
+                ])
             actions.extend([
                 ("read_file", {"path": "candidate/src/theory.md"}),
                 ("write_file", {"path": "review.md", "content": "# Opaque review\nopaque feedback 19\n", "expected_sha256": None}),
@@ -201,12 +221,27 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     config = tmp_path / "api-config.json"
-    config.write_text(json.dumps({"model": "pinned-fixture", "base_url": f"http://127.0.0.1:{server.server_port}/v1",
-        "max_tokens": 8192, "temperature": 1.0, "timeout_seconds": 30, "max_turns": 30 if iterative else 8,
-        "deployment_ref": {"path": str(receipt), "sha256": hashlib.sha256(receipt.read_bytes()).hexdigest()}}))
+    settings = {"model": "pinned-fixture", "base_url": f"http://127.0.0.1:{server.server_port}/v1",
+        "max_tokens": 8192, "temperature": 1.0, "timeout_seconds": 30, "max_turns": 40 if iterative else 8,
+        "deployment_ref": {"path": str(receipt), "sha256": hashlib.sha256(receipt.read_bytes()).hexdigest()}}
+    entrypoint = ROOT / "scripts/run_agentic_api.py"
+    if source_enabled:
+        settings["public_source_horizon"] = "2026-10-16"
+        entrypoint = tmp_path / "source_fixture_entrypoint.py"
+        entrypoint.write_text(
+            f"import sys\nsys.path.insert(0, {str(ROOT)!r})\n"
+            "from scripts import run_agentic_api as api\n"
+            "from ai_statistician.research_source_discovery import PublicResearchSourceDiscovery\n"
+            f"work = {work!r}\n"
+            "def fetch(url, headers, timeout):\n"
+            "    assert url.startswith('https://api.crossref.org/works')\n"
+            "    return {'message': {'items': [work]} if '?' in url else work}\n"
+            "api.PublicResearchSourceDiscovery = lambda **kwargs: PublicResearchSourceDiscovery(**kwargs, json_fetcher=fetch)\n"
+            "raise SystemExit(api.main())\n")
+    config.write_text(json.dumps(settings))
     environment = {"PATH": f"{bash.parent}:{python.parent}:/usr/bin:/bin:/usr/sbin:/sbin", "HOME": str(tmp_path),
         "WRAPPER_PYTHON": str(python), "TMPDIR": str(tmp_path), "AI_STATISTICIAN_API_PYTHON": sys.executable,
-        "AI_STATISTICIAN_API_ENTRYPOINT": str(ROOT / "scripts/run_agentic_api.py"),
+        "AI_STATISTICIAN_API_ENTRYPOINT": str(entrypoint),
         "AI_STATISTICIAN_API_CONFIG": str(config), "AGENTIC_TEMP_ROOT": str(tmp_path)}
     try:
         harness_mode = "false" if iterative else "true"
@@ -256,7 +291,7 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
         assert json.loads((first / "program_1/rubric_status.json").read_text())["overall_pass"] is False
         assert (first_program / "src/theory.md").read_bytes() != (second_program / "src/theory.md").read_bytes()
         review_requests = [request for request in requests if "independently review" in request["messages"][0]["content"]]
-        assert len(review_requests) == 6
+        assert len(review_requests) == (12 if source_enabled else 6)
         assert all("history/" not in request["messages"][0]["content"] for request in review_requests)
         assert "not proof" in json.loads((second_program / "scientific_review.json").read_text())["scope"]
     assert json.loads((second_program / "rubric_status.json").read_text())["overall_pass"] is True
@@ -359,3 +394,14 @@ else:
         report = json.loads((posthoc / "latest_manifest.json").read_text())["valid_analyses"][0]
         assert "selected result is 1" in Path(report["analysis_summary_path"]).read_text()
         assert "not proof" in json.loads((second_program / "scientific_review.json").read_text())["scope"]
+    if source_enabled:
+        assert any("Metadata observation 73" in str(request["messages"]) for request in requests)
+        author = next(request for request in requests if "complete research candidate" in request["messages"][0]["content"])
+        assert "author-selected source query" not in str(author["messages"])
+        reviewer = next(request for request in review_requests if len(request["messages"]) > 2)
+        assert "unknown in this model session" in str(reviewer["messages"])
+        assert "author-selected source query" not in str(reviewer["messages"])
+        assert len(list((results / ".public-review-sources").iterdir())) == 2
+        posthoc_requests = [request for request in requests if "You interpret the host's supplied scientific evidence" in request["messages"][0]["content"]]
+        assert posthoc_requests and all(not any("research_source" in tool["function"]["name"] for tool in request["tools"])
+                                        for request in posthoc_requests)

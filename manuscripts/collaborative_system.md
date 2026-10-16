@@ -224,6 +224,14 @@ The complete mathematical argument still belongs in the selected source files.
 Deterministic native-request and persistence tests verify this transport; the
 first 27B development condition predates the correction and is not retroactively
 treated as reasoning-state-qualified research.
+For newly declared source-permitted conditions, the participant also reuses the
+existing public literature and pinned-repository tools. Ideation and research
+share exact public observations; each reviewer has its own source store and
+conversation. Crossref supplies metadata, while arXiv and repository tools can
+provide versioned text. Repository acquisition alone is not execution or
+replication. The source horizon and actual access are experimental conditions,
+not historical blinding. This connection has deterministic process evidence,
+not demonstrated scientific benefit.
 The current live condition uses source-only handoff. A prospective native
 extension also exposes upstream's official evaluation and guarded candidate
 cloning as tools in the same retained author session. The author reads the

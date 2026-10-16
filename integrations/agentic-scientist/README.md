@@ -118,13 +118,41 @@ export AI_STATISTICIAN_API_ENTRYPOINT=/absolute/path/to/AI-Statistician/scripts/
 export AI_STATISTICIAN_API_CONFIG=/absolute/path/to/frozen-api-config.json
 ```
 
-The JSON configuration contains only `model`, loopback `base_url`, `max_tokens`,
+The JSON configuration requires `model`, loopback `base_url`, `max_tokens`,
 `temperature`, `timeout_seconds`, `max_turns` and `deployment_ref` with `path`
-and `sha256`. Freeze actual values and the deployment receipt before scientific
+and `sha256`. The optional `public_source_horizon` is described below; omission
+keeps the original source permissions. Freeze actual values and the deployment receipt before scientific
 calls. The command's `--agent-model` must equal `model`. Runtime/template/sampling
 not represented by these client fields belong in the pinned deployment receipt;
 an operator declaration is not automatic verification of server internals.
 No API key, model fallback or per-role model substitution is supported here.
+
+### Model-Selected Public Sources
+
+For a new source-permitted condition, set `public_source_horizon` to an ISO date
+in the frozen API configuration. This reuses the existing Crossref/arXiv/GitHub
+discovery tools in the same file-authoring session, not another agent or graph.
+The model selects queries, follows opaque handles, reads bounded source text and
+can acquire a previously resolved complete Git repository at an exact commit.
+Acquisition does not install dependencies, execute code or establish replication.
+Crossref reads are metadata/abstracts, not a journal's full paper; arXiv supports
+versioned HTML and original source. Arbitrary PDFs and binary-data import are not
+added by this connection.
+
+Ideation and research share durable public observations under the campaign's
+`.public-sources` store. Each source reviewer starts a separate model context and
+source store under `.public-review-sources`, outside candidate source trees; no
+author conversation, outcome or search history is inherited. Post-hoc analysis
+remains limited to supplied artifacts and has no live discovery tools. Source
+content, hashes and tool observations remain in the existing source store and
+session transcript; neither retrieval nor reviewer agreement is proof.
+
+This is live source access bounded by publication dates, not a historical web
+snapshot or protection against benchmark-answer leakage. Use frozen source
+snapshots for blinded rediscovery. Enabling this field changes the experimental
+information condition: never add it to an active or consumed comparison, and
+give compared arms the same declared access. Deterministic retained-loop and
+actual upstream CLI/pipeline fixtures verify the connection, not research ability.
 
 For a fixed-requirement investigation, the operator supplies a nonempty
 `task_dir/target_rubrics.json` in upstream's rubric-list format, preserving explicit

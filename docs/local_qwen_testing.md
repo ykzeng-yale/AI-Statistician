@@ -116,10 +116,11 @@ lists eight 193-GB B200s per node, in addition to eight 141-GB H200s; the older
 general GPU-summary table is not a current upper bound. Aggregate device memory
 is not automatically one address space or available capacity.
 
-Current jobs 29726507 and 29726508 keep their pinned 27B condition unchanged.
-At the recheck the stock arm was running and the statistical arm awaited its
-dependency. No Flash-Next weights were downloaded or inference allocation added
-by this recheck. Qualify the retained source-owner feedback loop independently
+Jobs 29726507 and 29726508 keep their pinned 27B condition unchanged. Stock is
+now terminal: candidate three passed numerical checks but AI theory review was
+uncertain, with no accepted task. Statistical is running unchanged. The initial
+resource recheck downloaded no weights; the subsequent separate CPU stage is
+recorded below. Qualify the retained source-owner feedback loop independently
 of capacity, then declare any larger-model comparison prospectively. Keep one
 fixed model condition across roles and arms; do not reduce the scientific task
 or add task-specific rules to compensate for a small model.

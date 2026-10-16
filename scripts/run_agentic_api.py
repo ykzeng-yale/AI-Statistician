@@ -17,14 +17,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ai_statistician.agentic_api_workspace import FileAuthorWorkspace, FileGrant, _relative, run_file_session
 from ai_statistician.agentic_scientific_review import run_scientific_review
 from ai_statistician.local_model_backend import LocalChatGeneratorBackend
+from ai_statistician.research_source_discovery import PublicResearchSourceDiscovery, PublicResearchSourceDiscoveryConfig
 
 
 def load_config(path: Path, *, model: str) -> tuple[dict, dict]:
     config = json.loads(path.read_text())
     required = {"model", "base_url", "max_tokens", "temperature", "timeout_seconds",
                 "max_turns", "deployment_ref"}
-    if not isinstance(config, dict) or set(config) != required:
+    if not isinstance(config, dict) or not required <= set(config) or set(config) - required - {"public_source_horizon"}:
         raise ValueError("Supply exactly the documented native API configuration fields.")
+    if "public_source_horizon" in config:
+        PublicResearchSourceDiscoveryConfig(source_horizon=config["public_source_horizon"])
     if config["model"] != model:
         raise ValueError("Stage model differs from the frozen API model; no substitution allowed.")
     for key in ("max_tokens", "max_turns", "timeout_seconds"):
@@ -119,7 +122,7 @@ def posthoc_workspace(root: Path) -> FileAuthorWorkspace:
     return workspace
 
 
-def stage_workspace(root: Path, source: Path, *, stage="research", results: Path | None = None) -> FileAuthorWorkspace:
+def stage_workspace(root: Path, source: Path, *, stage="research", results: Path | None = None, discovery=None) -> FileAuthorWorkspace:
     root, source = root.resolve(), source.resolve()
     shared = (
         FileGrant("skills", root / ".local-api/skills", directory=True),
@@ -134,7 +137,7 @@ def stage_workspace(root: Path, source: Path, *, stage="research", results: Path
             FileGrant("idea_bundle.json", root / "idea_bundle.json", writable=True),
             FileGrant("target_rubrics.json", root / "target_rubrics.json", writable=True),
             *shared,
-        ))
+        ), discovery=discovery)
         workspace.instructions += (
             " Native API stage contract: write idea_bundle.json and target_rubrics.json. "
             "Keep author notes in notes_for_agent; the host owns global memory bookkeeping. "
@@ -156,7 +159,7 @@ def stage_workspace(root: Path, source: Path, *, stage="research", results: Path
         FileGrant("memory.md", root / "memory.md", writable=True),
         *shared,
     ))
-    workspace = FileAuthorWorkspace(tuple(grants))
+    workspace = FileAuthorWorkspace(tuple(grants), discovery=discovery)
     specification = tomllib.loads(workspace._path("program_0/program_spec.toml").read_text())
     if specification.get("schema_version") != 1 or specification["code_root"] != "src":
         raise ValueError("The pinned upstream schema_version=1 requires code_root='src'.")
@@ -168,7 +171,7 @@ def stage_workspace(root: Path, source: Path, *, stage="research", results: Path
             attempt_id=os.environ["ATTEMPT_ID"], idea_id=os.environ["IDEA_ID"],
             memory_md=Path(os.environ["GLOBAL_MEMORY_MD_FILE"]),
             memory_jsonl=Path(os.environ["GLOBAL_MEMORY_JSONL_FILE"]),
-            python_executable=os.environ["HARNESS_PYTHON_BIN"])
+            python_executable=os.environ["HARNESS_PYTHON_BIN"], discovery=discovery)
     return workspace
 
 
@@ -194,20 +197,27 @@ def main() -> int:
 
     previous_handler = signal.signal(signal.SIGTERM, interrupted)
     try:
+        results = Path(os.environ["AI_STATISTICIAN_CAMPAIGN_RESULTS"]) if os.environ.get("AI_STATISTICIAN_CAMPAIGN_RESULTS") else None
+        discovery = None
+        if "public_source_horizon" in config and args.stage != "posthoc":
+            discovery = PublicResearchSourceDiscovery(
+                config=PublicResearchSourceDiscoveryConfig(source_horizon=config["public_source_horizon"]),
+                state_dir=((results or args.task_dir) / ".public-review-sources" / hashlib.sha256(
+                    str(args.program_dir.resolve()).encode()).hexdigest() if args.stage == "review"
+                           else (results or root) / ".public-sources"))
         if args.stage == "review":
             prompt = Path(__file__).resolve().parents[1] / "integrations/agentic-scientist/prompts/scientific-review.md"
             review = run_scientific_review(
                 backend=backend, program=args.program_dir, task=args.task_dir,
                 rubrics_file=args.rubrics_file,
                 sources=Path(os.environ.get("TASK_SOURCE_DIR", str(args.task_dir))),
-                config=config, deployment_identity=identity, prompt=prompt.read_text(),
+                config=config, deployment_identity=identity, prompt=prompt.read_text(), discovery=discovery,
             )
             print(json.dumps({"event": "api_review_terminal", "model": review["model"],
                               "verdicts": review["verdicts"], "proof_evidence": False}), flush=True)
             return 0
-        results = Path(os.environ["AI_STATISTICIAN_CAMPAIGN_RESULTS"]) if os.environ.get("AI_STATISTICIAN_CAMPAIGN_RESULTS") else None
         workspace = (posthoc_workspace(root) if args.stage == "posthoc" else
-                     stage_workspace(root, Path(os.environ["TASK_SOURCE_DIR"]), stage=args.stage, results=results))
+                     stage_workspace(root, Path(os.environ["TASK_SOURCE_DIR"]), stage=args.stage, results=results, discovery=discovery))
         prompt = args.prompt_file.read_text()
         result = run_file_session(
             backend=backend, workspace=workspace, prompt=prompt,

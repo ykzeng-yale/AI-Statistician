@@ -121,8 +121,8 @@ and [terminal stock observation](../benchmarks/agentic_scientist_native_hc0_long
 Its native 262K model uses prospectively declared 1M static YaRN; service startup
 does not establish long-context quality.
 
-**Restore the upstream retained revision loop for fresh conditions.** The
-current source-only mode evaluates after author exit; ordinary source errors
+**Use the restored upstream retained revision loop in fresh conditions.** The
+older source-only mode evaluates after author exit; ordinary source errors
 therefore require a new idea/author session. Its history also omitted declared
 public artifacts, and this task stores raw exceptions outside its declared public
 outputs. A stored error is not necessarily delivered feedback. The shared
@@ -134,6 +134,16 @@ execution service is introduced. The [integration](../integrations/agentic-scien
 states the exact mechanism and remaining boundaries. Deterministic process tests
 do not establish live efficacy, mathematical acceptance or completed Paper S.
 The running frozen condition does not receive these prospective changes.
+
+**Connect model-selected sources without another research agent.** Reuse the
+existing public discovery/read/pinned-repository tools inside the native retained
+author and reviewer sessions. New source-permitted conditions explicitly freeze
+the source horizon; omission leaves access unchanged. Authors share public source
+observations, while each reviewer has a separate source store and context.
+Posthoc remains artifact-only. Live search is not historical blinding, metadata
+is not a full paper, and acquired code is not executed replication. Verify the
+actual upstream pipeline connection before activating a fresh scientific run;
+do not manually supply a benchmark solution or migrate active conditions.
 
 **Keep one capable model condition across roles and arms.** Neither 4B nor 27B
 is a ceiling. A task-owned fixed Flash-Next is the next capacity candidate;

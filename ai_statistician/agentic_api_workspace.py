@@ -25,6 +25,10 @@ from .client_tool_loop import (
 )
 from .fingerprint import stable_hash
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
+from .research_source_discovery import (
+    ResearchSourceDiscoveryInputError, execute_research_source_discovery_client_tool,
+    research_source_discovery_client_tools,
+)
 
 
 @dataclass(frozen=True)
@@ -104,9 +108,11 @@ class FileAuthorWorkspace:
     )
 
     def tools(self) -> tuple[ClientToolDefinition, ...]:
-        return author_tools()
+        return author_tools() + self.discovery_tools
 
-    def __init__(self, grants: tuple[FileGrant, ...]):
+    def __init__(self, grants: tuple[FileGrant, ...], *, discovery=None):
+        self.discovery = discovery
+        self.discovery_tools = research_source_discovery_client_tools(repository_acquisition=True) if discovery else ()
         if not grants or len({grant.name for grant in grants}) != len(grants):
             raise ValueError("File grants must have unique names.")
         for grant in grants:
@@ -160,11 +166,15 @@ class FileAuthorWorkspace:
         try:
             validate(dict(call.input), self.schemas[call.name])
             return self._execute(call.name, dict(call.input))
-        except (ValidationError, OSError, UnicodeError, ClientToolInputError) as exc:
+        except (ValidationError, OSError, UnicodeError, ClientToolInputError, ResearchSourceDiscoveryInputError) as exc:
             return ClientToolExecutionResult(
                 content={"error": type(exc).__name__, "detail": str(exc)}, is_error=True)
 
     def _execute(self, name: str, args: dict[str, Any]) -> ClientToolExecutionResult:
+        if name in {tool.name for tool in self.discovery_tools}:
+            observation, _, is_error = execute_research_source_discovery_client_tool(
+                self.discovery, tool_name=name, tool_input=args)
+            return ClientToolExecutionResult(content=observation, is_error=is_error)
         if name == "finish":
             payload = {**args, "scientific_acceptance": False}
             return ClientToolExecutionResult(content=payload, terminal=True, terminal_payload=payload)
@@ -214,7 +224,9 @@ def run_file_session(*, backend, workspace: FileAuthorWorkspace, prompt: str,
                     session_dir: Path, session_id: str, deployment_identity: Mapping[str, Any]):
     """One upstream-owned stage. The caller retains evaluation and scheduling."""
     session_dir.mkdir(parents=True, exist_ok=False)
-    identity = {"deployment": dict(deployment_identity), "grants": [
+    identity = {"deployment": dict(deployment_identity),
+        "source_discovery": dict(workspace.discovery.descriptor()) if workspace.discovery else None,
+        "grants": [
         {**asdict(g), "path": str(g.path)} for g in workspace.grants],
         "inputs": workspace.files(), "prompt_sha256": _digest(prompt.encode("utf-8"))}
     request = ClientToolTurnRequest(

@@ -15,6 +15,7 @@ from ai_statistician.agentic_api_workspace import FileAuthorWorkspace, FileGrant
 from ai_statistician.client_tool_loop import ClientToolExecutionContext, ClientToolInputError, ClientToolLoopError
 from ai_statistician.model_backend import ClientToolCall, ClientToolTurnResponse
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.research_source_discovery import PublicResearchSourceDiscovery, PublicResearchSourceDiscoveryConfig
 from scripts.run_agentic_api import load_config, posthoc_workspace, stage_workspace
 
 
@@ -147,6 +148,59 @@ def run(workspace, backend, destination, *, max_turns=6):
     return run_file_session(backend=backend, workspace=workspace, prompt="Opaque research-stage brief.",
         model="frozen-fixture-model", max_tokens=8192, temperature=1.0, max_turns=max_turns,
         session_dir=destination, session_id="opaque-attempt", deployment_identity={"revision": "exact-fixture"})
+
+
+@pytest.fixture
+def public_source_fixture():
+    work = {"DOI": "10.5555/opaque-source-19", "title": ["Opaque source navigation fixture"],
+            "abstract": "Metadata observation 73; no statistical result or expected answer.",
+            "published": {"date-parts": [[2025, 1, 2]]}}
+    calls = []
+
+    def fetch(url, headers, timeout):
+        assert url.startswith("https://api.crossref.org/works")
+        calls.append(url)
+        return {"message": {"items": [work]} if "?" in url else work}
+
+    return work, calls, fetch
+
+
+def test_native_source_tools_preserve_observations_and_independent_review(tmp_path, public_source_fixture):
+    _, calls, fetch = public_source_fixture
+    config = PublicResearchSourceDiscoveryConfig(source_horizon="2026-10-16")
+    discovery = PublicResearchSourceDiscovery(config=config, state_dir=tmp_path / "public-sources", json_fetcher=fetch)
+    source = tmp_path / "brief.md"
+    source.write_text("Opaque question; sources are permitted, not scientific evidence.")
+    grants = (FileGrant("brief.md", source), FileGrant("theory.md", tmp_path / "theory.md", writable=True))
+    workspace = FileAuthorWorkspace(grants, discovery=discovery)
+    assert not any("research_source" in tool.name for tool in FileAuthorWorkspace(grants).tools())
+    assert "acquire_discovered_research_repository" in {tool.name for tool in workspace.tools()}
+    found = invoke(workspace, "discover_research_sources", query="model-selected opaque query", source_kind="paper", top_k=1)
+    handle = found.content["results"][0]["source_handle"]
+    assert invoke(workspace, "discover_research_sources", query="opaque", source_horizon="2099-01-01").is_error
+    backend = FixtureBackend([
+        ("read_discovered_research_source", {"source_handle": "unknown-handle"}),
+        ("read_discovered_research_source", {"source_handle": handle}),
+        ("write_file", {"path": "theory.md", "content": "# Unassessed argument\nSource metadata 73 is not a proof.\n", "expected_sha256": None}),
+        ("finish", {"disposition": "candidate", "summary": "Source-informed draft, not accepted science."}),
+    ])
+    result = run(workspace, backend, tmp_path / "author-session")
+    assert backend.requests[1].messages[-1]["content"][0]["is_error"]
+    observation = json.loads(backend.requests[2].messages[-1]["content"][0]["content"])
+    assert observation["path"] == "metadata.md" and "Metadata observation 73" in observation["content"]
+    assert observation["proof_evidence_status"] == found.content["proof_evidence_status"]
+    assert result.terminal_payload["scientific_acceptance"] is False
+    pinned = invoke(FileAuthorWorkspace(grants, discovery=discovery.new_session()),
+        "read_discovered_research_source", source_handle=handle)
+    assert pinned.content == observation and len(calls) == 2
+    session = json.loads((tmp_path / "author-session/input.json").read_text())
+    assert session["identity"]["source_discovery"]["source_horizon"] == "2026-10-16"
+    reviewer = PublicResearchSourceDiscovery(config=config, state_dir=tmp_path / "review-sources", json_fetcher=fetch)
+    review = FileAuthorWorkspace(grants, discovery=reviewer)
+    assert invoke(review, "read_discovered_research_source", source_handle=handle).is_error
+    assert not invoke(review, "discover_research_sources", query="independent reviewer query", source_kind="paper").is_error
+    assert not invoke(review, "read_discovered_research_source", source_handle=handle).is_error
+    assert len(calls) == 4
 
 
 @pytest.fixture
@@ -367,6 +421,15 @@ def test_api_config_binds_deployment_and_cannot_switch_model(tmp_path):
     path.write_text(json.dumps(config))
     loaded, identity = load_config(path, model="pinned")
     assert loaded == config and identity["config"] == config
+    config["public_source_horizon"] = "2026-10-16"
+    path.write_text(json.dumps(config))
+    assert load_config(path, model="pinned")[1]["config"] == config
+    config["public_source_horizon"] = "not-a-date"
+    path.write_text(json.dumps(config))
+    with pytest.raises(ValueError):
+        load_config(path, model="pinned")
+    config["public_source_horizon"] = "2026-10-16"
+    path.write_text(json.dumps(config))
     with pytest.raises(ValueError, match="no substitution"):
         load_config(path, model="other")
     receipt.write_text("changed")

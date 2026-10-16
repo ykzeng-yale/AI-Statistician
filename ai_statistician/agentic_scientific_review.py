@@ -6,7 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from .agentic_api_workspace import FileAuthorWorkspace, FileGrant, _atomic_bytes, author_tools, run_file_session
+from .agentic_api_workspace import FileAuthorWorkspace, FileGrant, _atomic_bytes, run_file_session
 from .client_tool_loop import ClientToolExecutionResult, ClientToolInputError
 from .model_backend import ClientToolDefinition
 
@@ -20,12 +20,12 @@ class ScientificReviewWorkspace(FileAuthorWorkspace):
         "confirmation, human endorsement or error-free correctness. Preserve uncertainty."
     )
 
-    def __init__(self, grants: tuple[FileGrant, ...], requirement_ids: tuple[str, ...]):
+    def __init__(self, grants: tuple[FileGrant, ...], requirement_ids: tuple[str, ...], *, discovery=None):
         if (not requirement_ids or not all(isinstance(item, str) and item.strip() for item in requirement_ids)
             or len(set(requirement_ids)) != len(requirement_ids)):
             raise ValueError("Review requirements must have distinct nonempty IDs.")
         self.requirement_ids = requirement_ids
-        super().__init__(grants)
+        super().__init__(grants, discovery=discovery)
         self.initial_inputs = [row for row in self.files() if not row["writable"]]
 
     def tools(self) -> tuple[ClientToolDefinition, ...]:
@@ -38,7 +38,7 @@ class ScientificReviewWorkspace(FileAuthorWorkspace):
                                    "status": {"enum": ["PASS", "FAIL", "UNCERTAIN"]}},
                     "required": ["id", "status"]}}}, "required": ["verdicts"]},
         )
-        return tuple(tool for tool in author_tools() if tool.name != "finish") + (submission,)
+        return tuple(tool for tool in super().tools() if tool.name != "finish") + (submission,)
 
     def _execute(self, name: str, args: dict) -> ClientToolExecutionResult:
         if name != "submit_review":
@@ -57,7 +57,7 @@ class ScientificReviewWorkspace(FileAuthorWorkspace):
 
 
 def run_scientific_review(*, backend, program: Path, task: Path, rubrics_file: Path,
-                          sources: Path, config: dict, deployment_identity: dict, prompt: str) -> dict:
+                          sources: Path, config: dict, deployment_identity: dict, prompt: str, discovery=None) -> dict:
     program, task = program.resolve(), task.resolve()
     if (program.parent != task or not program.name.startswith("program_")
         or not program.name[8:].isdigit() or int(program.name[8:]) < 1
@@ -77,7 +77,7 @@ def run_scientific_review(*, backend, program: Path, task: Path, rubrics_file: P
         FileGrant("sources", sources / "resources/search", directory=True),
         FileGrant("review.md", program / "scientific_review.md", writable=True),
     )
-    workspace = ScientificReviewWorkspace(grants, review_ids)
+    workspace = ScientificReviewWorkspace(grants, review_ids, discovery=discovery)
     for name, expected in source_records.items():
         if hashlib.sha256(workspace._path("candidate/" + name).read_bytes()).hexdigest() != expected:
             raise ValueError("Candidate differs from the evaluated source identity.")

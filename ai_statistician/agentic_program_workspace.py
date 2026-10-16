@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from .agentic_api_workspace import FileAuthorWorkspace, FileGrant, author_tools
+from .agentic_api_workspace import FileAuthorWorkspace, FileGrant
 from .client_tool_loop import ClientToolExecutionResult, ClientToolInputError
 from .model_backend import ClientToolDefinition
 
@@ -27,7 +27,7 @@ class ProgramWorkspace(FileAuthorWorkspace):
 
     def __init__(self, grants: tuple[FileGrant, ...], *, experiment: Path, max_evaluations: int,
                  timeout_seconds: int, attempt_id: str, idea_id: str,
-                 memory_md: Path, memory_jsonl: Path, python_executable: str):
+                 memory_md: Path, memory_jsonl: Path, python_executable: str, discovery=None):
         from src.investigation.harness_incumbent import native_public_outputs
 
         if type(max_evaluations) is not int or max_evaluations < 1:
@@ -57,13 +57,13 @@ class ProgramWorkspace(FileAuthorWorkspace):
             grants += (FileGrant(prefix + "/src", root / "src", directory=True, writable=True),
                        FileGrant(prefix + "/program_spec.toml", root / "program_spec.toml", writable=True))
             grants += tuple(FileGrant(prefix + "/" + name, root / name) for name in sorted(observations))
-        super().__init__(grants)
+        super().__init__(grants, discovery=discovery)
 
     def tools(self) -> tuple[ClientToolDefinition, ...]:
         def operation(name, description):
             return ClientToolDefinition(name=name, description=description,
                 input_schema={"type": "object", "properties": {}, "additionalProperties": False})
-        return author_tools() + (
+        return super().tools() + (
             operation("evaluate_program", "Run the fixed complete official evaluation once on the current source; preserve and return its real observations."),
             operation("clone_program", "Clone the failed, completed current candidate into the next source version with upstream program_clone. Never edit the consumed version."),
         )

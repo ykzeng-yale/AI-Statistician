@@ -63,7 +63,7 @@ numerically, while cycle 3 passed all 60,000 numerical comparisons but received
 `UNCERTAIN` for theory in its fresh source-only AI review. The fixed campaign
 ended incomplete with exit `2:0`; posthoc reporting did not run. This is not an
 independently established mathematical rejection or a successful research task.
-Statistical job 29726508 is now eligible but awaits cluster resources. Neither
+Statistical job 29726508 started at 06:50:49 EDT on October 16 and is running. Neither
 its model nor its inputs are changed to use the prospective iteration tools.
 No official H/S experiment or publication-checklist item is completed by this
 condition. Source-bound AI review remains fallible feedback, not proof.
