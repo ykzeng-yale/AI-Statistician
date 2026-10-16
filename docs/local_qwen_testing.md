@@ -58,9 +58,10 @@ It is not the immediate deployment choice. Flash-Next's official card instead
 lists 125B parameters/6B active plus 51B n-gram embeddings and 4B MTP; active
 parameter count is not resident-weight memory. A pinned self-hosted Flash-Next is
 also a possible larger-model condition, but cannot be assumed identical to Yale's
-managed revision. No additional model is downloaded or substituted during the
-current paired condition. Model capacity comparisons require complete matched
-tasks, not parameter-count rankings or a succession of toy tests.
+managed revision. No additional model had been downloaded at that inventory.
+The later preparation below stages another model without substituting it into
+either arm. Model capacity comparisons require complete matched tasks, not
+parameter-count rankings or a succession of toy tests.
 
 The [current Bouchet inventory](https://docs.ycrc.yale.edu/clusters/bouchet/)
 includes B200 nodes with eight 193-GB GPUs as well as H200 nodes with eight
@@ -122,6 +123,16 @@ by this recheck. Qualify the retained source-owner feedback loop independently
 of capacity, then declare any larger-model comparison prospectively. Keep one
 fixed model condition across roles and arms; do not reduce the scientific task
 or add task-specific rules to compensate for a small model.
+
+Subsequent [Flash-Next preparation](../benchmarks/publication_assessment_flashnext_20261016/README.md)
+now has CPU-only job **29733204** running under `pi_gt353`, using the existing
+pinned Hugging Face client and a separate model directory. It requests one CPU,
+40 GiB and two hours, no GPU or inference. The pinned license is Qwen Community
+License 1.0 (SHA-256 `a0dc422560841fd68e06d974907f8b4c709bca44a67daad2b528437bdf676c08`),
+not Apache-2.0. This academic preparation does not resolve downstream redistribution
+or commercial rights. Weight verification, serving fit and scientific assessment
+remain unestablished. Statistical 29726508 is running unchanged; the CPU stage's
+shared-storage overlap is disclosed rather than assumed irrelevant to timing.
 
 The prospective first task-owned model is `Qwen/Qwen3.8-27B`, revision
 `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`. The public Hugging Face metadata lists

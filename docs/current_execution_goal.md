@@ -112,8 +112,8 @@ pinned 27B BF16 API and separately declared complete-workflow resources. Stock
 is now terminal: its first two candidates failed numerical compliance;
 the third passed all 60,000 numerical comparisons but received an uncertain
 source-only AI theory assessment. The fixed campaign ended incomplete and
-posthoc reporting did not run. Statistical is eligible but awaiting cluster
-resources after its dependency cleared. This exposed development family is not
+posthoc reporting did not run. Statistical is now running under its unchanged
+frozen condition. This exposed development family is not
 an official H/S comparison or 180,000 agent draws.
 Preserve all outcomes, source and private state without patching, rerunning or
 rescoring them. See the [long-workflow condition](../benchmarks/agentic_scientist_native_hc0_long_20261016/README.md)
@@ -143,6 +143,9 @@ Bouchet long runs are authorized, without repeatedly seeking permission or
 shrinking the science. Do not confound a capacity upgrade with a harness change.
 Managed Yale coding hosts remain useful development routes, not assumed fixed
 weights or the single-API publication system.
+CPU-only [weight staging](../benchmarks/publication_assessment_flashnext_20261016/weight_staging_submission.json)
+is now running as 29733204. No Flash-Next inference or assessor condition is
+activated; first verify all weights and freeze the actual scientific assessment.
 
 **Qualify scientific references and assessment in parallel with development.**
 The [HonestDiD source preparation](../benchmarks/publication_reference_qualification_20261016/README.md)

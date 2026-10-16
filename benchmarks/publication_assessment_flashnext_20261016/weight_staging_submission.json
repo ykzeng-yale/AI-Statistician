@@ -1,0 +1,16 @@
+{
+  "submitted_at": "2026-10-16T11:02:16Z",
+  "job_id": "29733204",
+  "frozen_code_commit": "4c3a636af4199ef43bd007a681a7b2e468990851",
+  "plan": {"path": "weight_staging_plan.json", "sha256": "ac36d91bbc6c92d2fc69deb610228fe733dbe6a384dd4a22011b248ad8292030"},
+  "stager_sha256": "e51235e05e73dc91b09a7c16f0dc43501fe25ea812c83c0415d5dd1b27bbcc8f",
+  "metadata_sha256": "13a90f6485bb6aa30dda00b22b0ad9cb045d1a55150e538a05b8df9739644d5b",
+  "license_sha256": "a0dc422560841fd68e06d974907f8b4c709bca44a67daad2b528437bdf676c08",
+  "transfer_check": "All four remote files match the frozen local hashes before submission; fresh destination, no existing model receipt, existing HF client executable verified",
+  "allocation": {"account": "pi_gt353", "partition": "day", "qos": "normal", "cpus": 1, "memory_gib": 40, "wall_seconds": 7200, "gpus": 0, "requeue": false},
+  "observed": {"state": "RUNNING", "started_at": "2026-10-16T07:02:18-04:00", "node": "c1106u05n04", "elapsed": "00:02:46", "scope": "Allocation and staging only, not completed weight verification or model availability"},
+  "remote_root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-Qwen38-FlashNext-20261016",
+  "log": "staging-29733204.log",
+  "comparability": "CPU weight preparation overlaps the unchanged 27B statistical development arm. Shared-storage load is not controlled, so elapsed-time comparisons cannot assume isolated hardware. No model, source or task is substituted.",
+  "boundary": "No inference, assessor case, research candidate, official H/S comparison or publication item is activated by this job. Verify terminal status and all 144 file identities before serving or scientific calls."
+}
