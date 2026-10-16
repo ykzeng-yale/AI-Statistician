@@ -73,6 +73,9 @@ it is not a certificate about all histories or model pretraining.
 and pinned `lfe` into an owned library using the existing Yale R/CVXR module. It
 does not run an author analysis or model. The imported dependency inventory is
 not a numerical reference or a complete environment attestation.
+Environment-only job **29727530** was submitted pending under `pi_gt353`, one
+CPU/8 GiB/30 minutes; [submission](environment_submission.json). No application
+or simulation job was submitted and installation has not yet been observed.
 
 The eight original normal-simulation launchers each request twelve 1000-task
 arrays plus twelve optimal-bound tasks: 96000 single-draw tasks before bound

@@ -134,6 +134,15 @@ Jobs **29726507** (stock) and **29726508** (statistical, afterany stock) were
 submitted pending, with separate complete-workflow budgets. No fresh scientific
 outcome or long-context quality result exists at submission.
 
+**Unblocked publication work while queued:** the
+[HonestDiD reference preparation](../benchmarks/publication_reference_qualification_20261016/README.md)
+preserves the complete original archive, paper/appendix, historical package pin
+and declared full-study topology. Environment-only job **29727530** is separate
+from scientific/model runs. Resolve path portability, exact reference execution
+and claim-level assessment without silently accepting printed mathematics or
+shrinking the study. The localized attainment counterexample remains private
+evaluator preparation, not agent output, product guidance or whole-paper rejection.
+
 **Use the actual upstream observation to qualify the full-study boundary.** The
 requested native stock-v3 run on the exposed White HC0 task is now terminal.
 [Its record](../benchmarks/agentic_scientist_hc0_20261015/observed_results.json)

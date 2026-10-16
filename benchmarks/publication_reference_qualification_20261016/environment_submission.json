@@ -1,0 +1,14 @@
+{
+  "submitted_at": "2026-10-16T04:42:32-04:00",
+  "job_id": "29727530",
+  "state_at_submission": "PENDING",
+  "preparation_commit": "e63bae1a",
+  "account": "pi_gt353", "partition": "day", "qos": "normal",
+  "resources": {"nodes": 1, "cpus": 1, "memory_gib": 8, "wall_seconds": 1800, "gpus": 0},
+  "requeue": false,
+  "script_sha256": "a3d0889a765d63b4915a88c5b8c012c7f3d8c0a7f07d6cfdeabb22f885c976a7",
+  "working_directory": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-HonestDiD-reference-20261016",
+  "expected_outputs": ["setup-29727530.log", "resolved_packages.csv", "setup_session.txt"],
+  "scope": "Install/import exact reference dependencies only. No model call, author application/simulation, source repair, alias, official study or numerical-reference qualification. Submission is not installation success.",
+  "preservation": "No duplicate race, automatic retry or changes to frozen Qwen jobs 29726507/29726508. Existing user CPU work is untouched. Original archive and scientific source bytes remain unchanged."
+}
