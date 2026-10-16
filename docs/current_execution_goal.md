@@ -140,6 +140,15 @@ The [later observation](../benchmarks/agentic_scientist_native_hc0_long_20261016
 records completed ideation and in-flight source authoring under the unchanged
 deployment. Larger Qwen conditions remain authorized, not automatic mid-run
 fallbacks; finish this matched condition without narrowing its scientific scope.
+The October 16 resource clarification removes any implicit 4B/27B capacity
+ceiling: prefer a capable fixed Bouchet deployment when needed, with task-owned
+Flash-Next as the next capacity candidate. The
+[model/resource decision](local_qwen_testing.md#larger-consistent-deployment)
+records the source revision, memory estimate and actual allocation limits.
+Yale's managed coding interface is useful for development but is not a pinned
+single-API publication condition. Keep the current jobs unchanged; do not
+confound a model upgrade with a feedback-loop change or claim that extra model
+capacity establishes mathematical correctness.
 The [first stock candidate](../benchmarks/agentic_scientist_native_hc0_long_20261016/cycle01_observation.json)
 completed all numerical calls but none produced compliant candidate inference.
 Its raw source exception was stored outside the frozen history grants. Preserve

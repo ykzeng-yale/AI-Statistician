@@ -90,6 +90,39 @@ after a 4B failure. Select the model before a new comparison and keep it fixed
 across arms. There is no need for repeated operator approval of ordinary bounded
 standard-tier work. A larger model does not fix a broken launch or certify theory.
 
+The October 16 follow-up reaffirms that neither 4B nor 27B is a capacity ceiling.
+The next preferred capacity candidate is a task-owned
+[`Qwen/Qwen3.8-Flash-Next`](https://huggingface.co/Qwen/Qwen3.8-Flash-Next),
+not an automatic switch to Yale's shared service. Public metadata checked on
+October 16 identifies revision `de4b8e4d43b917e7706784d8bb445c9af86a3540`,
+131 BF16 safetensor files totaling 360,000,192,888 bytes, an ungated repository
+and `license=other`; its actual license must accompany any release decision.
+The main model, N-gram embeddings and MTP weights all matter for memory sizing;
+6B active parameters do not mean a 6B resident model.
+
+The [upstream serving recipe](https://recipes.vllm.ai/Qwen/Qwen3.8-Flash-Next)
+reports about 335.28 GiB of BF16 checkpoint storage. Four B200s are a prospective
+single-node deployment shape with headroom, not measured fit or a submitted job.
+Use upstream tensor/expert parallelism and supported parsers; verify runtime,
+memory, context and API behavior before freezing the complete research comparison.
+Do not equate B200 with the recipe's GB200/GB300 hardware. FP8, embedding offload
+and context extension are distinct configurations, never silent fallbacks.
+
+Fresh SSH checks confirm both `pi_fl426` and `pi_gt353` retain normal-tier access.
+H200/B200 QOS permits 48-hour jobs and up to 16 GPUs per user, subject to shared
+limits and scheduling. The [cluster-specific inventory](https://docs.ycrc.yale.edu/clusters/bouchet/)
+lists eight 193-GB B200s per node, in addition to eight 141-GB H200s; the older
+general GPU-summary table is not a current upper bound. Aggregate device memory
+is not automatically one address space or available capacity.
+
+Current jobs 29726507 and 29726508 keep their pinned 27B condition unchanged.
+At the recheck the stock arm was running and the statistical arm awaited its
+dependency. No Flash-Next weights were downloaded or inference allocation added
+by this recheck. Qualify the retained source-owner feedback loop independently
+of capacity, then declare any larger-model comparison prospectively. Keep one
+fixed model condition across roles and arms; do not reduce the scientific task
+or add task-specific rules to compensate for a small model.
+
 The prospective first task-owned model is `Qwen/Qwen3.8-27B`, revision
 `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`. The public Hugging Face metadata lists
 18 BF16 weight shards totaling 55,563,006,776 bytes (about 51.75 GiB), Apache-2.0
