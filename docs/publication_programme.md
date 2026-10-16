@@ -1,20 +1,21 @@
 # Publication Programme
 
-Updated: 2026-10-15. Status: scientific workflow qualification in progress;
-the ebnm, two distinct StepMix and complete-scope bizicount development conditions
-terminated without final submissions. The source-grounded AI-assessor
-qualification also stopped without qualification: seven requests, two completed
-reports, then truncated scratch-tool arguments and a decoding error. It is not a
-research-system draw or official comparison. Original records and the declared
-report-level examination remain [available](../benchmarks/publication_assessment_qualification_20261015/README.md).
-The native chat goal is active and covers
-both publications.
+Updated: 2026-10-16. Status: scientific workflow qualification in progress.
+The real upstream outer investigation/report join passes deterministic process
+tests; pinned Qwen3.8-27B BF16 passes API/tool transport. Frozen development job
+[29722963](../benchmarks/agentic_scientist_native_hc0_20261016/README.md) is submitted,
+not a completed methods investigation or official comparison. The native chat
+goal remains active for both publications. Earlier ebnm, StepMix and bizicount
+failures remain unchanged. The unsuccessful source-grounded AI-assessor
+qualification and its declared examination remain
+[available](../benchmarks/publication_assessment_qualification_20261015/README.md);
+the new response-recording fix does not rerun or requalify that condition.
 
 The latest user instruction selects [Agentic Scientist as the main backbone](../integrations/agentic-scientist/README.md).
-The pinned initial integration is implemented and its actual CLI preview is
-verified, not research-E2E or the promised single-API migration. H now needs an
-unmodified-v3 comparator alongside the bare host; S's control assembly must be
-rebuilt and requalified. The [source audit](ai_scientist_v3_evidence_review_20261015.md)
+The pinned integration now connects native investigation and artifact-only
+reporting, not full research-E2E or the promised specialist migration. H needs
+package/no-package contrasts within native-host and v3 workflows. S's assembly
+must be rebuilt and requalified. The [source audit](ai_scientist_v3_evidence_review_20261015.md)
 limits novelty claims and separates self-review from scientific acceptance.
 The existing 40 checklist states do not change.
 
@@ -23,8 +24,8 @@ host execution and a fresh revision reading the prior raw failure through the
 real upstream campaign, using deterministic HTTP fixtures. Fixed operator
 requirements survive cycles; an unsolved starter receives no invented score.
 It reuses local transport and exact file edits, not a coding CLI or the old
-scheduler. Specialist collaboration and final pipeline integration remain
-incomplete; this mechanism result does not complete a scientific or publication
+scheduler. Specialist collaboration, final verification and complete paper
+integration remain incomplete; this mechanism result does not complete a scientific or publication
 item. The [integration](../integrations/agentic-scientist/README.md#native-api-research-attempt)
 states its exact scope and unsupported paths.
 
@@ -39,7 +40,7 @@ what the research agents delivered from operator preparation and assessment.
 | --- | --- | --- | --- |
 | Scientific contribution and qualification | Q01--Q07 | Distinct H/S questions; exact task/access roster; executable reference scope; independent assessment protocol; actual arm conditions; prospective code/model/resource/schedule freeze | Both Sections 1--4 and A01/A03. A dated, hash-bound protocol precedes official calls; candidate configurations and mock tests alone do not complete this package. |
 | Theory and agreement | T01--T05 | Reviewed evaluation mathematics plus complete selected agent-authored Markdown/LaTeX case arguments, claim-level assessment, and theory/code/data/report correspondence | Both theory appendices and the essential claims in Section 5. Full definitions, assumptions, derivations and invoked-result conditions are supplied; a missing or rejected argument remains visible. |
-| Harness comparison | E02, E05--E06 | All scheduled matched bare-host, unmodified-v3 and statistically customized draws; actual uptake; common final-artifact assessment; frozen contrasts and cost/failure accounting | H main outcome table and resource figure, W02, A03/A06. Cross-host compatibility is reported separately, not pooled as efficacy. |
+| Harness comparison | E02, E05--E06 | Same-host package/no-package draws, with native-host and matched v3 workflow strata; actual uptake; common assessment; frozen contrasts and cost/failures | H main outcome table and resource figure, W02, A03/A06. Workflow changes are not package effects; compatibility is separate. |
 | Collaboration comparison | E03, E05--E06 | All scheduled free-planning, shared-workflow, no-reverse-revision and full-collaboration draws under the frozen conditions; common external adjudication and bundle-specific contrasts | S main four-arm outcome table and resource/behavior figure, W03, A03/A06. Role names or internal acceptance do not establish collaboration benefit. |
 | Statistical-method simulations | E01, E04 | Per-task ADEMP design; frozen method/source and comparators; fresh datasets; every replication and failure; estimand-aligned summaries and Monte Carlo uncertainty | Main scientific summaries and A04/A06. Inner datasets are not additional agent draws; finite simulation does not prove a theorem. |
 | Substantive application | Q03--Q04, C01--C05 | Declared complete B1 reconstruction and Card E.1 analyses, exact aggregation, uncertainty, assumptions/sensitivity, assessed theory and traceable agent behavior | Both Section 5 drafts completed under W04, with full A02/A04 material. Missing TSCI helper/data/aggregation cannot be replaced silently; this case dependency does not halt otherwise qualified primary comparisons. |
@@ -275,6 +276,11 @@ not an activated or retrospectively registered experiment. Exact paper tasks,
 independent gold, budgets, repetitions and analysis must be frozen before calls.
 
 Paper H compares each host with and without the identical portable package.
+The primary comparison holds native-host workflow fixed; the supporting v3
+comparison holds v3 workflow fixed. The four planned conditions and package
+boundary are specified in the experiment design. The earlier three-condition
+wording confounded workflow and package in its full-minus-bare contrast; no
+official draw used that design and no consumed outcome is changed.
 Host/model differences are recorded rather than attributed to the harness.
 Cross-host installation is a conformance result, not scientific accuracy. Official
 scientific experiments use open-weight models. The operator also authorizes the
@@ -386,8 +392,8 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   review is reported only if it actually occurs; no such endorsement is claimed.
 - [ ] **Q06. Comparable actual conditions.** Verify tool/source/data access,
   execution profiles, effective model requests, revision opportunities, confirmation
-  exposure and resources across H's two arms and S's four. Record irreducible
-  differences; equal calls or arm names are not qualification.
+  exposure and resources across H's two matched pairs and S's four arms. Record
+  irreducible differences; equal calls or arm names are not qualification.
   The [candidate request follow-up](../benchmarks/publication_case_candidates/tsci_b1_card/arm_request_alignment.json)
   aligns required-tool policy and binds the complete shared request. The observed
   initial Architect transport and differing batch policies remain explicit; opaque
@@ -547,7 +553,8 @@ theory assessment or matched-arm qualification. Scientific checklist items stay 
   DGP/scenarios, estimands, comparators, information access, performance measures,
   RNG/streams, failures and Monte Carlo precision. Separate literal replication
   from a justified extension. No universal 100-repetition or nominal-coverage gate.
-- [ ] **E02. Fresh Paper H comparison.** Run every scheduled bare/package draw
+- [ ] **E02. Fresh Paper H comparison.** Run the scheduled native-host and v3
+  package/no-package conditions, holding each workflow fixed for its contrast
   under Q07; verify actual body uptake and retain uptake failures, absent finals,
   costs and interventions. Compatibility observations are not these outcomes.
 - [ ] **E03. Fresh Paper S comparison.** Run free planning, shared workflow,

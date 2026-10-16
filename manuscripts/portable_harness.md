@@ -5,9 +5,10 @@ are not yet supplied. Comparative results, installation qualification and releas
 remain unresolved; this draft does not claim an efficacy result.
 
 Backbone revision: the new integration builds on Sakana's Agentic Scientist,
-rather than claiming a new general scientist controller. The comparison must
-include matched unmodified v3 as well as the bare host. The current source/task/
-prompt integration, development runs and mechanism tests are not a clean efficacy
+rather than claiming a new general scientist controller. Package/no-package
+comparisons hold either the native-host or v3 workflow fixed. Changing workflow
+and package together cannot isolate package value. The current source/task/prompt
+integration, development runs and mechanism tests are not a clean efficacy
 comparison or a completed release. The companion system's native API review and
 reporting extensions are not silently added to the portable-package intervention.
 
@@ -166,14 +167,18 @@ the model and that relative references and requested tools work. Discovery or
 exit zero alone is insufficient. Version-dependent activation failures stay in
 the record rather than being silently excluded.
 
-The prospective scientific comparison is matched within an exact open-weight
-host/model configuration: bare host, unmodified v3 with a common task bridge,
-and v3 with the statistical package. All receive the same scientific material,
-allowed sources, environment, output contract and global resource condition.
-Full minus bare measures the bundle; full minus v3 measures incremental statistical
-customization. Common task/access interfaces must not supply the added skill or
-custom prompts to the v3-only control. The arm assembly and confirmatory contrast
-hierarchy remain to be qualified before calls. Separate clean workspaces avoid
+The prospective scientific comparison crosses package absence/presence with
+native-host/pinned-v3 workflow, within one exact open-weight host/model condition.
+The primary contrast compares the native host with and without the package.
+A supporting contrast adds that identical package to v3 on the same host.
+All receive the same scientific material, permitted sources, environment, output
+contract and global resource condition. The v3-plus-package versus bare-host
+contrast combines two interventions and cannot isolate package value.
+The package contains only the released skill and references; extra statistical
+stage prompts or native API reviewer/report extensions are not added to these H
+conditions. Common task/access interfaces supply neither package nor extra
+guidance to their controls. Arm assembly, activation and confirmatory hierarchy
+remain to be qualified before calls. Separate clean workspaces avoid
 cross-arm state. All scheduled draws, including missing outputs and timeouts,
 remain in the denominator; an earlier draft cannot replace a missing final result.
 
@@ -312,9 +317,10 @@ that agent. A thousand simulated datasets from one generated procedure are not
 a thousand independently evaluated agent outputs. They cannot compensate for
 using one paper family or one successful model draw.
 
-For the outer comparison, the proposed estimand is the package-minus-bare-host
-difference in expected AI-assessed full-task acceptance on a fixed qualified
-benchmark under one specified host, model and resource condition. For $N$
+For the primary outer comparison, the proposed estimand is the native host's
+with-package minus without-package difference in expected AI-assessed full-task
+acceptance on a fixed qualified benchmark under one specified host, model and
+resource condition. For $N$
 families, frozen weights $w_i>0$, $\sum_i w_i=1$, and $R_i$ scheduled
 paired draws per family, the aggregate estimate is
 
@@ -326,8 +332,10 @@ $$
 
 where $Y_{ir}^a$ indicates complete acceptance under that AI/executable assessment and $\mathcal B$
 is the fixed roster; $i$, $r$ and $a$ denote family, scheduled draw and
-arm. Equal-family weights are $1/N$; one primary task/access
-condition per family defines the initial comparison. Report family-level counts,
+arm. Here package and bare both use the native host without v3. The supporting
+v3 contrast holds that workflow fixed and uses the same estimator; it is not
+v3-plus-package minus bare host. Equal-family weights are $1/N$; one primary
+task/access condition per family defines the initial comparison. Report family-level counts,
 paired differences and failures before aggregation. Variants require declared
 within-family aggregation; they and rubric fields are not independent families.
 

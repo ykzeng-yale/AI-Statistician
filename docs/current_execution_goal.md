@@ -227,8 +227,10 @@ actual single-API specialist path without invoking the old outer graph. R/Lean
 use, exact scientific evidence joins and journal-format writing need integrated
 verification, not another generic agent framework or VM/network campaign.
 
-For H, add unmodified v3 under matched host/model conditions alongside the bare
-host. For S, rebuild actual same-model controls around the new implementation.
+For H, compare the same native host with/without the released package, and add
+a separate v3 with/without-identical-package contrast. Do not attribute the
+combined change of workflow and guidance to the package alone. For S, rebuild
+actual same-model controls around the new implementation.
 Freeze these changes before official calls; no consumed study is reassessed.
 
 **Complete one coherent methods-research workflow qualification.** The research

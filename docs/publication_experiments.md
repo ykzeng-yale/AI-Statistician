@@ -1,7 +1,8 @@
 # Publication Experiment Design
 
-2026-10-15 design and implementation status. NOT ACTIVATED: no task list, gold authority, sampling
-schedule or resource envelope has been frozen. No result is claimed here.
+2026-10-16 design and implementation status. Official H/S studies NOT ACTIVATED:
+their task roster, gold authority, sampling schedule and resource envelope remain
+unfrozen. Separately frozen development conditions are not official results.
 
 **Backbone revision, 2026-10-15:** the latest user instruction selects the pinned
 [Agentic Scientist](../integrations/agentic-scientist/README.md) as the new outer
@@ -12,7 +13,9 @@ H and implement/requalify S's actual single-API arms. No old result is changed.
 ## Questions And Units
 
 H1: Does the portable package improve independently accepted scientific outputs
-over both the same bare coding host and unmodified v3 on that host/model?
+within a fixed coding host? A separate matched contrast tests its incremental
+value when that same host runs the pinned v3 workflow. Changing the workflow and
+adding the package at once does not identify the package effect.
 Installation qualification is reported
 separately; a researcher-effort effect is not a primary endpoint of this study.
 S1: Does specialist collaboration improve full-task acceptance over one general
@@ -71,9 +74,12 @@ requalify, resume or rescore them. Their diagnostic lessons may inform developme
 they do not require further tracking or constrain the new study's development gate.
 Past sealed protocols stay sealed rather than being repurposed as Qwen benchmarks.
 
-Qwen3-4B-Instruct-2507 Q4_K_M is the deployed inexpensive development baseline,
-not yet a scientifically qualified main-study configuration or a demonstration
-of frontier theory capability. Freeze each official model's weights, quantization,
+Qwen3-4B-Instruct-2507 Q4_K_M is a historical inexpensive development condition,
+not a capacity ceiling or a scientifically qualified main-study configuration.
+The task-owned Qwen3.8-27B BF16 deployment now passes actual API/tool transport;
+its [frozen native workflow condition](../benchmarks/agentic_scientist_native_hc0_20261016/README.md)
+is submitted, not completed scientific research or official model qualification.
+Freeze each official model's weights, quantization,
 runtime, chat template, decoding and hardware before runs. If a stronger
 open-weight configuration is chosen, it is a separate prospective condition,
 never an automatic escalation after observing a failure. General model-capacity
@@ -161,17 +167,40 @@ adds no eligible task, fixed roster, official activation or performance result.
 
 | Study | Arms | Attribution |
 | --- | --- | --- |
-| Portable H | Bare host; unmodified v3 with common task bridge; v3 plus statistical package | Matched within exact host/model; full-minus-bare is the bundle, full-minus-v3 is incremental statistical customization |
+| Portable H | Host with/without package, crossed with absence/presence of the pinned v3 workflow | Package contrasts hold host/model and outer workflow fixed; v3-plus-package minus bare host is only a combined bundle contrast |
 | System S | Free-planning general agent; single-context workflow control; isolated roles without reverse author revision; full collaboration | Same Qwen and matched resource/access conditions; compare implemented bundles, not isolated reasoning mechanisms |
 | External scaffold | Minimal ResearchHarness or compatible open implementation | Pin code and report every provider/tool adaptation; no comparison with published scores |
 | Lean | Zero-shot source; compiler feedback; compiler feedback + scoped RAG | Same statements, model, project and total resources |
 | Foundation reuse | Pinned standard foundation vs standard + curated StatInference | Hold out target proof and dependent aliases; separately measure semantic fidelity |
 
-The common v3 bridge supplies the same scientific question, permitted sources,
-execution/output interfaces and external assessment. It must not leak the added
-statistical skill or custom investigation/writing prompts into the unmodified
-v3 arm. The new task preparer is the full-package entry, not a completed neutral
-control assembler. Native host compatibility does not establish any arm's efficacy.
+The four planned H conditions use one host/model, common scientific inputs,
+execution/output contract, external assessment and global resource envelope:
+
+| Condition | Outer workflow | Portable package |
+| --- | --- | --- |
+| `H00` | Native coding host | Absent |
+| `H01` | Same native coding host | Exact released package |
+| `H10` | Pinned v3 on that host | Absent |
+| `H11` | Same pinned v3 on that host | Identical released package |
+
+The primary portable-package contrast is `H01-H00`; the supporting v3 contrast
+is `H11-H10`. `H11-H00` combines workflow and package changes and cannot be
+reported as the package's isolated benefit. A difference between the two package
+contrasts would require a prespecified interaction analysis; none is activated.
+H's intervention is the exact `SKILL.md` and its shipped relative references,
+not the native API reviewer, separate statistical investigation/writing prompts,
+or a different controller. Those additions belong to their separately declared
+system or development conditions. Freeze the contrast hierarchy and any joint
+inferential claims with the schedule; four labels are not qualified arm assembly.
+The frozen two-arm native API HC0 condition is not one of these H comparisons:
+its custom prompt/guidance bundle and API participant remain separately labelled.
+No development outcome is reassigned to the revised official conditions.
+
+The common v3 task bridge supplies the scientific question and permitted inputs,
+not extra statistical guidance. Existing statistical task preparation also
+injects a custom prompt and therefore is not the neutral H assembler.
+Package activation uses the host's native interface and is measured, not assumed
+from copying resource files. Native compatibility does not establish efficacy.
 Upstream self-authored rubrics and its reviewer scores are not our common gold.
 Do not import published cloud scores as a local-Qwen baseline.
 Only hosts actually supported by the pinned v3 can enter that matched contrast.
@@ -844,8 +873,9 @@ remains in the denominator under its predeclared handling.
 The complete fixed-benchmark target, weighting, estimator and expectation
 derivation now have one manuscript source in
 [Supplement S3](../manuscripts/supplementary_methods.md#s3-fixed-benchmark-target-and-conditional-uncertainty).
-Paper H retains package minus bare host and adds package minus unmodified v3
-within the same host/model as the required incremental-value contrast. Freeze
+Paper H uses `H01-H00` for the portable package and `H11-H10` for its incremental
+value within v3, each at the same host/model and fixed workflow. Do not substitute
+`H11-H00` for either. Freeze
 their confirmatory hierarchy or multiplicity treatment before outcomes; this
 revision supplies no sample size or significance claim. Paper S's primary remains
 full collaboration minus free planning after requalification. Freeze the roster, family

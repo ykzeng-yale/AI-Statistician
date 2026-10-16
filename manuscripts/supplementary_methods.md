@@ -1,15 +1,16 @@
 # Supplementary Methods for the Two AI-Statistician Studies
 
-Methods draft, 2026-10-05. Shared by Paper H and Paper S, with overlap disclosed.
+Methods draft, 2026-10-16. Shared by Paper H and Paper S, with overlap disclosed.
 No official study is activated and no result is supplied here. The calculations
 below are standard evaluation and Monte Carlo methods, not new statistical
 theory or proof of an agent's scientific argument. Independent review and a
 prospectively fixed roster, authority and execution design remain necessary.
 
-The 2026-10-15 backbone revision adds matched unmodified v3 to H's bare-host/full
-comparison and requires requalification of S's single-API arms. The pairwise
-targets below apply to each prospectively selected contrast; they do not resolve
-contrast hierarchy or multiplicity. Prior task/draw assemblies are historical,
+The October 16 correction crosses H's package intervention with native-host/v3
+workflow. Comparing v3-plus-package with a bare host does not isolate the package.
+S's single-API arms still need requalification. The pairwise targets below apply
+to each prospectively selected contrast; they do not resolve contrast hierarchy
+or multiplicity. Prior task/draw assemblies are historical,
 not frozen arms of the revised study, and no result is rescored.
 
 ## S1. Units, Interventions and Evidence
@@ -19,9 +20,14 @@ execution of one frozen task/access condition in one arm. A simulated dataset
 inside that draw is an inner repetition. Multiple rubric items, lemmas, tool
 calls or datasets do not create additional paper families or agent draws.
 
-Paper H compares the same open-weight coding host with and without the exact
-portable package. Package activation and installation are measured separately;
-neither demonstrates scientific efficacy. Paper S compares free planning,
+Paper H's primary contrast is the same native open-weight coding host with versus
+without the exact portable package (`H01-H00`). The supporting contrast adds that
+identical package within the pinned v3 workflow (`H11-H10`). Both keep outer
+workflow fixed; `H11-H00` is a combined bundle contrast, not the package effect.
+Stage-specific prompts and the native API system extensions are outside H's
+released skill/reference intervention. Package activation and installation are
+measured separately; neither demonstrates scientific efficacy. Paper S compares
+free planning,
 shared-context workflow, role-separated work without reverse source-owner
 re-entry, and full collaboration under one base-model condition. Its primary
 comparison is full collaboration versus free planning. The other contrasts
@@ -400,6 +406,11 @@ Measured calls, input/output tokens, context/prefill/cache behavior, elapsed tim
 scientific compute and hardware condition describe resources. Equal call caps
 alone do not equate them. Time-limit stopping needs a stated censored-duration
 analysis or clearly labelled observed runtime, not only cost among successes.
+Received-but-undecodable responses are attempted requests, not zero-cost failures.
+Preserve their reported usage and stop reason separately from tool execution,
+and retain the rejected response as an audit artifact without executing any
+partial call. An output-limit failure is distinguished from an unobserved HTTP
+response. This prospective recording correction does not backfill old runs.
 
 Freeze author and evaluator execution conditions separately. Numerical assessment
 uses its declared execution profile and records the actual backend and exact
@@ -504,7 +515,7 @@ value needs a licensed input, exact record and reproducible analysis path.
 | --- | --- | --- | --- |
 | Sections 1--2 | Scientific purpose, closest portable packages, actual package/host boundary | Scientific question, closest research agents, actual graph/roles/source ownership | Verified code scope and attributable primary sources |
 | Sections 3--4 | Fixed-host intervention, uptake, endpoints and S1--S4 analysis | Four-arm interventions, matched conditions and S1--S4 analysis | Frozen prospective tasks, authority and conditions |
-| Main results table | Bare/package full-task outcomes and component/failure counts | All four arms with prespecified contrasts and component/failure counts | All scheduled draws and resolved common assessments |
+| Main results table | Four H conditions, two fixed-workflow package contrasts and component/failure counts | All four S arms with prespecified contrasts and component/failure counts | All scheduled draws and resolved common assessments |
 | Resource figure/table | Scientific outcomes alongside uptake, calls/tokens/time/compute | Scientific outcomes alongside all-role cost and stopping/re-entry causes | Complete observed denominators; unknown/censored values labelled |
 | Section 5 case | Actual host-with/without-package deliverables and scientific interpretation | Actual specialist findings/revisions, final method and scientific interpretation | Complete case argument, execution and independent assessment |
 | Discussion/abstract | Observed incremental value, host/model limits, usability not assumed | Observed bundle effects, correlated errors and ablation limits | Claims bounded by results, not expected improvements |
