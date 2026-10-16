@@ -1,10 +1,10 @@
 """Stage the declared original application port, never cached author outcomes."""
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import shutil
-import sys
 from pathlib import Path, PurePosixPath
 from zipfile import ZipFile
 
@@ -38,15 +38,19 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def main(root: Path) -> None:
+def main(root: Path, *, applications=tuple(APPLICATIONS),
+         destination_name="applications_path_port_20261016", restore_output_layout=False) -> None:
     archive = root / "source.zip"
     if sha256(archive) != ARCHIVE_SHA256:
         raise ValueError("Original archive identity differs from the frozen plan")
-    destination = root / "applications_path_port_20261016"
+    if Path(destination_name).name != destination_name or destination_name in {".", ".."}:
+        raise ValueError("Use one new staging directory name")
+    destination = root / destination_name
     destination.mkdir(exist_ok=False)
     manifest = {"archive_sha256": ARCHIVE_SHA256, "applications": {}}
     with ZipFile(archive) as source:
-        for app, spec in APPLICATIONS.items():
+        for app in applications:
+            spec = APPLICATIONS[app]
             workspace = destination / app
             workspace.mkdir()
             code_dir = f"Code/{app}-Scripts/"
@@ -73,14 +77,25 @@ def main(root: Path) -> None:
                 raise ValueError(f"Declared alias already exists: {new}")
             shutil.copyfile(old, new)
             assert sha256(old) == sha256(new)
-            for directory in ("Temp", "Outputs", "Figures"):
-                (workspace / directory).mkdir()
+            directories = {"Temp", "Outputs", "Figures"}
+            if restore_output_layout:
+                directories.update(name[len(PREFIX):].rstrip("/") for name in source.namelist()
+                                   if name.startswith(PREFIX) and name.endswith("/")
+                                   and PurePosixPath(name[len(PREFIX):]).parts[:1]
+                                   in (("Temp",), ("Outputs",), ("Figures",)))
+            for directory in sorted(directories):
+                relative = PurePosixPath(directory)
+                if relative.is_absolute() or ".." in relative.parts:
+                    raise ValueError("Unsafe output directory in original archive")
+                (workspace / relative).mkdir(parents=True, exist_ok=True)
             manifest["applications"][app] = {
                 "entry": f"{code_dir}{app}-Analysis.R", "files": files,
                 "same_byte_alias": {"source": str(old.relative_to(workspace)),
                                     "target": str(new.relative_to(workspace)),
                                     "sha256": sha256(new)},
             }
+            if restore_output_layout:
+                manifest["applications"][app]["empty_original_output_directories"] = sorted(directories)
     with (destination / "staged_inputs.json").open("x") as output:
         json.dump(manifest, output, indent=2)
         output.write("\n")
@@ -88,4 +103,11 @@ def main(root: Path) -> None:
 
 
 if __name__ == "__main__":
-    main(Path(sys.argv[1]).resolve())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("root", type=Path)
+    parser.add_argument("--application", choices=tuple(APPLICATIONS), action="append")
+    parser.add_argument("--destination", default="applications_path_port_20261016")
+    parser.add_argument("--restore-output-layout", action="store_true")
+    args = parser.parse_args()
+    main(args.root.resolve(), applications=tuple(args.application or APPLICATIONS),
+         destination_name=args.destination, restore_output_layout=args.restore_output_layout)

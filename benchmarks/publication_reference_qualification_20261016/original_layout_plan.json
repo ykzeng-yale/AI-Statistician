@@ -1,0 +1,14 @@
+{
+  "declared_at": "2026-10-16",
+  "role": "Fresh evaluator-side filesystem qualification, not repair or rescoring of the failed first condition",
+  "reason": "The original archive contains an empty Outputs/LovenheimWillen directory that the first operator stager omitted. Restore original output directory structure without importing any cached output values.",
+  "scope": "Execute only the complete original Lovenheim-Willen Analysis.R once in a fresh tree. Do not rerun the successful Benzarti-Carloni entry, change statistical source/data, reduce grids, tune parameters or alter the failed first condition.",
+  "staged_inputs": {"local_path": "runs/honestdid_source_qualification_20261016/application_original_layout_inputs.json", "sha256": "f014cfe696763764e8a7509d2ad525946c5b0000948be2939e6b97f3ec93409c", "original_files": 16, "same_byte_aliases": 1, "restored_empty_directories": 27},
+  "tools": {"stager_sha256": "b40cbbb69db1f222cad7ca267241b42f22b4605b4a158e88d83d7dd0dc19aebd", "runner_sha256": "ab8043306f72505cd3bc18f91474327d96c1f4ee2184be9e4339cd3130d45116"},
+  "remote_root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-HonestDiD-reference-20261016",
+  "new_workspace": "applications_original_layout_20261016",
+  "execution": "Same R module, owned package library, set.seed(20261016), complete source(..., echo=TRUE), raw observations and session recording as the first condition; one CPU/16 GiB/two hours/normal day, no requeue or automatic retry.",
+  "routing": "Fresh identical-resource test-only predictions: pi_gt353 2026-10-16T19:01:49 versus pi_fl426 2026-10-16T19:42:49. Both are eligible; select pi_gt353. Predictions are not actual allocation or guaranteed start times.",
+  "command": "exec bash /nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-HonestDiD-reference-20261016/run_reference_applications.sh /nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-HonestDiD-reference-20261016 /nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-HonestDiD-reference-20261016/applications_original_layout_20261016 LovenheimWillen",
+  "boundary": "All original first-condition evidence remains failed/partial as observed. New execution cannot establish theorem correctness, full simulation replication, AI research success or official H/S efficacy. Numerical correspondence remains a separate assessment. No change to active Qwen conditions."
+}

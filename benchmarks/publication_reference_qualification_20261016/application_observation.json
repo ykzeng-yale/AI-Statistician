@@ -1,0 +1,21 @@
+{
+  "observed_at": "2026-10-16",
+  "job_id": "29728552",
+  "terminal": {"state": "FAILED", "exit_code": "1:0", "elapsed": "00:09:49", "batch_max_rss_kib": 519848},
+  "applications": {
+    "BenzartiCarloni": {"exit_code": 0, "finished_at": "2026-10-16T09:17:30Z", "figures": 5, "output_rds": 6, "temp_rds": 1, "scope": "Complete original entry executed; numerical correspondence and interpretation not yet adjudicated"},
+    "LovenheimWillen": {"exit_code": 1, "finished_at": "2026-10-16T09:23:03Z", "figures": 2, "output_rds": 0, "temp_rds": 2, "error": "saveRDS could not open Outputs/LovenheimWillen/sdresults-female.rds: No such file or directory", "cause": "Operator staging omitted the original empty output subdirectory. The archive contains Outputs/LovenheimWillen/. This is a filesystem-port defect, not evidence against the statistical method.", "scope": "Incomplete entry; preserve source, logs and partial files, not a successful full application"}
+  },
+  "preservation": {
+    "local_tree": "runs/honestdid_source_qualification_20261016/applications_path_port_20261016",
+    "exits_sha256": "913083a8ce98269c07f346e7ba15325d6895e319c4f8554f40eb209e6bd23f1b",
+    "packages_sha256": "d40b999f31f75de8c6794e8079bf26df873999a850879f7ba44addd6554e6865",
+    "benzarti_stdout_sha256": "08d2f70ef31a1470581edf2b673108d7cb7ee6088f3f91b37dad70bd0f2e29bd",
+    "benzarti_stderr_sha256": "92b2568043094f9e03e7322e85d4f787ae70f5790dd5b796a192160fa6434f1e",
+    "lovenheim_stdout_sha256": "2e0a4c9134a3283dc19333d1545934fdb137aba211a39538b3be6255ebfa2cb5",
+    "lovenheim_stderr_sha256": "dcbc357714f718e601b976bdc4bb4c5b8953334cdafe0d985afc90f26aa06ace",
+    "v1_tools": {"commit": "246a4817", "archive": "runs/honestdid_source_qualification_20261016/application_v1_tools_246a4817.tar", "sha256": "c89a7f48688ffb618f0980e991d326f56ce1aa395d366138869d9c5223ddd944"},
+    "checks": "All twelve Benzarti-Carloni and four Lovenheim-Willen output-file hashes verified after retrieval; no evaluation, source correction or numerical reaggregation performed by these checks"
+  },
+  "boundary": "Neither model achievement, proof, numerical agreement nor complete paper replication. The first condition remains failed; any corrected filesystem condition must be new and declared before execution. Q02/Q04/Q05 remain open."
+}

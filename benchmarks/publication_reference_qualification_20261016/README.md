@@ -108,6 +108,16 @@ Job **29728552** was submitted pending under `pi_gt353`, one CPU/16 GiB/two
 hours, with no requeue. The [submission receipt](application_submission.json)
 binds the committed plan, runner and staged inputs. Submission is not execution
 or scientific qualification; preserve each complete entry's eventual outcome.
+That first condition is now terminal: Benzarti-Carloni completed, while
+Lovenheim-Willen stopped when saving to an output subdirectory omitted by the
+operator's staging. See the [unchanged first-condition observation](application_observation.json).
+The archive contains that directory; this is not a finding against the method.
+The [new original-layout plan](original_layout_plan.json) stages only
+Lovenheim-Willen in a fresh tree, restoring empty archive directories without any
+cached result values or statistical source edits. The first failed condition is
+not repaired or rescored, and Benzarti-Carloni is not repeated. Its exact original
+stager/runner remain at commit `246a4817` and in the preserved tools archive.
+Current helper options identify the new workspace/application explicitly.
 
 The Benzarti-Carloni analysis begins from supplied coefficient/covariance data;
 the underlying microdata are confidential. The Lovenheim-Willen analysis uses

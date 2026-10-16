@@ -6,7 +6,9 @@ root="${1:?Supply the owned reference directory}"
 module load R/4.4.2-gfbf-2024a
 export R_LIBS_USER="$root/library"
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
-work="$root/applications_path_port_20261016"
+work="${2:-$root/applications_path_port_20261016}"
+applications=("${@:3}")
+if [[ "${#applications[@]}" -eq 0 ]]; then applications=(BenzartiCarloni LovenheimWillen); fi
 mkdir "$work/execution"
 cd "$work"
 jq -r '.applications | to_entries[] | .key as $app |
@@ -26,7 +28,7 @@ write.csv(installed.packages()[, c("Package", "Version", "LibPath", "Built")],
           "packages.csv", row.names=FALSE)
 RSCRIPT
 overall=0
-for app in BenzartiCarloni LovenheimWillen; do
+for app in "${applications[@]}"; do
   cd "$work/$app"
   printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ) start $app" >> "$work/execution/events.txt"
   set +e
