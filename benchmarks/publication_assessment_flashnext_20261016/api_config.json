@@ -1,0 +1,12 @@
+{
+  "model": "Qwen3.8-Flash-Next-BF16-native-pinned",
+  "base_url": "http://127.0.0.1:8081/v1",
+  "max_tokens": 131072,
+  "temperature": 1,
+  "max_turns": 96,
+  "timeout_seconds": 14400,
+  "deployment_ref": {
+    "path": "deployment_condition.json",
+    "sha256": "fcd18247d29a89b82be5fc8606bafbb99314437f6564c424c9bcf3b4e3ad433d"
+  }
+}

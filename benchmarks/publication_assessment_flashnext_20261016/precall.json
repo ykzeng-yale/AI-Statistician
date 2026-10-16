@@ -1,0 +1,68 @@
+{
+  "condition_id": "drdid_native_review_flashnext_20261016",
+  "frozen_date": "2026-10-16",
+  "scope": "New fixed-model qualification of the native source-review component on five purposive population-identification argument controls; not an agent research draw, model-size effect, global mathematical authority or official H/S study.",
+  "source_code_commit": "f9eb01c69a3d254ec0ad14840713ef79a498facc",
+  "source_archive_sha256": "5595cabecf41cb417ebda1827e3b0f2eb1d86402d1b1c1b29b8abe9246c0c294",
+  "archive_regular_files": 2176,
+  "protocol": {
+    "path": "assessment_protocol.md",
+    "sha256": "620af19565502cd166104942cc97d4d4f1940084b38e5ad07bf8d675c6031cc9"
+  },
+  "deployment_condition": {
+    "path": "deployment_condition.json",
+    "sha256": "fcd18247d29a89b82be5fc8606bafbb99314437f6564c424c9bcf3b4e3ad433d"
+  },
+  "api_config": {
+    "path": "api_config.json",
+    "sha256": "b4d834e5e13b0fc711ab3184a50e3fdbab34441f2a0c2b196b5f4196d70643ff",
+    "model": "Qwen3.8-Flash-Next-BF16-native-pinned",
+    "max_tokens": 131072,
+    "max_turns": 96,
+    "timeout_seconds": 14400
+  },
+  "private_panel": {
+    "path": "operator-private/condition.json",
+    "sha256": "2cb7033a4a933749eb0b7a58299cd8a091833698f21092aab3c8911493541cad",
+    "cases": 5,
+    "model_visibility": "Only anonymous candidate Markdown, setup, obligations and reference Markdown; no key, expected labels, previous reports, live search or scratch execution."
+  },
+  "reference_bank": {
+    "sha256": "9739e179a3a02d041746a18a725f70ed559ede23a2c4027017dddb60c05fa2d6",
+    "files": 10,
+    "source_qa_sha256": "c8348707237f4935b67e1fc7c501219121668522d9ec0f8458bfb96edbe894df",
+    "source": "Unchanged operator-prepared DR-DID bank, based on selected May 5, 2020 author-paper population-panel pages and independent operator-AI QA; not human or kernel authority.",
+    "prior_condition": "../publication_assessment_qualification_20261015/README.md",
+    "reuse": "Exposed development controls, not held-out observations. No old 4B report is repaired, rerun or rescored. The old duplicate positive candidate-mode check is omitted because this native reviewer has no separate mode."
+  },
+  "decision": "Run all five fixed controls once. Execution error leaves later cases NOT_RUN; label mismatches do not select replacement cases. Every expected disposition and the predeclared examination of decisive reasons must succeed. The caller never declares scientific qualification; matched labels leave examination pending. Any success remains component/task-bound, not Q05 completion.",
+  "model_verification": {
+    "parent_job": "29733204",
+    "dependency": "afterok:29733204",
+    "repository": "Qwen/Qwen3.8-Flash-Next",
+    "revision": "de4b8e4d43b917e7706784d8bb445c9af86a3540",
+    "precision": "BF16",
+    "files": 144,
+    "weight_files": 131,
+    "weight_bytes": 360000192888,
+    "metadata_sha256": "13a90f6485bb6aa30dda00b22b0ad9cb045d1a55150e538a05b8df9739644d5b",
+    "boundary": "Full CPU verification is still running at preparation. GPU job requires parent success and a fresh all-file SHA-256 check before serving; no completed weight verification or model fit is claimed here. Large-file expected hashes are pinned LFS identities; small-file SHA-256 values were checked against the pinned Git blob IDs."
+  },
+  "resources": {
+    "account": "pi_fl426",
+    "qos": "normal",
+    "partition": "gpu_b200",
+    "nodes": 1,
+    "gpus": 4,
+    "cpus": 32,
+    "host_memory_gib": 1024,
+    "wall_seconds": 172800,
+    "requeue": false
+  },
+  "routing": "Both authorized accounts are eligible. Identical four-B200/32-CPU/1024-GiB/48h test-only requests predicted 09:28 EDT on 2026-10-16, not an allocation or guarantee. Earlier 512-GiB shape gave the same estimate; choose 1 TiB for embedding offload and multi-process loading headroom, retaining pi_fl426 task storage. Existing jobs are not moved or interrupted.",
+  "preparation": "No model calls. Transfer/extraction sessions were awaited before acceptance; an early partial archive hash and tar metadata comparison are not verification. After completion the archive SHA-256 and all 16 caller inputs match. The job's byte manifest, not cross-machine UID/mode equality, binds the complete source tree and all model files.",
+  "verification": "No shared product code changed. Focused caller/native-review/file/core suite: 58 passed in 1.02s; runs/bouchet_flashnext_20261016/qualification_condition_verified_final.xml SHA-256 6fc7b658b434bd082cf9443b68b52f38fc9ddf0569642dc622d3e1636f48bc98. Compileall and bash -n pass. Prior product full regression remains 2633 passed,100 skipped,1 existing xfail with ten Bash-dependent checks separately covered; see main_worker_status.json.",
+  "preservation": "Cold output and wire directories; no retries, post-terminal report editing, replacement judge, model substitution or cloud fallback. Same model/settings in every isolated context. Raw wire/reasoning/session evidence remains private; substantive reports are examined against the frozen analytic key. Missing, uncertain and failed outcomes remain visible.",
+  "remote_root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-Qwen38-FlashNext-20261016/assessment-native-20261016",
+  "activation": "Not submitted or called at freeze preparation. Submission, allocation, transport, argument examination and publication eligibility are separate observations."
+}
