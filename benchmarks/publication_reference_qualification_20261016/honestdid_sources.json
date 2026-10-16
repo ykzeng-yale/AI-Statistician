@@ -1,0 +1,63 @@
+{
+  "observed_at": "2026-10-16",
+  "scope": "Evaluator-side source and environment preparation; not scientific reference execution, model evaluation, complete proof adjudication or official H/S activation",
+  "model_calls": 0,
+  "scientific_source_executions": 0,
+  "paper": {
+    "doi": "10.1093/restud/rdad018",
+    "title": "A More Credible Approach to Parallel Trends",
+    "authors": ["Ashesh Rambachan", "Jonathan Roth"],
+    "journal": "Review of Economic Studies",
+    "year": 2023, "volume": 90, "issue": 5, "pages": "2555-2591",
+    "main": {"url": "https://www.jonathandroth.com/assets/files/HonestParallelTrends_Main.pdf", "pages": 37, "sha256": "2ef3448e51bb946478ad323b8e00fc5de80fcc1b274ec26aa01dfaa9e458b7dc"},
+    "supplement": {"url": "https://www.jonathandroth.com/assets/files/HonestParallelTrends_Supp.pdf", "pages": 33, "printed_date": "2022-12-29", "sha256": "8f4fcd652b936004ddfe8db4ebdef6c7a5e18e4fcad0b1dfd93ed32bb10ea246"},
+    "reading_scope": "Metadata, selected main identification/inference/experiment passages, appendix inventory and selected simulation passages. Main printed page 2562 visually checked for the localized attainment finding. Not every proof or paper/supplement equivalence.",
+    "rendered_main_page_8_sha256": "6b4c047ac8bcc229c8d37b8b2ef50e6bd0e98933cdab2b0c658fb837861f8632"
+  },
+  "replication": {
+    "doi": "10.5281/zenodo.7388015", "record": "7388015",
+    "url": "https://zenodo.org/api/records/7388015/files/HonestParallelTrends_RESTUD_ReplicationFiles.zip/content",
+    "declared_license": "CC-BY-4.0; original input data and incorporated code have separate rights",
+    "bytes": 2410127519,
+    "declared_and_observed_md5": "e866f3cd334a29384803012a1817d860",
+    "observed_sha256": "de336cc76ee769d5a0d5d1246566b760475f266a6f8b9c4321991b38a01a20fa",
+    "remote_root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-HonestDiD-reference-20261016",
+    "archive_entries": 1281, "uncompressed_bytes": 59057374800,
+    "archive_listing_sha256": "82b7b748dbda0d609db6109014b4efbaa29ada767408dd6df0c20672272c4dc3",
+    "readme_sha256": "27a495aa0961c574a917580fa7843f212df5144972654f16035a6ff394542530",
+    "record_json_sha256": "fad16527ba2b38f9a03425e77e166cb351ceb6bb3c4c5217380495e1c264df08",
+    "current_extraction": "Code and original README only, with unchanged bytes; no full 59GB expansion or scientific code execution. Original cached outcomes and private RStudio history are not author inputs."
+  },
+  "packages": {
+    "paper_requested_tag": "v1.0.0",
+    "paper_requested_commit": "99b7e30cfd7cc7f9c3a9686eefadeba837d62e22",
+    "paper_package_version": "0.2.0", "paper_package_license_declaration": "GPL-3",
+    "paper_description_sha256": "de6d74f347f653b3f1cfe49d348939c3a968b4527cb37cc03371d45708322b9d",
+    "paper_source_archive_sha256": "87eec73481bf3ae6b2f3c9b863034dc09c94908f80f74f606386865828a08d29",
+    "observed_current_head": "6813f02ed38f0b63bdca6915604b2eac90491303",
+    "current_package_version": "0.2.8", "current_notice": "Inspected MIT notice, not the historical package license",
+    "current_tree_sha256": "0f5de1327b3530fce0234578b768fb9d7181cec5ea22687312f226049d90b5b3",
+    "current_description_sha256": "f2a719f340343cb7ad6af3a8b8e37d2b7079b89fb742d4fde89dfa9c650fa7b0",
+    "current_notice_sha256": "c417590a80217ad9d30e7b084ed9124fc69bc7ac008d0bafd5e872d1aee7b750",
+    "lfe_setup_version": "3.1.1",
+    "lfe_source_url": "https://cran.r-project.org/src/contrib/lfe_3.1.1.tar.gz",
+    "lfe_source_sha256": "c007bffb02feaa395163e9ea28dfe3fb479cb8cf26427569e2b91fe4becc6a91"
+  },
+  "execution_preparation": {
+    "script": "prepare_reference_environment.sh",
+    "script_sha256": "a3d0889a765d63b4915a88c5b8c012c7f3d8c0a7f07d6cfdeabb22f885c976a7",
+    "planned_environment": "Existing Yale R/4.4.2-gfbf-2024a plus owned exact HonestDiD/lfe packages; adapted, not historical R 3.6.3",
+    "observed_module_versions": {"R": "4.4.2", "CVXR": "1.0-15", "here": "1.0.1", "TruncatedNormal": "2.3", "doParallel": "1.0.17", "ROI": "1.0-1", "lpSolveAPI": "5.5.2.0-17.12", "tidyverse": "2.0.0", "haven": "2.5.4"},
+    "missing_before_setup": ["HonestDiD", "lfe"],
+    "observed_check": "Version metadata only, no scientific execution or successful package-import claim",
+    "budget": {"cpus": 1, "memory_gib": 8, "wall_seconds": 1800, "partition": "day", "qos": "normal", "account": "pi_gt353"},
+    "routing": "Both account test-only shapes eligible; one-CPU/8GiB/30m estimated 18:05:58 for pi_gt353 versus 18:46:57 for pi_fl426. Four-CPU/8GiB/1h also queued. No race duplicates, model experiment changes or interruption of other projects."
+  },
+  "method_scope": {
+    "normal_study": "Eight inspected top-level launchers, each twelve arrays of 1000 single-draw tasks plus twelve optimal-bound tasks; 96000 single-draw tasks before bound/bootstrap work. Source README estimates one to two weeks per group under original resources. Nothing submitted for this numerical study.",
+    "applications": "Lovenheim-Willen uses supplied male/female estimation samples (1214286 bytes each); Benzarti-Carloni uses supplied coefficients/covariance because original microdata are confidential. Not raw confidential-data reproduction or an EHR claim.",
+    "path_findings": "Original entrypoints/README differ from supplied names by Willein versus Willen, IDsets versus IDSets, and FirstPeriod versus FirstPostPeriod. No alias, source fix, inferred missing implementation or numerical output repair is applied.",
+    "theory_finding": "honestdid_statement_scope.md: explicit closed-convex restriction with bounded nonclosed scalar identified set. Literal endpoint/attainment generality only; practical polyhedral results not refuted. Operator finding, not completed independent calibration.",
+    "remaining": "Prospective path-port decision, environment qualification, complete reference execution/aggregation, numerical tolerances, exact theory rubric, source/data rights, clean matched agent access and roster freeze. No acceptance credit."
+  }
+}

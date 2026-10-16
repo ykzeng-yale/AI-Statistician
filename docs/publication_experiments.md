@@ -77,7 +77,9 @@ Past sealed protocols stay sealed rather than being repurposed as Qwen benchmark
 Qwen3-4B-Instruct-2507 Q4_K_M is a historical inexpensive development condition,
 not a capacity ceiling or a scientifically qualified main-study configuration.
 The task-owned Qwen3.8-27B BF16 deployment now passes actual API/tool transport;
-its [frozen native workflow condition](../benchmarks/agentic_scientist_native_hc0_20261016/README.md)
+its [first frozen native workflow condition](../benchmarks/agentic_scientist_native_hc0_20261016/analysis.md)
+ended in ideation without scientific source. The separately frozen
+[long-workflow condition](../benchmarks/agentic_scientist_native_hc0_long_20261016/README.md)
 is submitted, not completed scientific research or official model qualification.
 Freeze each official model's weights, quantization,
 runtime, chat template, decoding and hardware before runs. If a stronger

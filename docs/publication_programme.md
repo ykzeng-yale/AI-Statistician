@@ -358,6 +358,13 @@ literature inventories, unrelated numerical panels or infrastructure campaigns.
   literal-reconstruction, stochastic and discrepancy endpoints; no task-specific
   complete endpoint/coordinate map, tolerance, precision or authority is frozen,
   so Q04 remains open.
+  The [October 16 reference preparation](../benchmarks/publication_reference_qualification_20261016/README.md)
+  retains the complete HonestDiD author archive and exact historical package pin,
+  rather than its newer package tutorial. Original normal-study topology,
+  application access and unresolved path portability are explicit. A localized
+  closed-image/attainment counterexample is evaluator-side candidate assessment
+  material, not an accepted whole-paper proof, product rule or author hint.
+  No scientific source or model ran, and Q02/Q04/Q05 stay open.
   The [native R assessment follow-up](../benchmarks/publication_case_candidates/published_methods/r_artifact_assessment.json)
   removes the Python-only artifact restriction using the same executor and ABI.
   The assessment-only R reader now preserves the three declared R result
