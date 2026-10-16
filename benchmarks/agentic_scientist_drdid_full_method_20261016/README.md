@@ -1,5 +1,11 @@
 # Complete DR-DID Native Development
 
+The [frozen condition](precall.json) was committed before submission. Job
+**29740781** is [submitted](submission.json), pending at the recorded observation
+under `pi_fl426` with four B200s, 32 CPUs, 1 TiB and a 48-hour wall limit. No
+node, model request, scientific execution or result is established by submission.
+The scheduler's earlier three-hour start estimate is not a guarantee.
+
 Fresh exposed-source methods investigation on the pinned v3 controller, using
 the existing retained API/file/evaluation/review loop. This is not a rerun of
 the population-argument assessor panel, any consumed HC0 arm, a held-out study or

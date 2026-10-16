@@ -106,6 +106,19 @@ our benchmark nor evidence of this system's scientific benefit.
 
 ## Immediate Execution
 
+**Run the frozen complete-method development condition.** Native v3 job
+[29740781](../benchmarks/agentic_scientist_drdid_full_method_20261016/submission.json)
+is submitted and pending at its recorded observation, not allocated or inferred
+to be doing research. Its source-assisted DR-DID task covers both data structures,
+complete ordinary Monte Carlo grids, NSW application, reviewable theory and an
+artifact-linked report. The separate efficiency-bound integration is explicitly
+excluded; this is not whole-paper historical replication. The same fixed
+Flash-Next BF16 API uses a separately frozen 1M static-YaRN configuration across
+roles. Follow this job's actual scheduler/process/session state, preserve every
+outcome and let the retained model own revisions. No assessor-label retry,
+manual statistical implementation, speculative controller redesign or publication
+credit substitutes for the complete task. Internal review remains fallible.
+
 **Preserve the terminal native condition without changing it.** Jobs
 29726507 (stock) and 29726508 (statistical, dependent on stock) use the same
 pinned 27B BF16 API and separately declared complete-workflow resources. Stock
@@ -204,9 +217,9 @@ operator preparation, not secret gold, agent output or whole-paper rejection.
 The [DR-DID preparation](../benchmarks/publication_reference_qualification_20261016/drdid/README.md)
 now supplies byte-verified original code/data and native TeX, alongside the paper
 and proof supplement. CPU job 29738082 installed and imported the pinned R 4.4.2 /
-DRDID 1.3.0 environment; it ran no scientific entry. The next scientific work is a
-prospectively scoped complete known-method native task, not another five-case
-label-tuning retry. The model must own the argument, implementation, full study,
+DRDID 1.3.0 environment; it ran no scientific entry. The complete known-method
+native condition above is now frozen and queued, not another five-case
+label-tuning retry. The model owns the argument, implementation, full study,
 application and report. Original simulation settings and historical/modern
 environment differences are explicit; preparation is not accepted reproduction.
 Internal model review remains fallible. Broader independent assessment is needed

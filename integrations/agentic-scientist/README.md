@@ -233,9 +233,11 @@ independent reviewers or reporters. The consumed a799e03f condition predates thi
 fix and remains unchanged. A separately frozen long-workflow prefix now persists
 fourteen native state blocks in actual ideation turns; complete-workflow and
 long-context quality qualification remain pending.
-The current file participant does not yet attach source-discovery execution,
-Python/R exploratory tools or Lean/RAG specialist tools to the new controller.
-Those validated assets remain intact. This extension
+The current participant connects native public discovery/read/acquisition as
+described above, but not Python/R exploratory tools or Lean/RAG specialist tools.
+Official evaluator-owned Python/R project execution is a separate boundary,
+not arbitrary exploratory command access. Those validated specialist assets
+remain intact. This extension
 removes one CLI dependency; it is not a substitute for their integration or the
 full independently assessed research workflow. The tested source-owner revision
 cycle supplies a necessary handoff, not mathematical acceptance.

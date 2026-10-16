@@ -21,10 +21,12 @@ turns before submission or evaluation. Its unsubmitted files are preserved in th
 The separately frozen [Flash-Next native-review job](../benchmarks/publication_assessment_flashnext_20261016/terminal_observation.json)
 completed native transport and all five review cases but did not establish
 scientific qualification. Its declared examination retains the label mismatch
-and auxiliary referee errors without rerun or rescore. A complete known-method
-task is next, not another label-tuning panel. Original DR-DID sources and the
+and auxiliary referee errors without rerun or rescore. The complete known-method
+[DR-DID development task](../benchmarks/agentic_scientist_drdid_full_method_20261016/README.md)
+is frozen and submitted as 29740781, pending at its recorded observation; no
+scientific result exists. Original DR-DID sources and the
 [pinned R environment](../benchmarks/publication_reference_qualification_20261016/drdid/README.md)
-are prepared; no scientific entry has run. No checklist state changes.
+are prepared; no scientific entry has run at submission. No checklist state changes.
 
 The latest user instruction selects [Agentic Scientist as the main backbone](../integrations/agentic-scientist/README.md).
 The pinned integration now connects native investigation and artifact-only

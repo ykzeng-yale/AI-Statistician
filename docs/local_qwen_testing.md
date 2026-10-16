@@ -157,6 +157,15 @@ and compilation observations remain historical; the staging overlap remains
 disclosed. Reuse the verified fixed configuration for fresh scoped full-method
 development, not another result-conditioned assessor retry or model escalation.
 
+The separately frozen [complete DR-DID development condition](../benchmarks/agentic_scientist_drdid_full_method_20261016/README.md)
+reuses these exact weights/runtime archives but changes to the pinned card's
+factor-4 static-YaRN 1M configuration. Job 29740781 is submitted, pending at its
+recorded observation, with no new inference or serving-fit result yet. Same model,
+sampling and tools across its roles; no comparison pools this derived-context
+condition with the consumed native-262K assessor. The 393216 output cap is combined,
+not separate thinking/final limits. Complete scientific scope and original study
+size are retained; there is no mandatory small-simulation gate.
+
 The first task-owned model was `Qwen/Qwen3.8-27B`, revision
 `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`. The public Hugging Face metadata lists
 18 BF16 weight shards totaling 55,563,006,776 bytes (about 51.75 GiB), Apache-2.0

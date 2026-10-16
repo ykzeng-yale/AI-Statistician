@@ -1,0 +1,23 @@
+{
+  "condition_id": "drdid_full_method_flashnext_yarn1m_20261016",
+  "precall_commit": "60f0bedf2bdd64953a5990241dcf3ad4d26b3627",
+  "precall_sha256": "34140afdea25efe50734238a4f84b7ff49f29f3937a3364106f8d2e28084308d",
+  "runtime_code_commit": "f101efd6b3170230cd1c3878481439b2f803a678",
+  "job_id": "29740781",
+  "submitted_at": "2026-10-16T10:20:39-04:00",
+  "observed_at": "2026-10-16T10:21:03-04:00",
+  "state": "PENDING",
+  "scheduler_reason": "Nodes_required_for_job_are_DOWN,_DRAINED_or_reserved_for_jobs_in_higher_priority_partitions",
+  "allocated_nodes": [],
+  "account": "pi_fl426",
+  "qos": "normal",
+  "partition": "gpu_b200",
+  "resources_requested": {"gpus": 4, "cpus": 32, "host_memory_gib": 1024, "wall_seconds": 172800, "requeue": false},
+  "root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-DRDID-native-20261016",
+  "batch_sha256": "01dbdd40220728ca026abe332fa76adef5dd228e369c13b0a33e94e5461d0e78",
+  "manifest_sha256": "2a7f36469014c1e80687a6d46008ce8d9797266bec6ad5504716bf7d2513e35a",
+  "model_requests_at_observation": 0,
+  "scientific_execution_at_observation": false,
+  "observation": "A single sbatch --parsable submission returned 29740781. scontrol confirms the exact batch, root, arguments, account and requested envelope. StartTime is Unknown; the earlier test-only prediction is not a promised allocation. No duplicate submission or queue-racing copy.",
+  "scope": "Fresh complete-method development condition, not accepted research, a qualified publication assessor or official H/S efficacy evidence. Original consumed conditions and all forty checklist states remain unchanged."
+}
