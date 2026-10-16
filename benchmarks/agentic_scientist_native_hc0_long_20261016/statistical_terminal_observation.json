@@ -1,0 +1,82 @@
+{
+  "job_id": "29726508",
+  "frozen_code_commit": "dfdb4b47c86a2173fa90f02521599545fe891b24",
+  "terminal": {
+    "state": "FAILED",
+    "exit_code": "2:0",
+    "elapsed": "00:59:41",
+    "reason": "client-tool turn budget exhausted before a terminal disposition"
+  },
+  "scope": "One exposed statistical-integration development draw, first idea/author cycle only. This is not an official H/S comparison, a mathematical rejection or a completed methods task.",
+  "ideation": {
+    "status": "HANDED_OFF",
+    "completed_turns": 19,
+    "result_sha256": "aea5a41f797cc0163d369b273007bec1d6ebc99c5b9f5bec56b2e0422d740922",
+    "usage": {
+      "input_tokens": 439087,
+      "output_tokens": 33526,
+      "total_tokens": 472613
+    }
+  },
+  "author": {
+    "status": "INCOMPLETE",
+    "completed_turns": 96,
+    "tool_calls": 96,
+    "tools": {
+      "read_file": 41,
+      "list_files": 2,
+      "read_workspace_history": 3,
+      "write_file": 5,
+      "edit_file": 15,
+      "search_file": 30
+    },
+    "tool_errors": 6,
+    "state_changes": 18,
+    "terminal_calls": 0,
+    "truncated_responses": 0,
+    "result_sha256": "b0bab673b54e6530a7a8b74c0f161ae2bc1115d9fc3c63a7076abf9663be10af",
+    "usage": {
+      "input_tokens": 17847138,
+      "output_tokens": 222964,
+      "total_tokens": 18070102
+    },
+    "last_request_input_tokens": 291079
+  },
+  "completion": {
+    "evaluation_receipts": 0,
+    "scientific_reviews": 0,
+    "posthoc_directory_exists": false,
+    "task_complete": false,
+    "best_score": null,
+    "best_correct": null,
+    "pipeline_marker": "status=running remains in .investigation_completion.json despite terminal Slurm state. This marker is not evidence of live work."
+  },
+  "fixed_contract": {
+    "active_equals_fixed": true,
+    "ids": [
+      "computational_compliance",
+      "theory",
+      "method_study"
+    ],
+    "note": "Ideation also proposed literal source_contains rubrics in its notes; these were not the active authority. Their causal role in the cutoff is not established."
+  },
+  "unsubmitted_sources": {
+    "local_root": "runs/agentic_native_long_20261016/statistical_terminal/program_1",
+    "sha256": {
+      "program_spec.toml": "aae86f2acc2b5e9b040a712ed1c18ffc75809ba8f373f578c068d01faad3eb3c",
+      "src/program.py": "bf3b6444568fc8cb9e5ab81a6eeb0c820c94fabc451a23dab0d94bc2c38dc37d",
+      "src/selftest.py": "3bc72a70872029485fb9508648633061b79afc95b69f6d19cdcc41bd5ccb8e22",
+      "src/study.md": "c680f998d262c28a236debb5b0949e8bfd7eef28b6e93876f08fbe258cb52ecd",
+      "src/theory.md": "cd3f257aed05b83762ecc13412deb0d0d6b8c2dc962d1f19109b6eaa982954b1"
+    },
+    "checks": "All five local copies match remote source hashes. No generated code, self-test, theory or simulation was edited, executed, completed, assessed or rescored by the operator after termination."
+  },
+  "metadata_sha256": {
+    "outer_state.json": "986124524d4154c6d7802b80017d139131f4455e16746f0fe3e2a031495e5a32",
+    "best_program_manifest.json": "8138733c50b6d47ab12409f1441e9092ed43714316a31d4fc673dab943412b35",
+    "latest_run_manifest.json": "66540cb97ae2c09d301c26b0141378a08ac54fb83eee05c1d56ca746c03fd348",
+    "pipeline_events.jsonl": "4b56aabc4613a36b4b6d5e67a1e0370b078dd508b563fca1d34db28a9715fb36"
+  },
+  "interpretation": "The observed author cutoff is a tool-turn resource limit, not a provider timeout, output truncation, Lean failure or established mathematical defect. Cumulative input-token counts include repeated/cached prefixes and are not fresh-prefill compute. More rounds are not by themselves a demonstrated solution. Before a fresh full-workflow draw, inspect generic stage-goal/budget visibility, redundant fixed-rubric authoring and long-horizon context strategy; do not introduce HC0-specific source fixes.",
+  "boundary": "Both arms remain unsuccessful development observations with different stopping stages; one fixed-order draw per arm cannot establish harness efficacy or a capacity effect. Preserve every source/session/outcome unchanged. No complete task, proof or publication-checklist credit."
+}

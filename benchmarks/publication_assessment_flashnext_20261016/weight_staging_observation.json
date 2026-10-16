@@ -1,0 +1,32 @@
+{
+  "job_id": "29733204",
+  "terminal": {
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed": "01:07:13",
+    "ended_at": "2026-10-16T08:09:31-04:00",
+    "max_rss_raw": "41945664K"
+  },
+  "resources": {
+    "account": "pi_gt353",
+    "partition": "day",
+    "cpus": 1,
+    "memory_gib": 40,
+    "gpus": 0
+  },
+  "model": {
+    "repository": "Qwen/Qwen3.8-Flash-Next",
+    "revision": "de4b8e4d43b917e7706784d8bb445c9af86a3540",
+    "precision": "BF16",
+    "files": 144,
+    "weight_files": 131,
+    "weight_bytes": 360000192888
+  },
+  "verification": {
+    "receipt_sha256": "383ebbfc1af8275e945a4a44403f13c9701bb14436e12ff310ef03250acc669f",
+    "log_sha256": "b20397d6ed80452c9bbfd3296780ab6c02a5bb89f546d8356f4973347c2bb225",
+    "local_receipt": "runs/bouchet_flashnext_20261016/verified-model-files.json",
+    "checks": "Stager verified every file size and all LFS SHA-256 values. Downloaded receipt matches its remote hash; all 144 recorded sizes/hashes match pinned source identities, including small-file Git-blob checks."
+  },
+  "boundary": "Weights are staged and verified, not a deployed service, measured GPU fit, mathematical assessor, scientific task success or official H/S result. No inference or GPU was used by this job. License and release-rights limitations remain unchanged."
+}

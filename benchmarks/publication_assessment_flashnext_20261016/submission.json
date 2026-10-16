@@ -1,0 +1,33 @@
+{
+  "job_id": "29735341",
+  "submitted_at": "2026-10-16T08:09:26-04:00",
+  "public_freeze_commit": "fad80f9a3f0576429aa52df6dc7f3d8d214dcfaf",
+  "runtime_source_commit": "f9eb01c69a3d254ec0ad14840713ef79a498facc",
+  "state_at_submission": "PENDING; afterok:29733204",
+  "observed_state": "PENDING; dependency cleared after successful weight staging, awaiting required GPU nodes",
+  "resources": {
+    "account": "pi_fl426",
+    "qos": "normal",
+    "partition": "gpu_b200",
+    "nodes": 1,
+    "gpus": 4,
+    "cpus": 32,
+    "host_memory_gib": 1024,
+    "wall_seconds": 172800,
+    "requeue": false
+  },
+  "precall_sha256": "dd4bf88044fe0b5cef65d925ebba8f76d7e79410ce760806d3e566b5b3a2e65a",
+  "job_script_sha256": "98047ecf448dd6fd0ac848ce24907770d1efdcc33c3d1977d659da471d193075",
+  "frozen_files": {
+    "count": 2337,
+    "sha256": "3b901c3d8f3f24c4b6d595d8975576010f41e2ac18898ab644a58e8c42c7f338",
+    "scope": "Full archived source plus private panel/config and all 144 expected model-file identities, pinned model metadata and license. GPU startup rechecks every byte identity."
+  },
+  "source_preflight": {
+    "count": 2191,
+    "log_sha256": "c02334d195cbf9ce618255f364842c94d4cf1b8c693fa7ed2df8aac763e77bbe",
+    "scope": "All source/archive/panel/config bytes match after transfer/extraction completed. This is not model inference or scientific assessment."
+  },
+  "root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-Qwen38-FlashNext-20261016/assessment-native-20261016",
+  "boundary": "Exactly one job submitted. Pending is not allocation, serving fit, transport success or a completed assessor panel. No official study is activated; no failed or consumed model output is repaired or rerun."
+}

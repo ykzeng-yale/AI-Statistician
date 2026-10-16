@@ -106,20 +106,30 @@ our benchmark nor evidence of this system's scientific benefit.
 
 ## Immediate Execution
 
-**Finish the current fixed native condition without changing it.** Jobs
+**Preserve the terminal native condition without changing it.** Jobs
 29726507 (stock) and 29726508 (statistical, dependent on stock) use the same
 pinned 27B BF16 API and separately declared complete-workflow resources. Stock
 is now terminal: its first two candidates failed numerical compliance;
 the third passed all 60,000 numerical comparisons but received an uncertain
 source-only AI theory assessment. The fixed campaign ended incomplete and
-posthoc reporting did not run. Statistical is now running under its unchanged
-frozen condition. This exposed development family is not
+posthoc reporting did not run. Statistical also ended incomplete: its author
+exhausted 96 tool turns without submitting, before any evaluation or review.
+This exposed development family is not
 an official H/S comparison or 180,000 agent draws.
 Preserve all outcomes, source and private state without patching, rerunning or
 rescoring them. See the [long-workflow condition](../benchmarks/agentic_scientist_native_hc0_long_20261016/README.md)
 and [terminal stock observation](../benchmarks/agentic_scientist_native_hc0_long_20261016/stock_terminal_observation.json).
+The [statistical terminal record](../benchmarks/agentic_scientist_native_hc0_long_20261016/statistical_terminal_observation.json)
+preserves its five unsubmitted source files and exact session identity. The old
+pipeline marker still says running; it is not evidence of a live process.
 Its native 262K model uses prospectively declared 1M static YaRN; service startup
 does not establish long-context quality.
+
+Before another full research draw, inspect generic stage-goal/budget visibility,
+redundant rubric reauthoring under already fixed criteria, long-horizon context
+handling and upstream termination-marker semantics. Do not merely add rounds,
+HC0-specific fixes or operator completion. The trace establishes the cutoff,
+not the mathematical quality of the draft or a demonstrated cure.
 
 **Use the restored upstream retained revision loop in fresh conditions.** The
 older source-only mode evaluates after author exit; ordinary source errors
@@ -133,7 +143,7 @@ immutable. No source patcher, error taxonomy, second graph or arbitrary
 execution service is introduced. The [integration](../integrations/agentic-scientist/README.md#retained-official-evaluation-iteration)
 states the exact mechanism and remaining boundaries. Deterministic process tests
 do not establish live efficacy, mathematical acceptance or completed Paper S.
-The running frozen condition does not receive these prospective changes.
+The consumed frozen condition does not receive these prospective changes.
 
 **Connect model-selected sources without another research agent.** Reuse the
 existing public discovery/read/pinned-repository tools inside the native retained
@@ -153,9 +163,11 @@ Bouchet long runs are authorized, without repeatedly seeking permission or
 shrinking the science. Do not confound a capacity upgrade with a harness change.
 Managed Yale coding hosts remain useful development routes, not assumed fixed
 weights or the single-API publication system.
-CPU-only [weight staging](../benchmarks/publication_assessment_flashnext_20261016/weight_staging_submission.json)
-is now running as 29733204. No Flash-Next inference or assessor condition is
-activated; first verify all weights and freeze the actual scientific assessment.
+CPU-only [weight staging](../benchmarks/publication_assessment_flashnext_20261016/weight_staging_observation.json)
+29733204 completed: all 144 files match their pinned identities. The frozen
+native source-review [job 29735341](../benchmarks/publication_assessment_flashnext_20261016/submission.json)
+is submitted and pending GPU allocation, with four B200s, 1 TiB host memory and
+48 hours. Serving fit, the panel and argument examination remain unobserved.
 
 **Qualify scientific references and assessment in parallel with development.**
 The [new fixed-model native review panel](../benchmarks/publication_assessment_flashnext_20261016/assessment_protocol.md)

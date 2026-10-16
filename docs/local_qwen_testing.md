@@ -118,7 +118,8 @@ is not automatically one address space or available capacity.
 
 Jobs 29726507 and 29726508 keep their pinned 27B condition unchanged. Stock is
 now terminal: candidate three passed numerical checks but AI theory review was
-uncertain, with no accepted task. Statistical is running unchanged. The initial
+uncertain, with no accepted task. Statistical also ended incomplete at 96 author
+tool turns, before evaluation; neither result is repaired. The initial
 resource recheck downloaded no weights; the subsequent separate CPU stage is
 recorded below. Qualify the retained source-owner feedback loop independently
 of capacity, then declare any larger-model comparison prospectively. Keep one
@@ -126,13 +127,17 @@ fixed model condition across roles and arms; do not reduce the scientific task
 or add task-specific rules to compensate for a small model.
 
 Subsequent [Flash-Next preparation](../benchmarks/publication_assessment_flashnext_20261016/README.md)
-now has CPU-only job **29733204** running under `pi_gt353`, using the existing
-pinned Hugging Face client and a separate model directory. It requests one CPU,
+completed as CPU-only job **29733204** under `pi_gt353`, using the existing
+pinned Hugging Face client and a separate model directory. It requested one CPU,
 40 GiB and two hours, no GPU or inference. The pinned license is Qwen Community
 License 1.0 (SHA-256 `a0dc422560841fd68e06d974907f8b4c709bca44a67daad2b528437bdf676c08`),
 not Apache-2.0. This academic preparation does not resolve downstream redistribution
-or commercial rights. Weight verification, serving fit and scientific assessment
-remain unestablished. Statistical 29726508 is running unchanged; the CPU stage's
+or commercial rights. Serving fit and scientific assessment remain unestablished.
+All 144 files now match pinned identities; receipt SHA-256
+is `383ebbfc1af8275e945a4a44403f13c9701bb14436e12ff310ef03250acc669f`.
+Native-review job **29735341** is pending with four B200s, 1 TiB host memory and
+48 hours, using the prospectively frozen source-review panel. Submission is not
+allocation, model availability or scientific qualification. The CPU stage's
 shared-storage overlap is disclosed rather than assumed irrelevant to timing.
 
 The prospective first task-owned model is `Qwen/Qwen3.8-27B`, revision

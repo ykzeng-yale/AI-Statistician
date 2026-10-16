@@ -14,6 +14,14 @@ qualification and its declared examination remain
 [available](../benchmarks/publication_assessment_qualification_20261015/README.md);
 the new response-recording fix does not rerun or requalify that condition.
 
+The long native condition is now terminal in both arms: stock reached numerical
+compliance with uncertain AI theory review; statistical exhausted 96 author tool
+turns before submission or evaluation. Its unsubmitted files are preserved in the
+[terminal record](../benchmarks/agentic_scientist_native_hc0_long_20261016/statistical_terminal_observation.json).
+The separately frozen [Flash-Next native-review job](../benchmarks/publication_assessment_flashnext_20261016/submission.json)
+is pending after successful weight staging, not a completed assessor or study.
+No checklist state changes.
+
 The latest user instruction selects [Agentic Scientist as the main backbone](../integrations/agentic-scientist/README.md).
 The pinned integration now connects native investigation and artifact-only
 reporting, not full research-E2E or the promised specialist migration. H needs

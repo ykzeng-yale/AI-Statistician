@@ -232,7 +232,7 @@ provide versioned text. Repository acquisition alone is not execution or
 replication. The source horizon and actual access are experimental conditions,
 not historical blinding. This connection has deterministic process evidence,
 not demonstrated scientific benefit.
-The current live condition uses source-only handoff. A prospective native
+The consumed long-workflow condition used source-only handoff. A prospective native
 extension also exposes upstream's official evaluation and guarded candidate
 cloning as tools in the same retained author session. The author reads the
 actual failure, chooses a source revision and evaluates the new version without
@@ -590,6 +590,16 @@ allowance without a commit action. This separates successful artifact binding
 from completed scientific work. The condition is a development observation,
 not a controlled architecture comparison or a mathematical verdict.
 [Exact condition and terminal record](../benchmarks/publication_development/stepmix_post_handoff_20261015/observed_results.json)
+
+In a later native 27B development condition, the stock arm's third candidate
+passed the prescribed numerical comparisons but received uncertain AI theory
+review. The statistical arm stopped after 96 author tool turns without a final
+submission or evaluation. Its partial source files are not accepted results,
+and a stale running marker does not establish process liveness. These two
+fixed-order, single-draw observations have different stopping stages and do not
+estimate a harness effect or establish a mathematical defect. The larger-model
+review panel is separately frozen and not pooled with them.
+[Native development records](../benchmarks/agentic_scientist_native_hc0_long_20261016/README.md)
 
 Mechanism tests cover artifact identity, observations, owner iteration and
 evaluation boundaries. They do not establish derivation correctness or autonomous
