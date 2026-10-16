@@ -118,6 +118,21 @@ cached result values or statistical source edits. The first failed condition is
 not repaired or rescored, and Benzarti-Carloni is not repeated. Its exact original
 stager/runner remain at commit `246a4817` and in the preserved tools archive.
 Current helper options identify the new workspace/application explicitly.
+The new original-layout job **29729363** was submitted and observed running;
+[receipt](original_layout_submission.json). No outcome is inferred before its
+complete entry terminates. No original cached output is copied into either tree.
+
+## Original-Object Comparison
+
+Before inspecting cached object values, the comparison is fixed as the complete
+union of each application's `Outputs` and `Temp` RDS paths. The base-R reader
+records presence, strict object identity and `all.equal(tolerance=0)` diagnostics
+with attributes enabled. Missing objects and discrepancies remain explicit.
+Original caches are extracted separately from the archive, never into execution
+trees or model inputs. This diagnostic chooses no post-outcome acceptance
+tolerance, reruns no scientific source and does not certify a statistical theorem
+or complete numerical reproduction. Grid/solver/RNG and interpretation differences
+still need scientific adjudication before reference qualification.
 
 The Benzarti-Carloni analysis begins from supplied coefficient/covariance data;
 the underlying microdata are confidential. The Lovenheim-Willen analysis uses

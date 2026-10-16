@@ -34,8 +34,8 @@ is disclosed: reconstruction is not blind rediscovery or novelty.
 
 The [existing 40-item publication checklist](publication_programme.md#delivery-checklist)
 is the sole completion record. Q01/T01/C01/W01 keep their limited draft or scope
-status. No item is completed by this update. The goal API returned no active goal
-on this update; the new objective preserves the unfinished two-publication work.
+status. The native chat goal remains active and preserves both unfinished
+publications. Resource and reference qualification do not complete an item.
 
 ## Scientific Acceptance
 
@@ -140,6 +140,11 @@ The [later observation](../benchmarks/agentic_scientist_native_hc0_long_20261016
 records completed ideation and in-flight source authoring under the unchanged
 deployment. Larger Qwen conditions remain authorized, not automatic mid-run
 fallbacks; finish this matched condition without narrowing its scientific scope.
+The [first stock candidate](../benchmarks/agentic_scientist_native_hc0_long_20261016/cycle01_observation.json)
+completed all numerical calls but none produced compliant candidate inference.
+Its raw source exception was stored outside the frozen history grants. Preserve
+that outcome and the ongoing cycle; the prospective fix exposes only declared,
+hash-bound public artifacts, not private reference data or source corrections.
 
 **Unblocked publication work while queued:** the
 [HonestDiD reference preparation](../benchmarks/publication_reference_qualification_20261016/README.md)
@@ -154,6 +159,10 @@ rejection. It cannot be treated as an undisclosed rediscovery target.
 Complete original application job **29728552** is submitted pending with two
 declared same-byte filename aliases, unchanged statistical source and fresh
 outputs. This advances reference execution, not agent or theorem acceptance.
+That condition ended with Benzarti-Carloni complete and Lovenheim-Willen failing
+at an output directory omitted by operator staging. Its source/results remain
+unchanged. Fresh job **29729363** restores original empty directories and runs
+only the complete Lovenheim-Willen entry; no statistical source is modified.
 
 **Use the actual upstream observation to qualify the full-study boundary.** The
 requested native stock-v3 run on the exposed White HC0 task is now terminal.

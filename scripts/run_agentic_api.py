@@ -14,7 +14,7 @@ import tomllib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ai_statistician.agentic_api_workspace import FileAuthorWorkspace, FileGrant, run_file_session
+from ai_statistician.agentic_api_workspace import FileAuthorWorkspace, FileGrant, _relative, run_file_session
 from ai_statistician.agentic_scientific_review import run_scientific_review
 from ai_statistician.local_model_backend import LocalChatGeneratorBackend
 
@@ -66,6 +66,20 @@ def campaign_history_grants(results: Path | None, *, current: Path) -> tuple[Fil
                 path = program / name
                 if path.exists():
                     grants.append(FileGrant(prefix + "/" + program.name + "/" + name, path, directory=name == "src"))
+            receipt_path = program / "evaluation_manifest.json"
+            if receipt_path.is_file():
+                receipt = json.loads(receipt_path.read_text())
+                for item in receipt.get("public_outputs", []):
+                    name = _relative(item["path"]).as_posix()
+                    path = program / name
+                    expected = receipt.get("evidence_records", {}).get(name)
+                    if expected is None:
+                        continue
+                    if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                        raise ValueError("Prior public evaluation output differs from its receipt.")
+                    logical = prefix + "/" + program.name + "/" + name
+                    if not any(grant.name == logical for grant in grants):
+                        grants.append(FileGrant(logical, path))
     return tuple(grants)
 
 

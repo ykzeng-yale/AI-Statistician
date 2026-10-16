@@ -226,6 +226,14 @@ the report, dispositions and private session under the evaluated program. A
 missing or invalid receipt remains unassessed. It never retries a consumed review.
 The next source owner can read the report and public logs through existing history;
 the reviewer cannot revise the candidate or choose the next research action.
+History also exposes the evaluator's explicitly declared public output files,
+read-only and checked against their receipt hashes. It does not expose all receipt
+evidence or private evaluator data. Evaluators that capture source exceptions
+inside structured results must declare a public observation artifact if authors
+are to receive that feedback; empty process stderr does not establish successful
+source execution. The new process fixture covers this route without interpreting
+or repairing an error. This prospective correction does not alter the running
+frozen HC0 condition or make its undeclared replicate stream public.
 
 The combined HTTP test verifies that numeric success plus review failure does
 not complete the campaign. This is deterministic mechanism evidence only.

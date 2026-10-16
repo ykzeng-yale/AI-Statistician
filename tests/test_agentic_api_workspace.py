@@ -324,6 +324,17 @@ def test_idea_receives_prior_source_feedback_without_evaluator_access(tmp_path):
     (prior / "program_1/src").mkdir(parents=True)
     (prior / "program_1/src/program.py").write_text("# prior author source")
     (prior / "program_1/harness_evaluate_stderr.log").write_text("opaque raw execution failure")
+    diagnostic = prior / "program_1/public/observations.json"
+    diagnostic.parent.mkdir()
+    diagnostic.write_text('{"stderr":"opaque failure in structured result"}')
+    (prior / "program_1/private.json").write_text("private evaluator observations")
+    receipt = prior / "program_1/evaluation_manifest.json"
+    receipt.write_text(json.dumps({
+        "public_outputs": [{"path": "public/observations.json", "kind": "derived"},
+                           {"path": "public/not-produced.json", "kind": "derived"}],
+        "evidence_records": {"public/observations.json": sha(diagnostic.read_text()),
+                             "private.json": sha("private evaluator observations")},
+    }))
     (prior / "evaluate.py").write_text("private evaluator")
     (results / "attempts_history.jsonl").write_text('{"attempt_status":"fail"}\n')
     idea = stage_workspace(results / "_idea_generation/next", source, stage="idea", results=results)
@@ -331,12 +342,19 @@ def test_idea_receives_prior_source_feedback_without_evaluator_access(tmp_path):
     assert "operator's fixed acceptance contract" in idea.instructions
     assert "Upstream workflow instructions apply only where compatible" in idea.instructions
     assert invoke(idea, "read_file", path="history/ideas/01_prior/program_1/harness_evaluate_stderr.log").content["content"] == "opaque raw execution failure"
+    assert invoke(idea, "read_file", path="history/ideas/01_prior/program_1/public/observations.json").content["content"] == diagnostic.read_text()
+    assert invoke(idea, "read_file", path="history/ideas/01_prior/program_1/private.json").is_error
+    assert invoke(idea, "read_file", path="history/ideas/01_prior/program_1/public/not-produced.json").is_error
+    assert invoke(idea, "write_file", path="history/ideas/01_prior/program_1/public/observations.json", content="changed", expected_sha256=sha(diagnostic.read_text())).is_error
     assert invoke(idea, "read_file", path="history/ideas/01_prior/evaluate.py").is_error
     assert invoke(idea, "write_file", path="task_requirements.json", content="weaker", expected_sha256=sha("[]")).is_error
     assert invoke(idea, "write_file", path="idea_bundle.json", content="{}", expected_sha256=None).state_changed
     assert invoke(idea, "write_file", path="memory.md", content="unscoped notes", expected_sha256=None).is_error
     (source / "program_0/src/aliased").symlink_to(prior, target_is_directory=True)
     assert invoke(idea, "read_file", path="program_0/src/aliased/evaluate.py").is_error
+    diagnostic.write_text("changed after receipt")
+    with pytest.raises(ValueError, match="differs from its receipt"):
+        stage_workspace(results / "_idea_generation/another", source, stage="idea", results=results)
 
 
 def test_api_config_binds_deployment_and_cannot_switch_model(tmp_path):

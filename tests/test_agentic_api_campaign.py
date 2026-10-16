@@ -15,7 +15,7 @@ import pytest
 from test_agentic_api_backend_patch import ROOT, UPSTREAM, patched, upstream_copy
 
 
-@pytest.mark.parametrize("failure_kind,route", [("execution", "investigation"), ("review", "investigation"), ("review", "pipeline")])
+@pytest.mark.parametrize("failure_kind,route", [("execution", "investigation"), ("artifact_execution", "investigation"), ("review", "investigation"), ("review", "pipeline")])
 def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path, failure_kind, route):
     python = Path(os.environ.get("AI_STATISTICIAN_V3_PYTHON", UPSTREAM / ".venv/bin/python"))
     bash = Path(os.environ.get("AI_STATISTICIAN_V3_BASH", shutil.which("bash") or "/bin/bash"))
@@ -60,8 +60,22 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
         "correct=r.stdout.strip()=='opaque-native-17'\nout=Path(a.results_dir)\n"
         "(out/'metrics.json').write_text(json.dumps({'combined_score':int(correct)}))\n"
         "(out/'correct.json').write_text(json.dumps({'correct':correct}))\n")
+    if failure_kind == "artifact_execution":
+        (task / "public_outputs.json").write_text(json.dumps([
+            {"path": "execution_observation.json", "kind": "derived"}]))
+        evaluator.write_text(
+            "import argparse, json, subprocess, sys\nfrom pathlib import Path\n"
+            "p=argparse.ArgumentParser()\np.add_argument('--program_path')\np.add_argument('--results_dir')\n"
+            "a=p.parse_args()\nr=subprocess.run([sys.executable,a.program_path],capture_output=True,text=True)\n"
+            "out=Path(a.results_dir)\ncorrect=r.returncode==0 and r.stdout.strip()=='opaque-native-17'\n"
+            "(out/'execution_observation.json').write_text(json.dumps({'stdout':r.stdout,'stderr':r.stderr,'returncode':r.returncode}))\n"
+            "(out/'private_observation.json').write_text('undeclared private result')\n"
+            "(out/'metrics.json').write_text(json.dumps({'combined_score':int(correct)}))\n"
+            "(out/'correct.json').write_text(json.dumps({'correct':correct}))\n")
     requests, actions = [], []
     failure_file = "harness_evaluate_stderr.log" if failure_kind == "execution" else "scientific_review.md"
+    if failure_kind == "artifact_execution":
+        failure_file = "execution_observation.json"
     failure_path = "history/ideas/01_first_attempt/program_1/" + failure_file
     for cycle, title in ((1, "First attempt"), (2, "Second attempt")):
         proposed = [{"id": "weakened", "type": "metric", "description": "combined_score >= 0"},
@@ -79,7 +93,7 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
         ])
         if cycle == 2:
             actions.append(("read_file", {"path": failure_path}))
-        candidate = "raise RuntimeError('opaque feedback 19')\n" if cycle == 1 and failure_kind == "execution" else "print('opaque-native-17')\n"
+        candidate = "raise RuntimeError('opaque feedback 19')\n" if cycle == 1 and failure_kind in {"execution", "artifact_execution"} else "print('opaque-native-17')\n"
         actions.extend([
             ("write_file", {"path": "program_1/src/program.py", "content": candidate,
                             "expected_sha256": hashlib.sha256(initial.encode()).hexdigest()}),
@@ -179,6 +193,11 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
     assert "opaque feedback 19" in (first / "program_1" / failure_file).read_text()
     if failure_kind == "execution":
         assert not (first / "program_1/metrics.json").exists()
+    elif failure_kind == "artifact_execution":
+        assert json.loads((first / "program_1/metrics.json").read_text())["combined_score"] == 0
+        assert (first / "program_1/harness_evaluate_stderr.log").read_text() == ""
+        assert json.loads((first / "program_1/rubric_status.json").read_text())["overall_pass"] is False
+        assert not (first / "program_1/scientific_review.json").exists()
     else:
         assert json.loads((first / "program_1/metrics.json").read_text())["combined_score"] == 1
         assert json.loads((first / "program_1/rubric_status.json").read_text())["overall_pass"] is False

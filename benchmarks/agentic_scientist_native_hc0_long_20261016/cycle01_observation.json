@@ -1,0 +1,28 @@
+{
+  "observed_at": "2026-10-16",
+  "scope": "Completed first stock candidate within a still-running condition; not terminal arm evidence or official H/S results",
+  "job_id": "29726507",
+  "candidate": "cycle01_ols_hc0_unadjusted_inference_attempt_01",
+  "author": {"status": "HANDED_OFF", "turns": 20, "provider_usage": {"input_tokens": 888350, "output_tokens": 101261, "total_tokens": 989611}, "source_bytes": {"program.py": 1201, "study.md": 13102, "theory.md": 30039}},
+  "evaluation": {"status": "COMPLETE", "elapsed_seconds": 34.80196384699957, "scheduled_replicates": 60000, "completed_replicates": 60000, "candidate_compliant_replicates": 0, "conventional_compliant_replicates": 60000, "reference_failure_replicates": 0, "source_tree_unchanged": true, "theory": "UNASSESSED"},
+  "observed_failure": "The first raw dataset record reports TypeError: 'int' object is not subscriptable in the candidate's array expression. No usable candidate inference was produced. Numerical failure does not adjudicate the separate theoretical argument.",
+  "feedback_finding": "The evaluator captures candidate exceptions inside replicates.jsonl, while its process stderr is empty and stdout contains only aggregate counts. The frozen history grants omit public_outputs; its declared study/summaries also do not contain the runtime traceback. The raw exception is therefore not accessible through that source-owner history. Do not claim that raw feedback was delivered just because it was stored.",
+  "prospective_mechanism": "Expose only explicitly declared public evaluator artifacts, read-only and bound to receipt hashes. Private evidence is not automatically exposed. A future task must declare an appropriate public raw-observation artifact; this change alone does not expose this frozen replicate stream, change the active condition or prove model improvement.",
+  "mechanism_verification": {
+    "scope": "Deterministic fixtures, no model or consumed scientific evaluation calls",
+    "full_suite": {"passed": 2634, "skipped": 90, "existing_xfail": 1, "seconds": 861.57, "junit": "runs/agentic_native_long_20261016/public_feedback_verified_regression.xml", "sha256": "1ee63d61af326288210e71d9f1653b88126f9fe44130a7a4d782b8f952d62913"},
+    "focused": {"passed": 35, "seconds": 13.28, "junit": "runs/agentic_native_long_20261016/public_feedback_final_focused.xml", "sha256": "0aa15cdcf5d341c4e98fd29b45add2618f07006992c39553010f59f993aa9da3"},
+    "participant_sha256": "89deb82f94258ab3c4c2ed4014241ebe0dd2a34da8928a6322c194970201b7e9",
+    "coverage": "Actual upstream campaign receives raw observations from a declared result despite empty process stderr, then generates and evaluates a new source. Undeclared data stays inaccessible, published evidence is read-only/hash-bound, and unproduced outputs do not block existing feedback. Source/evaluator/scores are not patched or repeated. The earlier 2633-pass full run preceded the final missing-output edge; it remains separately retained, not substituted for the final run."
+  },
+  "retained_evidence": {
+    "root": "runs/agentic_native_long_20261016/stock_cycle01_program_1",
+    "author_session": {"path": "runs/agentic_native_long_20261016/stock_cycle01_author_terminal.json", "sha256": "dfe139abdba6d24788689d84c892f283254700e9ce738e05f68b903289f44b87"},
+    "source_sha256": {"program.py": "5dec5e54d2e2a46b2a1a1dba7cd2777fb9589939b4a79125d84f3132aa8b4393", "study.md": "9d5deb68184996d76af776ba09effba8cba6282ac923ba9a56d70a7981e98eed", "theory.md": "4e08d12cd43f73f2a2bfd07705ba3aa185f19a6d333eeb3186c6f4a03cff4d1b"},
+    "raw_replicates_sha256": "d4cb336ba8a641118990fe1a4599c1cb38c44416fc57cf4e320bc16758457b5c",
+    "study_sha256": "33bea3d54d6eae6df09b44842536af83600c208769508db47663d2ee777f4d56",
+    "metrics_sha256": "95fa6bc6301e6bb5565f1a4350f51dfd831a60f215f0da8054c12e5c332f494f",
+    "receipt_sha256": "7efae605bba6c248fcea4da61fe1fdbaad9b5dea5d8cf8ce959ba4641e6b28b6"
+  },
+  "continuation": "Upstream began cycle 2 at 2026-10-16T09:17:31.566Z under the original frozen files. Statistical arm 29726508 still waits. No candidate edit, repeat evaluation, theory rescore, model substitution or checklist credit. Sixty thousand datasets are not sixty thousand independent agent draws."
+}

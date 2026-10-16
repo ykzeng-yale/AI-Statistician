@@ -1,0 +1,20 @@
+{
+  "observed_at": "2026-10-16",
+  "scope": "Original-reference object diagnostics, not model assessment, scientific acceptance or a theorem check",
+  "reader": {"path": "compare_reference_rds.R", "sha256": "8c25359637240985f431a83a4b45398ea4c644706a22eb62515f4b63a9ec50a6"},
+  "original_archive_sha256": "de336cc76ee769d5a0d5d1246566b760475f266a6f8b9c4321991b38a01a20fa",
+  "original_cache_root": "runs/honestdid_source_qualification_20261016/author_cached_original_20261016/HonestParallelTrends_RESTUD_ReplicationFiles",
+  "benzarti_carloni": {
+    "generated_by_job": "29728552",
+    "comparison": "Complete union of Outputs/Temp RDS paths, strict identical and all.equal with tolerance zero and attributes enabled",
+    "objects": 7,
+    "missing": 0,
+    "strictly_identical": 3,
+    "not_identical": 4,
+    "diagnostics": "Two OLS objects report character versus factor storage for method; two identified-set objects report character versus factor storage for Delta. The two relative-magnitude interval objects and imported results object are strictly identical. No output normalization, acceptance-tolerance selection, source execution or mathematical verdict is performed.",
+    "csv": {"path": "runs/honestdid_source_qualification_20261016/benzarti_object_comparison_20261016/object_comparison.csv", "sha256": "2e2e85acbb896d6ab87e3544b77bbe9dd6e4a28218db093eec535906a64b93c7"},
+    "session": {"path": "runs/honestdid_source_qualification_20261016/benzarti_object_comparison_20261016/session.txt", "sha256": "6cf41242db086d78f96830e43fa7072956871e06a157c0763d0665e17c2e82cc"}
+  },
+  "lovenheim_willen": "Not compared while its new complete original-layout entry remains in flight",
+  "remaining": "Complete entry and source interpretation, numerical tolerance/reference adjudication, full simulation scope, independent argument assessment, rights and fresh matched agent conditions remain separate. No Q02/Q04/Q05 or official H/S completion credit. Original caches stay outside author workspaces."
+}

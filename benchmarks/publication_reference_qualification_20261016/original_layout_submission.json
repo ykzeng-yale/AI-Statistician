@@ -1,0 +1,16 @@
+{
+  "submitted_at": "2026-10-16T09:31:36Z",
+  "job_id": "29729363",
+  "state_at_submission": "PENDING; later observed RUNNING",
+  "frozen_reference_commit": "d672cc0c",
+  "account": "pi_gt353",
+  "partition": "day",
+  "qos": "normal",
+  "resources": {"cpus": 1, "memory_gib": 16, "wall_time": "02:00:00", "gpus": 0},
+  "requeue": false,
+  "plan_sha256": "921b2e8c97a62e650178192ce197c78d4cdab55dfa18b4814afda4502a3ee045",
+  "runner_sha256": "ab8043306f72505cd3bc18f91474327d96c1f4ee2184be9e4339cd3130d45116",
+  "staged_inputs_sha256": "f014cfe696763764e8a7509d2ad525946c5b0000948be2939e6b97f3ec93409c",
+  "output_log": "original-layout-29729363.log",
+  "scope": "New original-filesystem condition for the complete Lovenheim-Willen entry only. First failed condition 29728552 and its Benzarti-Carloni success remain unchanged. No model, scientific source patch, numerical rescore or publication credit."
+}

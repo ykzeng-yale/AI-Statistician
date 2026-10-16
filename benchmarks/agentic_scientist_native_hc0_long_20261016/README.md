@@ -52,5 +52,11 @@ The [later stage observation](authoring_observation.json) records stock ideation
 completing in 6m07s and source authoring starting under the same frozen model.
 Authoring remains in flight, with no accepted source, evaluation or full-study
 result. This supplements rather than replaces the first prefix.
+The [first candidate observation](cycle01_observation.json) now records a complete
+60,000-dataset execution with zero compliant candidate outputs, caused by a
+source runtime error. Its theoretical argument was not assessed. The raw
+exception was stored but not exposed through the frozen history grants. The
+ongoing second cycle and statistical arm keep the original code and permissions;
+the prospective public-artifact feedback correction does not repair this run.
 No official H/S experiment or publication-checklist item is completed by this
 condition. Source-bound AI review remains fallible feedback, not proof.
