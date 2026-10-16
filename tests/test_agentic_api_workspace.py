@@ -12,10 +12,10 @@ import time
 import pytest
 
 from ai_statistician.agentic_api_workspace import FileAuthorWorkspace, FileGrant, run_file_session
-from ai_statistician.client_tool_loop import ClientToolExecutionContext, ClientToolLoopError
+from ai_statistician.client_tool_loop import ClientToolExecutionContext, ClientToolInputError, ClientToolLoopError
 from ai_statistician.model_backend import ClientToolCall, ClientToolTurnResponse
 from ai_statistician.fingerprint import stable_hash
-from scripts.run_agentic_api import load_config, stage_workspace
+from scripts.run_agentic_api import load_config, posthoc_workspace, stage_workspace
 
 
 CONTEXT = ClientToolExecutionContext(turn_index=0, call_index=0, calls_in_turn=1, total_calls_before=0)
@@ -147,6 +147,64 @@ def run(workspace, backend, destination, *, max_turns=6):
     return run_file_session(backend=backend, workspace=workspace, prompt="Opaque research-stage brief.",
         model="frozen-fixture-model", max_tokens=8192, temperature=1.0, max_turns=max_turns,
         session_dir=destination, session_id="opaque-attempt", deployment_identity={"revision": "exact-fixture"})
+
+
+@pytest.fixture
+def posthoc_root(tmp_path):
+    root = tmp_path / "analysis"
+    (root / "task_bundle/evidence").mkdir(parents=True)
+    (root / "task_bundle/program_0/src").mkdir(parents=True)
+    (root / "task_bundle/resources/search/statistical-research").mkdir(parents=True)
+    (root / "task_bundle/resources/search/statistical-research/SKILL.md").write_text("Retained statistical reporting guidance.")
+    (root / "analysis_spec.json").write_text(json.dumps({"expected_outputs": ["notes/limitations.md"]}))
+    (root / "rubric_contract.json").write_text("{}")
+    (root / "task_bundle/task.md").write_text("Interpret the supplied opaque outcomes; do not repeat execution.")
+    (root / "task_bundle/evidence/arbitrary-table.csv").write_text("condition,value\na,17\nb,23\n")
+    (root / "task_bundle/program_0/src/theory.md").write_text("An unassessed argument.")
+    (root / "task_bundle/program_0/evaluate.py").write_text("private evaluator")
+    (root / "task_bundle/program_0/scientific_review_session.json").write_text("private review context")
+    return root
+
+
+def test_posthoc_reads_only_public_inputs_and_writes_declared_reports(posthoc_root):
+    workspace = posthoc_workspace(posthoc_root)
+    table = "task_bundle/evidence/arbitrary-table.csv"
+    assert invoke(workspace, "read_file", path=table).content["content"] == "condition,value\na,17\nb,23\n"
+    guidance = "task_bundle/resources/search/statistical-research/SKILL.md"
+    assert "Retained statistical" in invoke(workspace, "read_file", path=guidance).content["content"]
+    for path in (table, guidance, "task_bundle/program_0/src/theory.md", "analysis_spec.json"):
+        assert invoke(workspace, "write_file", path=path, content="changed", expected_sha256=None).is_error
+    for path in ("task_bundle/program_0/evaluate.py", "task_bundle/program_0/scientific_review_session.json"):
+        assert invoke(workspace, "read_file", path=path).is_error
+    for path in ("analysis_summary.md", "interestingness_rubric.json", "analysis_manifest.json", "rubric_status.json", "notes/limitations.md"):
+        assert not invoke(workspace, "write_file", path=path, content="model-authored", expected_sha256=None).is_error
+    assert invoke(workspace, "write_file", path="undeclared.md", content="x", expected_sha256=None).is_error
+
+
+@pytest.mark.parametrize("output", ["task_bundle/forged.csv", ".local-api/session/result.json", "reports/*", "../escape.md", "/tmp/escape.md", "analysis_spec.json", ""])
+def test_posthoc_output_declaration_cannot_expand_authority(posthoc_root, output):
+    (posthoc_root / "analysis_spec.json").write_text(json.dumps({"expected_outputs": [output]}))
+    with pytest.raises((ValueError, ClientToolInputError)):
+        posthoc_workspace(posthoc_root)
+
+
+def test_posthoc_retained_session_interprets_actual_table_without_execution(posthoc_root, tmp_path):
+    workspace = posthoc_workspace(posthoc_root)
+    before = {row["path"]: row["sha256"] for row in workspace.files()}
+    report = "# Observed results\nThe supplied table contains 17 and 23. No additional computation or proof was performed.\n"
+    backend = FixtureBackend([
+        ("read_file", {"path": "task_bundle/evidence/arbitrary-table.csv"}),
+        ("write_file", {"path": "analysis_summary.md", "content": report, "expected_sha256": None}),
+        ("finish", {"disposition": "candidate", "summary": "Interpretation ready for review."}),
+    ])
+    result = run(workspace, backend, tmp_path / "posthoc-session")
+    observation = backend.requests[1].messages[-1]["content"][0]
+    assert "a,17" in observation["content"] and "b,23" in observation["content"]
+    assert (posthoc_root / "analysis_summary.md").read_text() == report
+    after = {row["path"]: row["sha256"] for row in workspace.files()}
+    assert all(after[path] == digest for path, digest in before.items())
+    assert all("run" not in tool.name and "execute" not in tool.name for tool in backend.requests[0].tools)
+    assert result.terminal_payload["scientific_acceptance"] is False
 
 
 def test_same_model_receives_raw_failure_and_owns_revision(workspace, tmp_path):

@@ -44,7 +44,7 @@ ranking, scientific performance result or claim that Yale already hosts every ro
 | Candidate | Actual availability and intended use |
 | --- | --- |
 | [Qwen3.8-Flash-Next](https://huggingface.co/Qwen/Qwen3.8-Flash-Next) | Actual returned model in the new Pi authoring condition, not only a launcher alias. Shared weights/configuration remain unpinned. |
-| [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Exact BF16 weights verified and pinned vLLM installed. B200 deployment probe queued; no owned-model inference or scientific result yet. |
+| [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Exact BF16 weights and vLLM installed. B200 CUDA passed; first vLLM startup timed out. Node-local runtime staging is underway; no owned-model inference yet. |
 | [Qwen3-Coder-Next](https://huggingface.co/Qwen/Qwen3-Coder-Next) | Public 80B-total/3B-active coding model; useful coding-agent comparator. Non-thinking-only, so not presumed superior for mathematical theory. Not installed or called here. |
 | [DeepSeek-V4-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) | Public 284B-total/13B-active model; possible later cross-family comparison, not an observed Yale service or selected Qwen-only study condition. No deployment or calls. |
 
@@ -125,12 +125,15 @@ the terminal log SHA-256 is `8d9bc33b5dbdd2eef2eb6b5f222d67a762cf5b9e60303c1da95
 The preparation scripts are under
 `integrations/agentic-scientist/bouchet/`; exact locks, logs and job receipts remain
 in task storage and `runs/bouchet_model_inventory_20261015/`.
-Driver compatibility, actual GPU memory/context fit, tool round trips and
-throughput remain unverified. Do not call installed software a deployed service.
+CUDA initialization subsequently succeeded on B200. Actual model memory/context
+fit, tool round trips and throughput remain unverified. Installed software is not
+a deployed service.
 
 The [frozen deployment probe](../integrations/agentic-scientist/bouchet/qwen27b_probe_precall.json)
 was submitted once as job **29687651**, account `pi_fl426`, standard `gpu_b200`,
-one B200, eight CPUs, 128 GiB and one hour. It is pending, not a running service.
+one B200, eight CPUs, 128 GiB and one hour. Before allocation, the same job moved
+to standard `gpu_devel` with unchanged resources/model under the recorded
+[scheduler amendment](../integrations/agentic-scientist/bouchet/qwen27b_probe_partition_amendment_20261015.json).
 Before submission both authorized accounts gave earlier B200 estimates than
 H200; this is a prospective hardware choice, not a model or precision fallback.
 It preserves BF16, native 262144 context, one-request concurrency and upstream
@@ -144,6 +147,30 @@ native schema response and exact raw failed-tool feedback, allowing 8192 output
 tokens per request. This is transport conformance, not scientific evaluation or
 long-context capacity/quality evidence. The loopback service stops at completion
 or failure; there is no automatic retry, cloud call or context/precision change.
+
+**Terminal first deployment, October 15:** job 29687651 ran on `a1117u29n01`
+for 44m26s and failed with exit `1:0`. B200 driver 580.178.04 and PyTorch
+2.13.0+cu130/CUDA 13.0 initialized successfully. Repeated process observations
+showed filesystem waits and little CPU time during imports. vLLM's first banner
+appeared about 24 minutes after allocation, followed by front-end/engine handshake
+timeouts. No API request ran. This supports addressing shared-file import latency;
+it does not establish GPU-memory insufficiency or a model-capacity failure.
+The preserved `probe-29687651/server.log` SHA-256 is
+`161abe4977c7325988cc0b0988ee72a38aa672c04f0151c632bcea920f8f9379`
+under `runs/bouchet_model_inventory_20261015/`.
+
+The October 16 correction archived the unchanged 7.8-GiB installed environment
+once in CPU job **29719771**, completed in 522 seconds with exit `0:0`. The
+[new frozen condition](../integrations/agentic-scientist/bouchet/qwen27b_node_local_precall_20261016.json)
+extracts that verified archive to task-owned
+node-local temporary storage for a fresh GPU probe. Weights, precision, context,
+sampling, parsers, product commit and probe questions stay fixed. The previous
+script and failed run remain preserved remotely; future script invocation requires
+the exact archive hash. No startup timeout was relaxed and no commercial model
+or managed-service credential was substituted. The new condition's allocation and
+outcome must be recorded before calling it available. Job **29720252** was submitted
+once at `2026-10-16T01:49:33-04:00`, account `pi_fl426`, normal `gpu_devel`,
+one B200/eight CPUs/128 GiB/one hour. It is pending, not a working model API.
 
 ## Latest Managed-Host Observation
 

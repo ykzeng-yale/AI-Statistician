@@ -69,6 +69,41 @@ def campaign_history_grants(results: Path | None, *, current: Path) -> tuple[Fil
     return tuple(grants)
 
 
+def posthoc_workspace(root: Path) -> FileAuthorWorkspace:
+    """Interpret the upstream host's verified public bundle, without evaluator access."""
+    root = root.resolve()
+    spec = json.loads((root / "analysis_spec.json").read_text())
+    outputs = spec["expected_outputs"]
+    if not isinstance(outputs, list) or not all(isinstance(name, str) for name in outputs):
+        raise ValueError("Native posthoc expected_outputs must be an explicit file list.")
+    required = {"analysis_summary.md", "interestingness_rubric.json", "analysis_manifest.json", "rubric_status.json"}
+    outputs = required | set(outputs)
+    if any(Path(name).parts[:1] == ("task_bundle",) or
+           any(part.startswith(".") or any(char in part for char in "*?[]")
+               for part in Path(name).parts) for name in outputs):
+        raise ValueError("Native posthoc output paths must be explicit, non-hidden files.")
+    grants = [FileGrant(name, root / name) for name in (
+        "analysis_spec.json", "rubric_contract.json", "target_rubrics.json",
+        "task_bundle/task.md", "task_bundle/original_task.md", "task_bundle/evidence_manifest.json",
+        "task_bundle/program_0/program_spec.toml",
+    ) if (root / name).is_file()]
+    grants.extend((FileGrant("task_bundle/evidence", root / "task_bundle/evidence", directory=True),
+                   FileGrant("task_bundle/resources/search", root / "task_bundle/resources/search", directory=True),
+                   FileGrant("task_bundle/program_0/src", root / "task_bundle/program_0/src", directory=True)))
+    grants.extend(FileGrant(name, root / name, writable=True) for name in sorted(outputs))
+    workspace = FileAuthorWorkspace(tuple(grants))
+    workspace.instructions = (
+        "You interpret the host's supplied scientific evidence and author the requested report files. "
+        "Read the task, analysis spec, source and actual result tables. Evidence is read-only. "
+        "There is no evaluator or execution tool in this session: do not claim new calculations, "
+        "plots, simulations or proof ran. Interpret existing summaries, preserve failures and uncertainty, "
+        "and distinguish source review from numerical evidence. Use Markdown/LaTeX for substantive "
+        "reasoning; the required small JSON files are upstream artifact bookkeeping, not certification. "
+        "Finish with candidate or an honest gap. Self-rubrics do not independently validate the report."
+    )
+    return workspace
+
+
 def stage_workspace(root: Path, source: Path, *, stage="research", results: Path | None = None) -> FileAuthorWorkspace:
     root, source = root.resolve(), source.resolve()
     shared = (
@@ -109,7 +144,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prompt-file", type=Path)
     parser.add_argument("--model", required=True)
-    parser.add_argument("--stage", choices=("idea", "research", "review"), default="research")
+    parser.add_argument("--stage", choices=("idea", "research", "review", "posthoc"), default="research")
     parser.add_argument("--program-dir", type=Path)
     parser.add_argument("--task-dir", type=Path)
     parser.add_argument("--rubrics-file", type=Path)
@@ -118,7 +153,7 @@ def main() -> int:
         if not all((args.program_dir, args.task_dir, args.rubrics_file)) or args.prompt_file:
             parser.error("Review requires program-dir, task-dir and rubrics-file; its prompt is fixed by the integration.")
     elif not args.prompt_file or any((args.program_dir, args.task_dir, args.rubrics_file)):
-        parser.error("Idea/research stages require only prompt-file and model.")
+        parser.error("Author stages require only prompt-file and model.")
     config, identity = load_config(Path(os.environ["AI_STATISTICIAN_API_CONFIG"]), model=args.model)
     root = Path.cwd().resolve()
     backend = LocalChatGeneratorBackend(base_url=config["base_url"], timeout_s=config["timeout_seconds"])
@@ -139,7 +174,8 @@ def main() -> int:
                               "verdicts": review["verdicts"], "proof_evidence": False}), flush=True)
             return 0
         results = Path(os.environ["AI_STATISTICIAN_CAMPAIGN_RESULTS"]) if os.environ.get("AI_STATISTICIAN_CAMPAIGN_RESULTS") else None
-        workspace = stage_workspace(root, Path(os.environ["TASK_SOURCE_DIR"]), stage=args.stage, results=results)
+        workspace = (posthoc_workspace(root) if args.stage == "posthoc" else
+                     stage_workspace(root, Path(os.environ["TASK_SOURCE_DIR"]), stage=args.stage, results=results))
         prompt = args.prompt_file.read_text()
         if args.stage == "idea":
             prompt = ("Native API stage contract: write idea_bundle.json and target_rubrics.json. "
@@ -151,7 +187,8 @@ def main() -> int:
             backend=backend, workspace=workspace, prompt=prompt,
             model=args.model, max_tokens=config["max_tokens"], temperature=config["temperature"],
             max_turns=config["max_turns"], session_dir=root / ".local-api/session",
-            session_id=(f"idea_{os.environ['CYCLE_INDEX']}" if args.stage == "idea" else os.environ["ATTEMPT_ID"]),
+            session_id=(f"posthoc_{root.name}" if args.stage == "posthoc" else
+                        f"idea_{os.environ['CYCLE_INDEX']}" if args.stage == "idea" else os.environ["ATTEMPT_ID"]),
             deployment_identity={**identity, "stage": args.stage},
         )
     finally:

@@ -219,6 +219,53 @@ Source review cannot certify observed simulation outcomes, a theorem, human
 endorsement or publication quality. Same-model author/reviewer errors may agree;
 scientific qualification and independent empirical assessment remain required.
 
+### Reporting Existing Results
+
+Apply `native_posthoc.patch` after the two patches above, only to the same exact
+disposable upstream checkout. It extends the existing posthoc pipeline; it does
+not add a controller or rerun the scientific evaluator. Sakana AI's Apache-2.0
+license and pinned source attribution remain unchanged.
+
+Before a new evaluation, the operator can supply task-root `public_outputs.json`:
+
+```json
+[{"path": "tables/study_summary.csv", "kind": "table", "media_type": "text/csv"}]
+```
+
+Entries use upstream scientific-evidence artifact descriptors with explicit
+candidate-relative paths, not globs. They must be new evaluator result files,
+not preexisting author source. The native receipt binds the declaration and task
+before execution, then the result bytes. Missing declared files cannot silently
+disappear. Do not add this declaration to a consumed study to obtain a new report.
+
+For this artifact-only API path, prospectively supply upstream-format
+`generation/posthoc_bundle.json` and `generation/posthoc_selection.json`, then
+run the existing `src.posthoc_pipeline.cli` stages `0,1,4,5,6` in a fresh output
+directory. Use `agent.name=local-api`, the same frozen API configuration,
+`container.enabled=false`, `execution.checkpoint_mode=optional` and
+`execution.retrain_if_checkpoint_missing=false`. The supplied analysis specifies
+the report question and required outputs, not an expected scientific answer.
+Native generation/selection, checkpoint analysis and full manuscript production
+are not implemented by this path.
+
+Extraction verifies the consumed candidate receipt and stages only its declared
+public outputs under `evidence/`, using upstream's size/hash manifest with role
+`completed_native_evaluation`. Private review sessions are excluded. Existing
+upstream evidence limits still apply; declare summary tables appropriate for the
+report instead of assuming arbitrary large replicate files are supported.
+The actual API process runs in the upstream attempt directory. Task, candidate
+source, permitted `resources/search` (including retained statistical skills) and
+result tables are read-only; declared report files are writable.
+There is no execution tool: this stage interprets existing results and must not
+claim it generated new calculations, figures or proof. An honest gap is not
+published as a completed analysis, even if output files exist.
+
+The upstream publisher's `valid` means its artifact checks passed, not that a
+statistical claim, self-rubric or manuscript is scientifically accepted. Report
+accuracy needs separate assessment. Deterministic HTTP fixtures exercise the
+real extraction/bootstrap/materialization/API/publication path and verify that
+consumed source/results remain unchanged and the evaluator executes only once.
+
 This migration adds a small participant alongside the retained legacy code. The
 package source ceiling increases explicitly from 150000 to 150500 lines; the
 legacy runtime/CLI limits remain unchanged. This is temporary migration overlap,

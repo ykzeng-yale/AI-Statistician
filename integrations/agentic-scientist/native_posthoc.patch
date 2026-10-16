@@ -1,0 +1,254 @@
+diff --git a/src/investigation/harness_eval.py b/src/investigation/harness_eval.py
+index 41de4db..4f6abd6 100644
+--- a/src/investigation/harness_eval.py
++++ b/src/investigation/harness_eval.py
+@@ -16,7 +16,7 @@ from typing import Any
+ from .harness_feedback import evaluation_feedback, search_metric_feedback
+ from .harness_incumbent import (
+     _file_digest, _json_digest, _read_harness_json,
+-    native_evidence_identity, native_source_identity,
++    native_evidence_identity, native_source_identity, native_public_outputs,
+ )
+ from .harness_sources import read_candidate_sources as _read_candidate_sources
+ from .evaluator_outputs import EvaluatorOutputContractError
+@@ -556,6 +556,8 @@ def run_harness_evaluation(
+             raise ValueError("native evaluator changed during evaluation")
+         if manifest.get("rubrics_sha256") != _json_digest(_target_rubrics(rubrics_path)):
+             raise ValueError("native criteria changed during evaluation")
++        if manifest.get("public_outputs", []) != native_public_outputs(experiment_dir):
++            raise ValueError("native public output declaration changed during evaluation")
+         manifest.update(
+             completed=True,
+             evidence_records=native_evidence_identity(program_dir, source_records=source_records),
+@@ -609,6 +611,14 @@ def _run_direct_evaluation(
+         "command": command,
+         "started_at": _utc_now(),
+     }
++    outputs = native_public_outputs(experiment_dir)
++    for item in outputs:
++        path = program_dir / item["path"]
++        if path.exists() or path.is_symlink() or item["path"].startswith("src/"):
++            raise ValueError("public output must be a new evaluator result, not candidate source")
++    if outputs:
++        manifest["public_outputs"] = outputs
++        manifest["public_task_sha256"] = _file_digest(experiment_dir / "task.md")
+     _write_json(manifest_path, manifest)
+     try:
+         result = subprocess.run(
+@@ -636,6 +646,13 @@ def _run_direct_evaluation(
+     )
+     manifest.update(finished_at=_utc_now(), exit_code=result.returncode)
+     _write_json(manifest_path, manifest)
++    for item in outputs:
++        path = program_dir / item["path"]
++        if path.resolve() != path or path.stat().st_nlink != 1:
++            raise ValueError("public output must be a regular unlinked result")
++        digest = _file_digest(path)
++        if item.get("sha256") and item["sha256"] != digest:
++            raise ValueError("public output differs from the declared hash")
+     return result.returncode
+ 
+ 
+diff --git a/src/investigation/harness_incumbent.py b/src/investigation/harness_incumbent.py
+index 4fa81b9..af68038 100644
+--- a/src/investigation/harness_incumbent.py
++++ b/src/investigation/harness_incumbent.py
+@@ -19,6 +19,38 @@ from .program_spec import entrypoint_relpath_from_spec, load_program_spec
+ _MAX_ARTIFACT_BYTES = 1024 * 1024
+ 
+ 
++def native_public_outputs(task_dir: Path) -> list[dict[str, str]]:
++    """Prospective output access uses the existing scientific-evidence descriptor."""
++    import runpy
++
++    path = task_dir / "public_outputs.json"
++    if not path.exists() and not path.is_symlink():
++        return []
++    _file_digest(path)
++    if path.stat().st_size > _MAX_ARTIFACT_BYTES:
++        raise ValueError("public output declaration exceeds size limit")
++    outputs = json.loads(path.read_text())
++    schema_path = Path(__file__).resolve().parents[1] / "agents/skills/scientific-evidence/scripts/scientific_evidence.py"
++    schema = runpy.run_path(str(schema_path))["artifact_descriptor_schema"]()
++    if not isinstance(outputs, list) or not outputs:
++        raise ValueError("public outputs must be a nonempty descriptor list")
++    names = set()
++    for item in outputs:
++        if (not isinstance(item, dict) or not set(schema["required"]) <= set(item)
++            or not set(item) <= set(schema["properties"])
++            or not all(isinstance(value, str) and value for value in item.values())
++            or item["kind"] not in schema["properties"]["kind"]["enum"]):
++            raise ValueError("invalid scientific-evidence artifact descriptor")
++        name = item["path"]
++        relative = Path(name)
++        if (not relative.parts or relative.is_absolute() or relative.as_posix() != name
++            or any(part.startswith(".") or any(c in part for c in "*?[]") for part in relative.parts)
++            or name in names):
++            raise ValueError("public outputs require unique explicit relative file paths")
++        names.add(name)
++    return outputs
++
++
+ def _json_digest(value: object) -> str:
+     return hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
+ 
+@@ -120,6 +152,16 @@ def read_native_evaluation(
+         and manifest.get("evidence_records") == native_evidence_identity(program_dir, source_records=manifest["source_records"])
+     ):
+         raise ValueError(f"missing, malformed or stale native evaluation: {program_dir}")
++    declared = native_public_outputs(program_dir.parent)
++    if manifest.get("public_outputs", []) != declared:
++        raise ValueError("native public output declaration changed")
++    if declared and manifest.get("public_task_sha256") != _file_digest(program_dir.parent / "task.md"):
++        raise ValueError("native public task changed")
++    for item in declared:
++        name = item["path"]
++        if (name in manifest["source_records"] or name not in manifest["evidence_records"]
++            or (item.get("sha256") and item["sha256"] != manifest["evidence_records"][name])):
++            raise ValueError("declared public output is missing, stale or a source input")
+     status = _read_harness_json(program_dir / "rubric_status.json")
+     if status != _read_harness_json(program_dir.parent / "rubric_status.json"):
+         raise ValueError("native root and candidate rubric status disagree")
+diff --git a/src/posthoc_pipeline/execute.py b/src/posthoc_pipeline/execute.py
+index 2117a51..25d5023 100644
+--- a/src/posthoc_pipeline/execute.py
++++ b/src/posthoc_pipeline/execute.py
+@@ -322,13 +322,27 @@ def _run_single_analysis(
+         env["ANALYSIS_FAMILY"] = spec.family
+         env["POSTHOC_RUN_DIR"] = str(posthoc_run_dir.resolve())
+ 
++        attempt_popen = popen_factory
++        if agent == "local-api":
++            from functools import partial
++
++            if containerize or profile or effort or not model:
++                raise ValueError("Native posthoc uses the frozen API model/config without host overrides")
++            python = Path(env.get("AI_STATISTICIAN_API_PYTHON", ""))
++            entrypoint = Path(env.get("AI_STATISTICIAN_API_ENTRYPOINT", ""))
++            if not all(path.is_absolute() and path.is_file() for path in (python, entrypoint)):
++                raise ValueError("Native posthoc requires absolute API executable and entrypoint paths")
++            cmd = [str(python), str(entrypoint), "--stage", "posthoc", "--prompt-file",
++                   str(attempt_dir / prompt_filename), "--model", model]
++            attempt_popen = partial(popen_factory, cwd=str(attempt_dir))
++
+         output, exit_code = _execute_script_command(
+             cmd=cmd,
+             timeout_seconds=timeout_seconds,
+             timeout_grace_seconds=timeout_grace_seconds,
+             script_label=f"posthoc_{spec.analysis_id}_attempt_{attempt_index}",
+             missing_output=f"[posthoc] posthoc_agent.sh not found for {spec.analysis_id}\n",
+-            popen_factory=popen_factory,
++            popen_factory=attempt_popen,
+             register_subprocess=register_subprocess,
+             unregister_subprocess=unregister_subprocess,
+             terminate_process_group=terminate_process_group,
+@@ -361,7 +375,7 @@ def _run_single_analysis(
+             status = "timeout"
+             break
+ 
+-        if inspection.overall_pass:
++        if inspection.overall_pass and (agent != "local-api" or exit_code == 0):
+             selected_attempt = inspection.attempt_id
+             status = "completed"
+             break
+diff --git a/src/posthoc_pipeline/extract.py b/src/posthoc_pipeline/extract.py
+index 7938606..7fa63a5 100644
+--- a/src/posthoc_pipeline/extract.py
++++ b/src/posthoc_pipeline/extract.py
+@@ -63,7 +63,25 @@ def extract_bundle(
+         results_dir=results_dir,
+         output_dir=bundle_dir,
+     )
+-    if evidence_dir is not None:
++    from src.investigation.harness_incumbent import native_public_outputs, read_native_evaluation
++    declared = native_public_outputs(task_dir)
++    if declared:
++        if evidence_dir is not None:
++            raise BundleValidationError("Select native results or ablation evidence, not both")
++        extraction = json.loads((bundle_dir / "extraction_manifest.json").read_text())
++        program = Path(extraction["source_best_program_dir"])
++        receipt = json.loads((program / "evaluation_manifest.json").read_text())
++        rubrics = json.loads((task_dir / "target_rubrics.json").read_text())
++        read_native_evaluation(program, rubrics, attempt_id=receipt["attempt_id"], idea_id=receipt["idea_id"])
++        if (receipt.get("public_outputs") != declared
++            or receipt.get("public_task_sha256") != hashlib.sha256((task_dir / "task.md").read_bytes()).hexdigest()):
++            raise BundleValidationError("Selected native output declaration differs from the task")
++        _stage_evidence(program, bundle_dir, native_outputs=declared)
++        staged = verify_staged_evidence(bundle_dir)
++        if any(staged["files"]["evidence/" + item["path"]]["sha256"] != receipt["evidence_records"][item["path"]]
++               for item in declared):
++            raise BundleValidationError("Public evidence changed during extraction")
++    elif evidence_dir is not None:
+         _stage_evidence(evidence_dir, bundle_dir)
+ 
+     _validate_bundle(bundle_dir)
+@@ -71,11 +89,12 @@ def extract_bundle(
+     return bundle_dir
+ 
+ 
+-def _stage_evidence(source_root: Path, bundle_dir: Path) -> None:
++def _stage_evidence(source_root: Path, bundle_dir: Path, *, native_outputs: list[dict] | None = None) -> None:
+     """Copy a bounded, analysis-only allowlist from a completed ablations bundle."""
+     if source_root.is_symlink() or not source_root.is_dir():
+         raise BundleValidationError(f"Evidence source is not a real directory: {source_root}")
+-    _validate_evidence_anchor(source_root)
++    if native_outputs is None:
++        _validate_evidence_anchor(source_root)
+     destination_root = bundle_dir / "evidence"
+     manifest_path = bundle_dir / "evidence_manifest.json"
+     if destination_root.exists() or destination_root.is_symlink():
+@@ -92,13 +111,14 @@ def _stage_evidence(source_root: Path, bundle_dir: Path) -> None:
+         manifest_files, total_bytes = _copy_evidence_candidates(
+             source_root,
+             staging_root,
++            candidates=[source_root / item["path"] for item in native_outputs] if native_outputs else None,
+         )
+         _make_evidence_files_read_only(staging_root)
+         manifest_bytes = (
+             json.dumps(
+                 {
+                     "manifest_version": 1,
+-                    "source_role": "completed_ablations_bundle",
++                    "source_role": "completed_native_evaluation" if native_outputs else "completed_ablations_bundle",
+                     "files": manifest_files,
+                     "total_bytes": total_bytes,
+                 },
+@@ -123,8 +143,10 @@ def _stage_evidence(source_root: Path, bundle_dir: Path) -> None:
+ def _copy_evidence_candidates(
+     source_root: Path,
+     destination_root: Path,
++    *, candidates: list[Path] | None = None,
+ ) -> tuple[dict[str, dict[str, object]], int]:
+-    candidates = _evidence_candidates(source_root)
++    if candidates is None:
++        candidates = _evidence_candidates(source_root)
+     if len(candidates) > _MAX_EVIDENCE_FILES:
+         raise BundleValidationError("Evidence file count exceeds safety limit")
+     total_bytes = 0
+@@ -240,7 +262,7 @@ def verify_staged_evidence(bundle_dir: Path) -> dict[str, Any]:
+     if (
+         not isinstance(manifest, dict)
+         or manifest.get("manifest_version") != 1
+-        or manifest.get("source_role") != "completed_ablations_bundle"
++        or manifest.get("source_role") not in {"completed_ablations_bundle", "completed_native_evaluation"}
+         or not isinstance(files, dict)
+         or len(files) > _MAX_EVIDENCE_FILES
+         or isinstance(total_bytes, bool)
+diff --git a/src/posthoc_pipeline/pipeline.py b/src/posthoc_pipeline/pipeline.py
+index 3083e5c..7706c18 100644
+--- a/src/posthoc_pipeline/pipeline.py
++++ b/src/posthoc_pipeline/pipeline.py
+@@ -50,6 +50,13 @@ def run_posthoc_pipeline(
+         Path(cfg.paths.evidence_dir).expanduser().resolve() if cfg.paths.evidence_dir else None
+     )
+     output_dir = _resolve_output_dir(cfg)
++    if cfg.agent.name == "local-api":
++        if (stages != {0, 1, 4, 5, 6} or cfg.container.enabled
++            or cfg.execution.checkpoint_mode != "optional" or cfg.execution.retrain_if_checkpoint_missing
++            or not all((output_dir / "generation" / name).is_file()
++                       for name in ("posthoc_bundle.json", "posthoc_selection.json"))
++            or (output_dir / "_extracted_bundle").exists()):
++            raise ValueError("Native artifact-only reporting requires a fresh 0,1,4,5,6 run, prospective analysis/selection, optional checkpoints and no retraining")
+     output_dir.mkdir(parents=True, exist_ok=True)
+     generation_dir = output_dir / "generation"
+     generation_dir.mkdir(parents=True, exist_ok=True)

@@ -1,13 +1,15 @@
 # A Portable Harness for Reviewable Statistical Research with Coding Agents
 
-Working methods draft, 2026-10-15. Not submission-ready. Authors and affiliations
+Working methods draft, 2026-10-16. Not submission-ready. Authors and affiliations
 are not yet supplied. Comparative results, installation qualification and release rights
 remain unresolved; this draft does not claim an efficacy result.
 
 Backbone revision: the new integration builds on Sakana's Agentic Scientist,
 rather than claiming a new general scientist controller. The comparison must
 include matched unmodified v3 as well as the bare host. The current source/task/
-prompt integration and dry-run are not live efficacy or a completed release.
+prompt integration, development runs and mechanism tests are not a clean efficacy
+comparison or a completed release. The companion system's native API review and
+reporting extensions are not silently added to the portable-package intervention.
 
 ## Abstract
 

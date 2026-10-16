@@ -1,22 +1,23 @@
 # AI-Statistician: Scoped Collaboration for Statistical Research Through a Single Model API
 
-Working methods draft, 2026-10-15. Not submission-ready. Authors and affiliations
+Working methods draft, 2026-10-16. Not submission-ready. Authors and affiliations
 are not yet supplied. Official comparative experiments have not been activated;
 this draft makes no claim that collaboration improves scientific correctness.
 
 Backbone revision: the latest design adopts Sakana's Agentic Scientist as the
 outer controller. The legacy standalone implementation described below is a
-pre-migration baseline. The current CLI/prompt integration does not implement
-the promised single-API specialist path or requalify these four arms. Methods
-and results must be rewritten against that actual completed implementation before
-submission; no generic upstream orchestration is claimed as new.
+pre-migration baseline. Native API authoring, source review and artifact-only
+reporting now reuse upstream stages, as described in Section 2.5. These mechanisms
+do not complete the specialist migration or requalify the four scientific arms.
+Methods and results must follow the completed implementation before submission;
+generic upstream orchestration is not claimed as new.
 
 ## Abstract
 
 Statistical research joins theoretical reasoning, implementation and experimental
 assessment, which can fail even when each generated artifact appears plausible.
-We describe AI-Statistician, a system in which specialist research sessions share
-hash-bound artifacts through one typed research graph and one retained model/tool
+We specify AI-Statistician, a system in which specialist research sessions share
+hash-bound artifacts through one research controller and a common retained model/tool
 loop. The source-owning model receives raw execution or reviewer observations
 and authors every revision; the runtime supplies identity, execution and evidence
 boundaries rather than statistical answers or repair rules. Theory is maintained
@@ -87,7 +88,11 @@ Codex or Claude Code to conduct the research. Shared implementation and library
 artifacts are disclosed; the same experiment is not presented twice as independent
 evidence for these two questions.
 
-## 2. Pre-Migration Implementation
+## 2. Implementation and Migration
+
+Sections 2.1-2.4 describe the retained pre-migration implementation. Section 2.5
+identifies the mechanisms actually connected to the new backbone. Availability
+in the old system does not establish capability parity after migration.
 
 ### 2.1. One Graph and One Tool Loop
 
@@ -201,6 +206,47 @@ kernel checks do not establish complete textbook formalization. Upstream Statlib
 roadmaps and incompatible declarations are not active proof premises. Both papers
 will report library scope, mathematical attribution and unresolved source rights
 separately from new agent outcomes.
+
+### 2.5. Native API Participation in the New Backbone
+
+The new integration keeps Agentic Scientist's investigation controller, candidate
+history and downstream stages. It does not invoke the legacy research graph.
+At a source-authoring boundary, a participant calls the selected local model API
+and offers ordinary file listing, reading, searching, writing and exact editing.
+The host owns execution of the completed candidate. Its observations enter the
+existing attempt history, where the next source owner can inspect the failure
+and submit a new candidate. Within a session, tool observations are retained;
+between stages, file-backed history is not an uninterrupted model conversation.
+The explicit source-only policy is the current evaluated interface, not a claim
+that all scientific work should exclude exploratory execution.
+
+For a declared scientific-review requirement, a fresh context on the same model
+receives exact candidate source, the task, fixed criteria and permitted references.
+It writes Markdown findings and reports pass, fail or uncertainty without editing
+the candidate. Numerical evaluator files and author conversations are not part
+of its tool view. Source text may still contain outcome claims, and a shared model
+may repeat the author's error. This review is therefore an internal AI assessment,
+not mathematical certification or the common external endpoint. Missing or
+uncertain review remains unassessed rather than being converted into a rejection
+of the mathematical claim or a successful result.
+
+Reporting uses the existing posthoc stages after evaluation. A prospective task
+declaration identifies the result files available for interpretation. Extraction
+checks the consumed receipt and preserves exact source and result identities;
+the reporting context receives these outputs, permitted references and statistical
+guidance but not private review transcripts or the evaluator. The model writes
+the interpretation in Markdown/LaTeX. This artifact-only stage cannot execute a
+new calculation or simulation. Upstream output and self-rubric checks select
+structurally complete reports for downstream writing; they do not assess whether
+the scientific interpretation is correct. No consumed evaluation is repeated.
+
+Deterministic process tests establish these handoffs, failure observations and
+file permissions, including use of the actual upstream CLI and local API transport.
+They establish neither real-model research performance nor a collaboration effect.
+Native specialist Python/R and Lean/RAG use, report assessment, final manuscript
+production and the matched scientific comparison remain incomplete. The complete
+methods workflow, rather than an accumulation of passing module tests, is the
+unit that must be qualified before the proposed study.
 
 ## 3. Prospective Comparative Study
 

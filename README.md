@@ -5,7 +5,9 @@
 in `third_party/ai-scientist-v3`. The [statistical integration](integrations/agentic-scientist/README.md)
 provides source installation, task preparation, statistical prompts and a verified
 upstream dry-run. An explicit extension now exercises native direct-API ideation,
-source authoring and evaluator-feedback revision in deterministic process tests.
+source authoring, independent source-review feedback and artifact-only result
+reporting in deterministic process tests. Real-model scientific qualification
+and full manuscript production remain incomplete.
 It does not nest the old runtime inside that pipeline. Native
 final verification, the single-API specialist path and live statistical capability
 are not yet migrated or demonstrated. The outer coordinator described below is

@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-10-15. A new native two-publication goal is active. This file
+Updated: 2026-10-16. The native two-publication goal remains active. This file
 sets the next executable work, now using the user-selected Agentic Scientist
 backbone, not another parallel architecture programme or checklist.
 Historical observations remain in [the measured status](main_worker_status.json)
@@ -143,7 +143,11 @@ the full source-owner feedback/revision workflow. The larger-model
 route is documented in [local Qwen testing](local_qwen_testing.md#larger-consistent-deployment).
 Do not keep defaulting to the old 4B deployment or introduce a new host framework.
 Exact Qwen3.8-27B BF16 weights are verified; pinned vLLM installation 29685758
-completed. Single-B200 deployment probe 29687651 is queued, not yet a service.
+completed. Single-B200 deployment probe 29687651 failed during vLLM startup
+after CUDA succeeded; no owned-model inference occurred. Preserve this failure.
+An unchanged-runtime node-local staging condition addresses observed shared-file
+import latency; it is not a smaller model, a changed scientific result or a service
+claim. Its exact state is recorded in local Qwen testing.
 The probe reuses our actual API transport/retained loop, not a coding CLI or new
 controller. It tests native schema and raw tool feedback, not research capability.
 Use the same pinned deployment across future matched scientific arms.
@@ -161,6 +165,14 @@ evaluation outputs. Its dispositions cannot certify a theorem or empirical resul
 This is not the full S system: scientific qualification, specialist tools,
 interrupted-session continuation and final pipeline integration remain unfinished.
 Do not launch more isolated one-shot scientific examples to stand in for them.
+
+The next boundary now connects prospectively declared public result tables to
+upstream's artifact-only posthoc stages through the same API. Its HTTP fixtures
+exercise actual source/result reads, report writes and upstream publication,
+with zero repeat evaluations. Report content is model-authored; upstream file
+checks and self-rubrics do not assess scientific interpretation. Full manuscript
+and independent empirical/report assessment remain unfinished. Do not treat this
+as an accomplished methods study or new publication evidence.
 
 The explicit fixed-requirement extension resolves the reconstruction cold start
 without a reference answer or fabricated baseline. It keeps original criteria

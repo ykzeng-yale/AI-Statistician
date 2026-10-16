@@ -1,0 +1,19 @@
+{
+  "frozen_date": "2026-10-16",
+  "scope": "Fresh infrastructure deployment probe after a verified startup failure; not a scientific trial",
+  "prior_job": {
+    "id": "29687651", "state": "FAILED", "exit_code": "1:0", "elapsed_seconds": 2666,
+    "node": "a1117u29n01", "gpu": "B200", "inference_requests": 0,
+    "server_log_sha256": "161abe4977c7325988cc0b0988ee72a38aa672c04f0151c632bcea920f8f9379",
+    "observed_failure": "Shared-filesystem waits during runtime imports; vLLM banner at approximately 24 minutes, then engine/front-end handshake timeouts. CUDA initialization succeeded. No model-capacity conclusion."
+  },
+  "change": "Extract the exact installed runtime archive into task-owned node-local /tmp and invoke its Python module, avoiding shared-filesystem imports and absolute console-script shebangs. Keep compiled cache node-local. Remove only this job's mktemp directory at exit.",
+  "archive_job": {"id": "29719771", "state": "COMPLETED", "exit_code": "0:0", "elapsed_seconds": 522, "gpus": 0},
+  "archive_sha256": "d322861877b4504d931ea7ec4a3175c1108437e85f65189783dd61712e8309a3",
+  "probe_script_sha256": "6fad301da0a8d90efe687c6e80f033cf2a8ea236347f318d1d5348e7486d32b6",
+  "unchanged_condition": "qwen27b_probe_precall.json: exact Qwen3.8-27B BF16 weights/revision, 262144 context, concurrency 1, parsers, template, sampling, 199-package vLLM 0.31.0 runtime, product 3301dff9, schema/tool requests and all timeouts. No scientific candidate or consumed result is rerun.",
+  "resources": {"account": "pi_fl426", "partition": "gpu_devel", "qos": "normal", "nodes": 1, "gpu_type": "b200", "gpus": 1, "cpus": 8, "host_memory_gib": 128, "wall_seconds": 3600},
+  "routing": "Both authorized accounts gave the same gpu_devel estimate, 2026-10-16T03:44:39, versus 04:16:23 on gpu_b200. Keep pi_fl426 and submit one standard gpu_devel job. Estimates are not allocations.",
+  "status_at_freeze": "Runtime archive complete and hashed; fresh GPU probe not yet submitted. No task-owned model service or scientific inference is claimed.",
+  "stop_policy": "One justified retry, no automatic retry or model/context/precision substitution. Preserve outputs and terminate the owned server at completion or failure."
+}

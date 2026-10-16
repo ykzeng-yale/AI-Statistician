@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-15",
+  "kind": "pre-inference scheduler amendment, not a new scientific condition",
+  "original_preparation": "qwen27b_probe_precall.json",
+  "existing_job_id": "29687651",
+  "observed_before_change": "PENDING, no allocated node, zero run time, no model inference. Normal gpu_b200 reported unavailable/reserved nodes.",
+  "decision": "Move the existing pending job from gpu_b200 to standard gpu_devel, retaining pi_fl426 and normal QOS. Do not submit a duplicate or cancel unrelated jobs.",
+  "eligibility": "gpu_devel contains a B200 node and allows both authorized accounts. Test-only checks under pi_fl426 and pi_gt353 both estimated 2026-10-15T20:14:31. Normal H200 checks estimated 2026-10-16T03:25:23; a fresh normal B200 check estimated 2026-10-16T01:28:06. These are estimates, not reservations. Slurm reported ordinary partition preemption; no manual preemption or paid priority is requested.",
+  "unchanged": "One B200, eight CPUs, 128 GiB, one hour, same exact Qwen3.8-27B BF16 weights, native 262144 context, single concurrency, vLLM 0.31.0, sampling/template, product commit 3301dff9 and probe scripts. No retry of a consumed invocation, model fallback or source edit.",
+  "verification": "Inspect the same job ID after scontrol update. Successful update is not allocation or inference evidence. Preserve the original preparation and record the terminal job and transport outputs separately."
+}

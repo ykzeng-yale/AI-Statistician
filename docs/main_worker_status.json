@@ -1,10 +1,10 @@
 {
-  "schema_version": 527,
-  "updated_at": "2026-10-15",
+  "schema_version": 528,
+  "updated_at": "2026-10-16",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The native two-publication goal is active. Use Sakana Agentic Scientist v3 as the sole new outer backbone while preserving validated statistical workspaces and intent-selected Lean. Following the October 15 clarification, deliver complete reviewable theory, algorithm and simulation; no mandatory small-simulation stage. Default scientific execution is evaluator-owned, with additional diagnostics only when the public task permits them. Actual findings may require source-owner revision; completeness does not imply one-shot generation. Use authorized SSH/Bouchet capacity for demonstrated compute needs. H requires matched host/v3 comparisons; S still requires the actual single-local-model-API system. Keep the sole 40-item checklist and immutable outcomes.",
-  "execution_status": "Native campaigns attach fresh source-bound AI review through the same pinned API and file/session loop. Only the Markdown report is writable; no author conversation or numerical evaluator outputs are granted. Review failure returns to a new author candidate; missing/uncertain review stays unassessed. Full regression passes without model calls. Scientific reliability, specialists and final pipeline remain unfinished. Qwen3.8-27B/vLLM are prepared; B200 probe 29687651 remains pending. Consumed science and all 40 checklist states are unchanged.",
+  "execution_status": "Native artifact-only reporting now connects declared result files to the existing upstream posthoc stages and API file loop. Focused HTTP tests pass; full regression is running. This is not scientific interpretation acceptance or full Paper S. B200 probe 29687651 failed during vLLM startup, without inference; unchanged-runtime node-local retry 29720252 is pending after CPU staging completed. Consumed science and all 40 checklist states are unchanged.",
   "latest_bouchet_module_observation": {
     "record": "benchmarks/agentic_scientist_hc0_bouchet_20261015/short_tmp_analysis.md",
     "frozen_commit": "d84ade4a",
@@ -38,7 +38,7 @@
   "current_goal_document": "docs/current_execution_goal.md",
   "operating_principle": "Model-owned long-horizon research in retained file/tool workspaces, backed by task-intent evidence and independent authority. Restore complete product scope without mandatory Lean, benchmark-answer patches, repetitive task substitution or another framework.",
   "model_policy": {
-    "tests_and_live_evaluations": "Open-weight Qwen on authorized Macs/Bouchet; larger models and long runs authorized, 4B not a ceiling. Freeze conditions across arms. Managed Pi returns Qwen3.8-Flash-Next but lacks backend/weight/sampling pins. Exact Qwen3.8-27B revision 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 verified, vLLM 0.31.0 installed; B200 probe 29687651 pending, no owned-model inference. No Anthropic scientific tests, Opus or cloud/model fallback. Yale's Claude denotes a host, not Anthropic inference. See local_qwen_testing.md.",
+    "tests_and_live_evaluations": "Open-weight Qwen on authorized Macs/Bouchet; larger models and long runs authorized, 4B not a ceiling. Freeze conditions across arms. Managed Flash-Next lacks weight/runtime/sampling pins. Exact Qwen3.8-27B BF16 and vLLM 0.31.0 are installed. CUDA passed but probe 29687651 timed out during startup; node-local runtime retry 29720252 is pending, no owned-model inference yet. No Anthropic, Opus or cloud/model fallback. See local_qwen_testing.md.",
     "legacy_evaluation_boundary": "Existing Haiku protocols, qualifications and consumed judgments remain archived and unchanged. Exclude them from official publication results and baselines; their gates do not govern the new studies. Independently qualify new open-weight authority before scientific evaluation; never requalify a consumed preparation.",
     "production_allowed_tiers": [
       "haiku",
@@ -75,7 +75,7 @@
     "direct_main_delivery": true,
     "pull_request_required": false,
     "remote_before_current_change": "e8a82cc8",
-    "working_tree_before_current_change": "Started clean at e8a82cc8. Add source-bound AI review at the existing upstream evaluation boundary, reusing the direct API file/session loop. Canonical upstream/Lean submodules, consumed science and legacy workspaces remain unchanged. Existing package/runtime/CLI size limits are unchanged. Direct atomic main/canonical delivery after review and verification; no PR or force."
+    "working_tree_before_current_change": "Started at ae525362. Add artifact-only native posthoc through existing upstream stages; preserve canonical upstream/Lean pins, legacy workspaces and consumed outcomes. The deployment retry changes runtime storage only after verified startup failure. Direct atomic main/canonical delivery after full verification; no PR or force."
   },
   "latest_scientific_workflow_observation": {
     "record": "benchmarks/publication_development/bizicount_integrated_20261015/observed_results.json",
