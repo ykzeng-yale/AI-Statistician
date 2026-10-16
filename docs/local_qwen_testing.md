@@ -135,9 +135,10 @@ not Apache-2.0. This academic preparation does not resolve downstream redistribu
 or commercial rights. Serving fit and scientific assessment remain unestablished.
 All 144 files now match pinned identities; receipt SHA-256
 is `383ebbfc1af8275e945a4a44403f13c9701bb14436e12ff310ef03250acc669f`.
-Native-review job **29735341** is pending with four B200s, 1 TiB host memory and
-48 hours, using the prospectively frozen source-review panel. Submission is not
-allocation, model availability or scientific qualification. The CPU stage's
+Native-review job **29735341** allocated four B200s and 1 TiB host memory under
+its 48-hour envelope, using the prospectively frozen source-review panel. At the
+allocation observation it was preparing inputs/runtime, with no panel requests.
+Allocation is not model availability or scientific qualification. The CPU stage's
 shared-storage overlap is disclosed rather than assumed irrelevant to timing.
 
 The prospective first task-owned model is `Qwen/Qwen3.8-27B`, revision

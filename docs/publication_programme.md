@@ -19,7 +19,7 @@ compliance with uncertain AI theory review; statistical exhausted 96 author tool
 turns before submission or evaluation. Its unsubmitted files are preserved in the
 [terminal record](../benchmarks/agentic_scientist_native_hc0_long_20261016/statistical_terminal_observation.json).
 The separately frozen [Flash-Next native-review job](../benchmarks/publication_assessment_flashnext_20261016/submission.json)
-is pending after successful weight staging, not a completed assessor or study.
+has allocated compute after successful weight staging, not completed an assessor or study.
 No checklist state changes.
 
 The latest user instruction selects [Agentic Scientist as the main backbone](../integrations/agentic-scientist/README.md).

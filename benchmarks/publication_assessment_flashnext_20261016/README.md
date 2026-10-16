@@ -46,5 +46,6 @@ candidate-mode positive is added because this native workspace has no such mode.
 [Weight staging completed](weight_staging_observation.json) with all 144 file
 identities verified. The frozen [assessment job 29735341](submission.json) is
 submitted under `pi_fl426`, with four B200s, 32 CPUs, 1 TiB host memory and
-48 hours, after successful staging. It is pending allocation; there is no
-observed serving fit, completed panel or scientific qualification yet.
+48 hours, after successful staging. It has now [allocated those resources](allocation_observation.json).
+The last observation was pre-serving preparation; no serving fit, completed
+panel or scientific qualification is established by that allocation.

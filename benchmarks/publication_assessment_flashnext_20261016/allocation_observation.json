@@ -1,0 +1,18 @@
+{
+  "observed_at": "2026-10-16T12:29:29Z",
+  "job_id": "29735341",
+  "state": "RUNNING",
+  "started_at": "2026-10-16T08:15:10-04:00",
+  "elapsed_at_observation": "00:14:19",
+  "node": "a1116u17n01",
+  "actual_allocation": "cpu=32,gres/gpu:b200=4,gres/gpu=4,mem=1T,node=1",
+  "stage_observation": {
+    "deployment_directories": 0,
+    "panel_directory_exists": false,
+    "panel_wire_requests": 0,
+    "panel_wire_responses": 0,
+    "completed_case_records": 0,
+    "interpretation": "Pre-serving input/runtime preparation at this observation; no model startup, transport success or scientific panel result is established. Do not restart because preparation is quiet."
+  },
+  "boundary": "Allocation is not serving fit or mathematical qualification. The job retains its frozen source, model, resources and five-case panel; no active input or consumed outcome is modified."
+}

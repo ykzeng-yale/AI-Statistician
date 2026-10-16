@@ -166,8 +166,9 @@ weights or the single-API publication system.
 CPU-only [weight staging](../benchmarks/publication_assessment_flashnext_20261016/weight_staging_observation.json)
 29733204 completed: all 144 files match their pinned identities. The frozen
 native source-review [job 29735341](../benchmarks/publication_assessment_flashnext_20261016/submission.json)
-is submitted and pending GPU allocation, with four B200s, 1 TiB host memory and
-48 hours. Serving fit, the panel and argument examination remain unobserved.
+has [allocated four B200s and 1 TiB host memory](../benchmarks/publication_assessment_flashnext_20261016/allocation_observation.json)
+under its 48-hour envelope. Last observed stage was pre-serving preparation;
+serving fit, panel completion and argument examination remain unestablished.
 
 **Qualify scientific references and assessment in parallel with development.**
 The [new fixed-model native review panel](../benchmarks/publication_assessment_flashnext_20261016/assessment_protocol.md)
