@@ -143,6 +143,15 @@ in the terminal observation and linked CSV. No discrepancy is normalized away,
 assigned an inferred cause or converted into a passing reference. The prior
 Benzarti-Carloni comparison and first failed condition remain unchanged.
 
+The inspected original `Readme.Rmd` fixes HonestDiD at `v1.0.0` but installs
+other dependencies without version locks. The unchanged Lovenheim-Willen source
+uses `lfe::felm`, its clustered covariance and default finite-sample conventions;
+the original `lfe` version has not been recovered. The selected modern environment
+therefore does not establish literal historical numerical replication. This is
+an identified source-reproducibility gap, not an established explanation for the
+observed covariance discrepancy. Do not rescale results or tune a tolerance to
+force agreement; qualify the declared adapted reference separately.
+
 The Benzarti-Carloni analysis begins from supplied coefficient/covariance data;
 the underlying microdata are confidential. The Lovenheim-Willen analysis uses
 supplied male/female estimation samples. These are the original method paper's

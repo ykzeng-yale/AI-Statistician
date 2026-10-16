@@ -1,0 +1,19 @@
+{
+  "declared_at": "2026-10-16",
+  "scope": "New fixed-model weight preparation only; no serving, model calls, assessor qualification or official H/S activation",
+  "model": {"repo": "Qwen/Qwen3.8-Flash-Next", "revision": "de4b8e4d43b917e7706784d8bb445c9af86a3540", "precision": "BF16", "weight_files": 131, "weight_bytes": 360000192888, "all_repository_files": 144, "gated": false},
+  "sources": {
+    "metadata": {"path": "runs/bouchet_flashnext_20261016/model_metadata.json", "sha256": "13a90f6485bb6aa30dda00b22b0ad9cb045d1a55150e538a05b8df9739644d5b", "url": "https://huggingface.co/api/models/Qwen/Qwen3.8-Flash-Next/revision/de4b8e4d43b917e7706784d8bb445c9af86a3540?blobs=true"},
+    "license": {"name": "Qwen Community License 1.0", "path": "runs/bouchet_flashnext_20261016/LICENSE", "sha256": "a0dc422560841fd68e06d974907f8b4c709bca44a67daad2b528437bdf676c08", "scope": "Non-Apache model license with notice and commercial-use conditions; no model redistribution or general release-rights claim"},
+    "stager": {"path": "stage_weights.sh", "sha256": "e51235e05e73dc91b09a7c16f0dc43501fe25ea812c83c0415d5dd1b27bbcc8f", "reuse": "Existing serial downloader and size/LFS verification from prepare_qwen27b.sh; existing Hugging Face client environment, no new installer or controller"}
+  },
+  "remote_root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-Qwen38-FlashNext-20261016",
+  "download_environment": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-Qwen38-27B-20261015/download-env",
+  "client": "huggingface_hub==1.31.0; version checked before download; complete actual environment recorded in the allocated job",
+  "allocation": {"account": "pi_gt353", "partition": "day", "qos": "normal", "cpus": 1, "memory_gib": 40, "wall_seconds": 7200, "gpus": 0, "requeue": false},
+  "storage": {"expected_envelope_gib": 450, "enforcement": "Estimate/monitoring, not a new software quota", "quota_observation": "getquota data as of October 15: pi_fl426 project 1885/4096 GiB versus pi_gt353 3861/4096 GiB. Current project df reports 2.2T available. Use the owner's pi_fl426 storage; do not copy unrelated group material."},
+  "routing": "Fresh identical CPU/40GiB/two-hour test-only estimates: pi_gt353 2026-10-16T20:02:46 versus pi_fl426 20:11:45. Select pi_gt353; estimates are not allocation or guaranteed start. No racing duplicate jobs.",
+  "verification": "Require every one of 144 source files to match metadata sizes, all LFS hashes to match SHA-256 and a newly created verified-model-files.json. A partial or failed stage is not a verified model or a scientific verdict.",
+  "inference": "Not submitted by this plan. Prospective four-B200 BF16 serving is an estimate; verify actual runtime, memory/context and tool behavior and freeze a separate assessment design before calls. No cloud or smaller-precision fallback.",
+  "preservation": "Do not alter or restart the consumed 4B assessment or current 27B research arms. The running statistical arm remains unchanged. No experiment result or publication checklist credit follows from preparation."
+}
