@@ -46,7 +46,26 @@ ranking, scientific performance result or claim that Yale already hosts every ro
 | [Qwen3.8-Flash-Next](https://huggingface.co/Qwen/Qwen3.8-Flash-Next) | Actual returned model in the new Pi authoring condition, not only a launcher alias. Shared weights/configuration remain unpinned. |
 | [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Task-owned, exact BF16 deployment passed native schema and retained tool/error feedback in job 29722100. One B200, native configured context 262144; long-context quality and statistical capability are not yet established. |
 | [Qwen3-Coder-Next](https://huggingface.co/Qwen/Qwen3-Coder-Next) | Public 80B-total/3B-active coding model; useful coding-agent comparator. Non-thinking-only, so not presumed superior for mathematical theory. Not installed or called here. |
+| [Qwen3.5-122B-A10B](https://huggingface.co/Qwen/Qwen3.5-122B-A10B) | Larger open-weight reasoning/tool-use candidate, not an observed Yale service or a demonstrated improvement over the newer 27B. BF16 weights alone are approximately 244 GB; two B200s are a feasibility estimate, not measured context/runtime fit. Not staged or called. |
+| [Qwen3.5-397B-A17B](https://huggingface.co/Qwen/Qwen3.5-397B-A17B) | Larger comparison candidate. The official card supplies eight-GPU serving/tool-use commands; BF16 weights alone are approximately 794 GB. An eight-H200/B200 allocation is a deployment candidate, not an allocated service or statistical result. Not staged or called. |
 | [DeepSeek-V4-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) | Public 284B-total/13B-active model; possible later cross-family comparison, not an observed Yale service or selected Qwen-only study condition. No deployment or calls. |
+
+The October 16 recheck also confirms official open weights for
+[Qwen3.8-2.4T-A95B](https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B), with a
+model-specific license, not Apache-2.0. BF16 weights alone would require about
+4.8 TB, exceeding one Bouchet eight-GPU node before cache/runtime overhead.
+It is not the immediate deployment choice. Flash-Next's official card instead
+lists 125B parameters/6B active plus 51B n-gram embeddings and 4B MTP; active
+parameter count is not resident-weight memory. A pinned self-hosted Flash-Next is
+also a possible larger-model condition, but cannot be assumed identical to Yale's
+managed revision. No additional model is downloaded or substituted during the
+current paired condition. Model capacity comparisons require complete matched
+tasks, not parameter-count rankings or a succession of toy tests.
+
+The [current Bouchet inventory](https://docs.ycrc.yale.edu/clusters/bouchet/)
+includes B200 nodes with eight 193-GB GPUs as well as H200 nodes with eight
+141-GB GPUs. This is schedulable inventory, not free/allocated capacity; actual
+permissions, queue estimates and fit must be checked for the selected condition.
 
 For Paper H, use the same actual managed host/model condition for bare and
 statistical-skill arms, recording effective access and any service changes.
@@ -244,6 +263,11 @@ The [first live prefix](../benchmarks/agentic_scientist_native_hc0_long_20261016
 now confirms the configured 1M endpoint started on B200 and preserves fourteen
 native assistant-state blocks across returned ideation turns. No completed idea
 or scientific study exists in that prefix; startup is not long-context quality.
+The [subsequent stage observation](../benchmarks/agentic_scientist_native_hc0_long_20261016/authoring_observation.json)
+records stock ideation completing in 6m07s and the same fixed model entering
+source authoring. The authoring prefix is still in flight; no evaluation,
+mathematical acceptance or completed study is established. Both original prefix
+snapshots and the pending statistical arm remain unchanged.
 
 ## Latest Managed-Host Observation
 

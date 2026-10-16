@@ -1,10 +1,10 @@
 {
-  "schema_version": 533,
+  "schema_version": 534,
   "updated_at": "2026-10-16",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The native two-publication goal is active. Use Sakana Agentic Scientist v3 as the sole new outer backbone while preserving validated statistical workspaces and intent-selected Lean. Following the October 15 clarification, deliver complete reviewable theory, algorithm and simulation; no mandatory small-simulation stage. Default scientific execution is evaluator-owned, with additional diagnostics only when the public task permits them. Actual findings may require source-owner revision; completeness does not imply one-shot generation. Use authorized SSH/Bouchet capacity for demonstrated compute needs. H requires matched host/v3 comparisons; S still requires the actual single-local-model-API system. Keep the sole 40-item checklist and immutable outcomes.",
-  "execution_status": "Long-workflow stock 29726507 is RUNNING: fixed 27B BF16/1M YaRN service started; live ideation prefix has 14 returned turns and 14 persisted native-state blocks, no scientific source/study. Statistical 29726508 waits for stock. Prior 29722963 failure unchanged. Original-method source/environment qualification advances separately, not new product rules or official H/S results. All 40 checklist states unchanged.",
+  "execution_status": "Long-workflow stock 29726507 is RUNNING: ideation completed in 6m07s; source authoring is in flight on fixed 27B BF16/1M YaRN. No accepted source, evaluation or study yet. Statistical 29726508 waits. Additive authoring_observation.json preserves the later prefix; prior outcomes unchanged. Larger Qwen remains authorized, not a mid-run fallback. Original-method qualification proceeds separately. All 40 checklist states unchanged.",
   "latest_native_api_condition": {
     "record": "benchmarks/agentic_scientist_native_hc0_long_20261016/submission.json",
     "code_commit": "dfdb4b47c86a2173fa90f02521599545fe891b24",
@@ -45,7 +45,7 @@
   "current_goal_document": "docs/current_execution_goal.md",
   "operating_principle": "Model-owned long-horizon research in retained file/tool workspaces, backed by task-intent evidence and independent authority. Restore complete product scope without mandatory Lean, benchmark-answer patches, repetitive task substitution or another framework.",
   "model_policy": {
-    "tests_and_live_evaluations": "Pinned open-weight Qwen on authorized Macs/Bouchet; 4B is not a ceiling. Qwen3.8-27B BF16/vLLM 0.31.0 is available but no service remains after terminal 29722963. Future conditions must verify retained native reasoning and adequate context/output/stage timing; no silent resource/model change. No Anthropic, Opus or cloud fallback. See local_qwen_testing.md.",
+    "tests_and_live_evaluations": "Pinned open-weight Qwen on authorized Macs/Bouchet; neither 4B nor 27B is a ceiling. Fixed Qwen3.8-27B BF16/vLLM 0.31.0 is RUNNING in fresh 29726507, separately from terminal 29722963. Match weights/runtime, retained native state, sampling and resources across arms; larger-model conditions must be frozen before new calls. No Anthropic, Opus or cloud fallback. See local_qwen_testing.md.",
     "legacy_evaluation_boundary": "Existing Haiku protocols, qualifications and consumed judgments remain archived and unchanged. Exclude them from official publication results and baselines; their gates do not govern the new studies. Independently qualify new open-weight authority before scientific evaluation; never requalify a consumed preparation.",
     "production_allowed_tiers": [
       "haiku",

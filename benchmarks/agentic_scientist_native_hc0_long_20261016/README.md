@@ -48,5 +48,9 @@ stock); both were pending at submission. See [submission.json](submission.json).
 The [first live prefix](runtime_observation.json) verifies the derived-context
 service startup and fourteen returned tool/native-state turns in stock ideation.
 It is not terminal research evidence; statistical still waits for stock.
+The [later stage observation](authoring_observation.json) records stock ideation
+completing in 6m07s and source authoring starting under the same frozen model.
+Authoring remains in flight, with no accepted source, evaluation or full-study
+result. This supplements rather than replaces the first prefix.
 No official H/S experiment or publication-checklist item is completed by this
 condition. Source-bound AI review remains fallible feedback, not proof.

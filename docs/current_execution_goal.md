@@ -136,6 +136,10 @@ outcome or long-context quality result exists at submission.
 The [live stock prefix](../benchmarks/agentic_scientist_native_hc0_long_20261016/runtime_observation.json)
 now verifies service startup and fourteen returned native-state/tool turns in
 ideation; it is not a completed scientific workflow. Statistical still waits.
+The [later observation](../benchmarks/agentic_scientist_native_hc0_long_20261016/authoring_observation.json)
+records completed ideation and in-flight source authoring under the unchanged
+deployment. Larger Qwen conditions remain authorized, not automatic mid-run
+fallbacks; finish this matched condition without narrowing its scientific scope.
 
 **Unblocked publication work while queued:** the
 [HonestDiD reference preparation](../benchmarks/publication_reference_qualification_20261016/README.md)

@@ -1,0 +1,36 @@
+{
+  "observed_at": "2026-10-16T09:03:58Z",
+  "scope": "Additive live-stage observation, not terminal research or official H/S evidence",
+  "stock": {
+    "job_id": "29726507",
+    "state": "RUNNING",
+    "model": "Qwen3.8-27B-yarn1m-pinned",
+    "ideation": {
+      "state": "completed",
+      "session_status": "HANDED_OFF",
+      "completed_at": "2026-10-16T08:56:43.173Z",
+      "elapsed": "6m 7s",
+      "model_turns": 20,
+      "tool_calls": 20,
+      "persisted_native_state_blocks": 20,
+      "provider_usage": {"input_tokens": 417888, "output_tokens": 27577, "total_tokens": 445465}
+    },
+    "authoring_prefix": {
+      "started_at": "2026-10-16T08:56:46.851Z",
+      "idea_id": "cycle01_ols_hc0_unadjusted_inference",
+      "status": "INCOMPLETE",
+      "phase": "model_in_flight",
+      "model_turns": 11,
+      "tool_calls": 11,
+      "persisted_native_state_blocks": 11,
+      "provider_usage": {"input_tokens": 142474, "output_tokens": 3529, "total_tokens": 146003}
+    }
+  },
+  "statistical": {"job_id": "29726508", "state": "PENDING", "dependency": "afterany:29726507"},
+  "snapshots": {
+    "events": {"path": "runs/agentic_native_long_20261016/stock_events_authoring_20261016.jsonl", "sha256": "98bf5fdf8b019712041f7758156d16e8e94db958ac8c17698609b73d20be6307"},
+    "ideation_terminal": {"path": "runs/agentic_native_long_20261016/stock_ideation_terminal_20261016.json", "sha256": "47876d3088bd9a409e3da5c1ad808bc5f557c46fa9cad78c6bb76d7e881e41d8"},
+    "authoring_prefix": {"path": "runs/agentic_native_long_20261016/stock_authoring_prefix_20261016.json", "sha256": "a30d2c6d8c89b1ae2cf2d41ccc3e101d907908df5e3b351e99ca34dad4f3d4cd"}
+  },
+  "interpretation": "Real stage progression beyond ideation, not a capacity ranking, isolated intervention effect, accepted scientific source, simulation, proof or end-to-end completion. Counts are returned-prefix observations; in-flight usage is unknown. Opaque private state is not published. Earlier records remain unchanged; no operator source patch, model replacement, repeat evaluation or checklist credit."
+}
