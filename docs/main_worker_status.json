@@ -1,10 +1,10 @@
 {
-  "schema_version": 537,
+  "schema_version": 538,
   "updated_at": "2026-10-16",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The native two-publication goal is active. Use Sakana Agentic Scientist v3 as the sole new outer backbone while preserving validated statistical workspaces and intent-selected Lean. Following the October 15 clarification, deliver complete reviewable theory, algorithm and simulation; no mandatory small-simulation stage. Default scientific execution is evaluator-owned, with additional diagnostics only when the public task permits them. Actual findings may require source-owner revision; completeness does not imply one-shot generation. Use authorized SSH/Bouchet capacity for demonstrated compute needs. H requires matched host/v3 comparisons; S still requires the actual single-local-model-API system. Keep the sole 40-item checklist and immutable outcomes.",
-  "execution_status": "Statistical 29726508 is RUNNING unchanged. Stock 29726507 ended incomplete: third candidate passed 60000 comparisons but theory review was UNCERTAIN; no report or accepted task. New CPU-only Flash-Next staging 29733204 is RUNNING, without inference. Reference 29729363 completed but numerical discrepancies and unpinned original lfe remain unresolved. Same-session tools have mechanism evidence only. All 40 checklist states unchanged.",
+  "execution_status": "Native model-selected source tools pass retained-session and actual upstream pipeline tests, not live scientific qualification. Statistical 29726508 and CPU-only Flash-Next staging 29733204 remain RUNNING unchanged; no Flash-Next inference. Stock ended incomplete with theory UNCERTAIN despite candidate-three numerical compliance. Reference discrepancies remain unresolved. No accepted research task or official H/S study; all 40 checklist states unchanged.",
   "latest_native_api_condition": {
     "record": "benchmarks/agentic_scientist_native_hc0_long_20261016/submission.json",
     "code_commit": "dfdb4b47c86a2173fa90f02521599545fe891b24",
@@ -34,9 +34,9 @@
     "source_location": "third_party/ai-scientist-v3",
     "integration": "integrations/agentic-scientist/README.md",
     "paper_review": "docs/ai_scientist_v3_evidence_review_20261015.md",
-    "actual_scope": "Pinned native investigation/posthoc and retained official-evaluation/clone tools pass process tests. Stock 29726507 is terminal under the older source-only condition: its third candidate is numerically compliant but AI theory review uncertain. No accepted task/report. Statistical remains pending unchanged. Specialist migration, independent scientific qualification, full manuscripts and official H/S effects remain incomplete.",
+    "actual_scope": "Pinned native investigation/posthoc, retained evaluation/clone and optional model-selected public sources pass process tests. Author stages share durable public observations; reviewers have separate contexts/stores; posthoc has no live search. Frozen stock remains incomplete; statistical is running unchanged. No live qualification of the new tools, full specialist migration, accepted research task or official H/S effect.",
     "preservation": "Latest user clarification: retain the validated statistical specialization, not only generic upstream co-scientist behavior. The integration reuse map binds existing theory/file/session tools, source qualification, Python/R workspaces, outcome-blind confirmation, independent reviewers, Statlib/RAG/Lean and local-Qwen/evaluator assets to the new boundaries. Existing scientific source and Lean proofs are unchanged. Skill staging is integrated; other new-boundary uses still require actual verification, not assumed parity. The optional OCI project tool is not a migration prerequisite.",
-    "verification": "Full default suite: 2642 passed, 90 skipped, 1 existing xfail in 895.43 seconds; runs/agentic_native_iteration_20261016/verified_regression.xml SHA-256 7c9b1fc70dcaf82dc8498b4d8dcb4bc6beb54ababc6c7d41c7b2b50aefeae515. Final runtime-focused suite: 58 passed in 26.26 seconds, final_runtime_focused.xml SHA-256 8e536dc4d5adccd8d9e93ede7e6cce5ba08cbac99d78a2838030ede527f2ec5c. Exact final patch applies in 4 actual upstream process cases, 12.05 seconds, final_patch_application.xml SHA-256 774c44064eba57e576253a4abe047374d189213d38282a9ae96e38395cb09a9b. Upstream's own clone/evaluation tests: 34 passed, upstream_final_regression.xml SHA-256 1a8ee1943ada6b3afab1eb637923bb84608a26d5f476d9835de0e3e97838312f. Initial interrupted size-budget failure and earlier environment/entrypoint checks remain in run records. The package ceiling increases 100 lines for the 135-line tool participant; legacy graph/CLI budgets stay unchanged. No model or consumed scientific evaluation rerun by these tests.",
+    "verification": "Full default suite: 2633 passed, 100 skipped, 1 existing xfail, 851.70s; runs/agentic_native_iteration_20261016/public_sources_regression.xml SHA-256 69797b8fe4b43e95ab596aecc80495f064c8ad1d7836d0fe0cba0589230684d0. Ten additional skips versus the prior full run are Bash-version requirements, all covered separately with Bash 5: retained/file/review/core plus actual campaign/pipeline, 59 passed in 24.80s, public_sources_focused.xml SHA-256 6d814806240759423187023954012d50733596d3f8f61aa865fe40e621c8a0ec; actual native runner, 2 passed in 2.34s, public_sources_runner.xml SHA-256 e6d3c06ee08122e1f4268b02c0dc9d0c7831259df6470c740fabf536110e7eda. Compileall and diff checks pass. No new package budget, scheduler, model calls or consumed scientific reevaluation. Earlier iteration/patch/upstream reports remain unchanged in the same run directory.",
     "remaining": "Native drafting/final verification boundary, scientific full-study evaluator, per-request model-setting capture, live single-API specialist/R/Lean collaboration, full claim/evidence joins, statistical venue and fresh matched comparisons. The new exact-source AI review mechanism needs scientific qualification; same-model agreement and hashes are not proof or independent empirical confirmation. Missing review is not mathematical rejection. Native project execution is verified, not scientific acceptance or standalone-system completion. Prior incomplete Qwen assessment remains unchanged and unqualified."
   },
   "historical_evidence_scope": "Haiku capability_facts and latest_independent_qualification below are archived development facts only, not official publication results, model baselines or gates on the new studies. Do not continue following their scores or resume consumed draws. Keep useful regression mechanisms and source-faithful, independently verified mathematical artifacts without attributing them to autonomous research success.",
@@ -65,7 +65,7 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "ad6ae4b0ea4eb16b5fee21cdd9fc28d430c3f563",
+  "validated_code_head": "2e7e69fc6cf618ae55bcf900e18243b6f5b18307",
   "open_weight_system_development": {
     "study_id": "fixed_k_l2_20261002",
     "record": "benchmarks/publication_development/fixed_k_l2_20261002/observed_results.json",
@@ -303,7 +303,7 @@
     "scientific_code_workspace_lines": 3615,
     "research_architect_lines": 3742,
     "client_tool_loop_lines": 1630,
-    "agentic_api_workspace_lines": 260,
+    "agentic_api_workspace_lines": 279,
     "research_control_lines": 740,
     "agent_runtime_lines": 1459,
     "formalizer_llm_lines": 1841,
@@ -313,11 +313,11 @@
     "codex_adoption_lines": 246
   },
   "latest_validated_change": {
-    "code_commit": "c30c2f322f1dbd92ce869c48ffe7782eb06a94a9",
+    "code_commit": "2e7e69fc6cf618ae55bcf900e18243b6f5b18307",
     "lean_commit": "db6c7718349f3c14a7e37905f3529675f1ebaa52",
-    "summary": "Local native reasoning/reasoning_content are preserved as opaque assistant continuation, through session storage and the next native request. No thinking markup, mathematical rule or new agent is parsed. Existing ideation ownership moves from user preamble to system instructions, without wider file grants or changing upstream scientific content. Both consumed 27B failures remain unchanged.",
-    "verification": "Full latest source: 2632 passed, 90 skipped, 1 existing xfail in 857.45s; runs/agentic_prompt_contract_20261016/verified_regression.xml SHA-256 6ad84b191285e561e2e037b8a7a9bd790fc3d724abab85d5d3681759c7f2ffb0. State/loop/workspace/core: 157 passed, 1 opt-in skip in 1.02s; state_focused.xml SHA-256 5300e270df9056668a414a60155d97eaf3368e025e7509116fe61bbc6e4cb65d. Actual upstream HTTP campaign/posthoc: 23 passed in 16.46s; native_join.xml SHA-256 37f7290bfdb238d1301d1e87a886ca0eb864d3458673f078b441772ab293c281. Initial prompt-only full run was deliberately interrupted for the newly identified transport fix: 1236 passed/66 skipped/1 xfail, 532.76s; full_regression.xml preserved, not counted complete. Compileall/diff pass. No model/scientific calls in tests; prior upstream macOS failure remains unchanged.",
-    "capability_effect": "Terminal 29722963 is an exposed development failure, not a theorem/method verdict; see native HC0 observed_results.json and analysis.md. Native state retention is not yet live-qualified in a fresh condition. No completed scientific workflow, authority, specialists, full manuscript or official H/S study. No checklist credit."
+    "summary": "The native file, iterative-program and independent-review participants reuse existing public discovery/read/pinned-repository tools through an optional frozen public_source_horizon. No new controller or source-content repair. Author stages share public observations; each reviewer starts separate storage and context outside candidate trees. Posthoc remains artifact-only. Omitted configuration keeps source permissions unchanged; active and consumed 27B conditions are untouched.",
+    "verification": "See agentic_scientist_adoption.verification for exact full/default and Bash-5 process reports and hashes. The new opaque fixture exercises retained raw source observations, persistent reads, reviewer isolation and a real upstream investigation/posthoc pipeline. No external model or scientific evaluation is called.",
+    "capability_effect": "Mechanism evidence only, not live literature-informed research, arbitrary PDF ingest, binary import, executed replication, proof or completed Paper S. Source-permitted access is not historical blinding. Full scientific qualification, specialist collaboration, manuscripts and official H/S comparisons remain unfinished; no checklist credit."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-analytic-gaussian-20260911-v1",
