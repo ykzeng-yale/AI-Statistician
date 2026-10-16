@@ -231,6 +231,9 @@ def run_file_session(*, backend, workspace: FileAuthorWorkspace, prompt: str,
         "inputs": workspace.files(), "prompt_sha256": _digest(prompt.encode("utf-8"))}
     request = ClientToolTurnRequest(
         system_prompt=(workspace.instructions + " "
+            f"Resource envelope: at most {max_turns} model turns and {max_turns} tool calls; "
+            f"each request permits at most {max_tokens} output tokens. "
+            "Exhaustion leaves an incomplete draft, not acceptance or an automatic restart. "
             "Only the listed logical paths are accessible; do not use absolute paths from the upstream prompt. "
             "Use read_file offsets to continue long files and workspace history for earlier observations.\n"
             + json.dumps(workspace.descriptor())),

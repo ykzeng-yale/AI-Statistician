@@ -47,16 +47,16 @@ index 41de4db..4f6abd6 100644
 +        if item.get("sha256") and item["sha256"] != digest:
 +            raise ValueError("public output differs from the declared hash")
      return result.returncode
- 
- 
+
+
 diff --git a/src/investigation/harness_incumbent.py b/src/investigation/harness_incumbent.py
 index 4fa81b9..af68038 100644
 --- a/src/investigation/harness_incumbent.py
 +++ b/src/investigation/harness_incumbent.py
 @@ -19,6 +19,38 @@ from .program_spec import entrypoint_relpath_from_spec, load_program_spec
  _MAX_ARTIFACT_BYTES = 1024 * 1024
- 
- 
+
+
 +def native_public_outputs(task_dir: Path) -> list[dict[str, str]]:
 +    """Prospective output access uses the existing scientific-evidence descriptor."""
 +    import runpy
@@ -91,7 +91,7 @@ index 4fa81b9..af68038 100644
 +
  def _json_digest(value: object) -> str:
      return hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
- 
+
 @@ -120,6 +152,16 @@ def read_native_evaluation(
          and manifest.get("evidence_records") == native_evidence_identity(program_dir, source_records=manifest["source_records"])
      ):
@@ -109,12 +109,28 @@ index 4fa81b9..af68038 100644
      status = _read_harness_json(program_dir / "rubric_status.json")
      if status != _read_harness_json(program_dir.parent / "rubric_status.json"):
          raise ValueError("native root and candidate rubric status disagree")
+diff --git a/src/pipeline/cli.py b/src/pipeline/cli.py
+index 68d7f68..695e6e6 100644
+--- a/src/pipeline/cli.py
++++ b/src/pipeline/cli.py
+@@ -1370,6 +1370,11 @@ def _run_pipeline(
+                             rc = 2
+                         else:
+                             investigation_outcome = "winner"
++            if phase == "investigation" and rc != 0 and not cfg.execution.dry_run:
++                _write_investigation_completion(
++                    investigation_completion_receipt_path(paths.investigation_workspace_dir),
++                    {"schema_version": 1, "status": "failed", "return_code": rc},
++                )
+         elif phase == "ablations":
+             if "investigation" not in selected and run_task_available:
+                 try:
 diff --git a/src/pipeline/config.py b/src/pipeline/config.py
 index b3cfd57..2f60b2e 100644
 --- a/src/pipeline/config.py
 +++ b/src/pipeline/config.py
 @@ -835,11 +835,6 @@ _PHASE_SECTION_USERS: dict[str, frozenset[str]] = {
- 
+
  def validate_pipeline_config(cfg: PipelineConfig) -> list[str]:
      """Validate the config, returning a list of error messages (empty = valid)."""
 -    if cfg.agent.name == "local-api":
@@ -134,7 +150,7 @@ index b3cfd57..2f60b2e 100644
 +        or ("investigation" in selected and not cfg.investigation.harness_evaluated_attempts)
 +    ):
 +        return ["local-api requires native harness-owned investigation/posthoc phases; full-pipeline orchestration is not supported"]
- 
+
      for phase_name, phases_using_it in _PHASE_SECTION_USERS.items():
          if not selected.intersection(phases_using_it):
 diff --git a/src/pipeline/phases.py b/src/pipeline/phases.py
@@ -163,7 +179,7 @@ index 2117a51..25d5023 100644
 @@ -322,13 +322,27 @@ def _run_single_analysis(
          env["ANALYSIS_FAMILY"] = spec.family
          env["POSTHOC_RUN_DIR"] = str(posthoc_run_dir.resolve())
- 
+
 +        attempt_popen = popen_factory
 +        if agent == "local-api":
 +            from functools import partial
@@ -192,7 +208,7 @@ index 2117a51..25d5023 100644
 @@ -361,7 +375,7 @@ def _run_single_analysis(
              status = "timeout"
              break
- 
+
 -        if inspection.overall_pass:
 +        if inspection.overall_pass and (agent != "local-api" or exit_code == 0):
              selected_attempt = inspection.attempt_id
@@ -228,12 +244,12 @@ index 7938606..bffecb3 100644
 +            raise BundleValidationError("Public evidence changed during extraction")
 +    elif evidence_dir is not None:
          _stage_evidence(evidence_dir, bundle_dir)
- 
+
      _validate_bundle(bundle_dir)
 @@ -71,11 +90,12 @@ def extract_bundle(
      return bundle_dir
- 
- 
+
+
 -def _stage_evidence(source_root: Path, bundle_dir: Path) -> None:
 +def _stage_evidence(source_root: Path, bundle_dir: Path, *, native_outputs: list[dict] | None = None) -> None:
      """Copy a bounded, analysis-only allowlist from a completed ablations bundle."""
@@ -325,6 +341,6 @@ index 82d8579..449bbe0 100755
 +    cp "$SEARCH_EVALUATOR_SOURCE_DIR/$task_input" "$EXPERIMENT_DIR/$task_input"
 +  fi
 +done
- 
+
  if [ -n "$IDEA_FILE" ]; then
    cp "$IDEA_FILE" "$EXPERIMENT_DIR/active_idea.json"

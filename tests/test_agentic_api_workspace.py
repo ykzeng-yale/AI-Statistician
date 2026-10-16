@@ -402,6 +402,7 @@ def test_idea_receives_prior_source_feedback_without_evaluator_access(tmp_path):
     assert invoke(idea, "write_file", path="history/ideas/01_prior/program_1/public/observations.json", content="changed", expected_sha256=sha(diagnostic.read_text())).is_error
     assert invoke(idea, "read_file", path="history/ideas/01_prior/evaluate.py").is_error
     assert invoke(idea, "write_file", path="task_requirements.json", content="weaker", expected_sha256=sha("[]")).is_error
+    assert invoke(idea, "write_file", path="target_rubrics.json", content="weaker", expected_sha256=None).is_error
     assert invoke(idea, "write_file", path="idea_bundle.json", content="{}", expected_sha256=None).state_changed
     assert invoke(idea, "write_file", path="memory.md", content="unscoped notes", expected_sha256=None).is_error
     (source / "program_0/src/aliased").symlink_to(prior, target_is_directory=True)
@@ -409,6 +410,19 @@ def test_idea_receives_prior_source_feedback_without_evaluator_access(tmp_path):
     diagnostic.write_text("changed after receipt")
     with pytest.raises(ValueError, match="differs from its receipt"):
         stage_workspace(results / "_idea_generation/another", source, stage="idea", results=results)
+
+
+def test_unfixed_idea_can_author_rubrics_and_sees_actual_resource_envelope(tmp_path):
+    source = tmp_path / "task"
+    source.mkdir()
+    (source / "task.md").write_text("Opaque optimization task without fixed criteria")
+    idea = stage_workspace(tmp_path / "idea", source, stage="idea")
+    assert invoke(idea, "write_file", path="target_rubrics.json", content="[]", expected_sha256=None).state_changed
+    backend = FixtureBackend([("finish", {"disposition": "gap", "summary": "No candidate yet"})])
+    run(idea, backend, tmp_path / "session", max_turns=7)
+    assert "at most 7 model turns and 7 tool calls" in backend.requests[0].system_prompt
+    assert "at most 8192 output tokens" in backend.requests[0].system_prompt
+    assert "not acceptance or an automatic restart" in backend.requests[0].system_prompt
 
 
 def test_api_config_binds_deployment_and_cannot_switch_model(tmp_path):

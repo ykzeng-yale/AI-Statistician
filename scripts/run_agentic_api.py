@@ -130,16 +130,20 @@ def stage_workspace(root: Path, source: Path, *, stage="research", results: Path
         *campaign_history_grants(results, current=root),
     )
     if stage == "idea":
+        fixed = (source / "target_rubrics.json").exists() or (source / "target_rubrics.json").is_symlink()
         workspace = FileAuthorWorkspace((
             FileGrant("task.md", source / "task.md"),
             FileGrant("task_requirements.json", source / "target_rubrics.json"),
             FileGrant("program_0", source / "program_0", directory=True),
             FileGrant("idea_bundle.json", root / "idea_bundle.json", writable=True),
-            FileGrant("target_rubrics.json", root / "target_rubrics.json", writable=True),
+            *(() if fixed else (FileGrant("target_rubrics.json", root / "target_rubrics.json", writable=True),)),
             *shared,
         ), discovery=discovery)
         workspace.instructions += (
-            " Native API stage contract: write idea_bundle.json and target_rubrics.json. "
+            (" Native API stage contract: write only idea_bundle.json with idea_id, title, hypothesis, "
+             "implementation_plan and notes_for_agent. The host attaches task_requirements.json unchanged; "
+             "do not author target_rubrics or implementation-verification snippets. " if fixed else
+             " Native API stage contract: write idea_bundle.json and target_rubrics.json. ") +
             "Keep author notes in notes_for_agent; the host owns global memory bookkeeping. "
             "Use only granted logical paths, including history for prior source and raw observations. "
             "task_requirements.json, when present, is the operator's fixed acceptance contract. "

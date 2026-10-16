@@ -23,6 +23,7 @@ from ai_statistician.research_source_discovery import PublicResearchSourceDiscov
     ("execution", "investigation", True),
     ("artifact_execution", "investigation", True), ("review", "investigation", True),
     ("review", "pipeline", True),
+    ("author_gap", "pipeline", True), ("author_exhaustion", "pipeline", True),
 ])
 def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path, failure_kind, route, iterative, public_source_fixture):
     python = Path(os.environ.get("AI_STATISTICIAN_V3_PYTHON", UPSTREAM / ".venv/bin/python"))
@@ -90,7 +91,8 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
             "(out/'metrics.json').write_text(json.dumps({'combined_score':int(correct)}))\n"
             "(out/'correct.json').write_text(json.dumps({'correct':correct}))\n")
     requests, actions = [], []
-    source_enabled = iterative and route == "pipeline"
+    terminal_author = failure_kind in {"author_gap", "author_exhaustion"}
+    source_enabled = iterative and route == "pipeline" and not terminal_author
     work, _, source_fetcher = public_source_fixture
     if source_enabled:
         provider = PublicResearchSourceDiscovery(config=PublicResearchSourceDiscoveryConfig(source_horizon="2026-10-16"),
@@ -106,18 +108,14 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
     failure_path = ("program_1/" if iterative else "history/ideas/01_first_attempt/program_1/") + failure_file
     previous_candidate = initial
     for cycle, title in ((1, "First attempt"), (2, "Second attempt")):
-        proposed = [{"id": "weakened", "type": "metric", "description": "combined_score >= 0"},
-                    {"id": "marker", "type": "implementation", "description": "Include a fixture marker",
-                     "verification": {"type": "source_contains", "patterns": ["opaque"]}}]
         bundle = {"idea_id": f"opaque_{cycle}", "title": title, "hypothesis": "Opaque mechanism fixture",
-                  "implementation_plan": ["Author a source file"], "target_rubrics": proposed,
+                  "implementation_plan": ["Author a source file"],
                   "notes_for_agent": "No scientific claim."}
         if cycle == 2 and not iterative:
             actions.append(("read_file", {"path": failure_path}))
         if not iterative or cycle == 1:
             actions.extend([
                 ("write_file", {"path": "idea_bundle.json", "content": json.dumps(bundle), "expected_sha256": None}),
-                ("write_file", {"path": "target_rubrics.json", "content": json.dumps(proposed), "expected_sha256": None}),
                 ("finish", {"disposition": "candidate", "summary": "Idea handoff."}),
             ])
         if cycle == 2:
@@ -173,7 +171,10 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
                     ("clone_program", {}),
                     ("finish", {"disposition": "candidate", "summary": "Evaluated fixture, not accepted science."}),
                 ])
-    if route == "pipeline":
+    if terminal_author:
+        actions = actions[:2] + ([("finish", {"disposition": "gap", "summary": "Unresolved draft"})]
+            if failure_kind == "author_gap" else [("read_file", {"path": "task.md"})] * 2)
+    elif route == "pipeline":
         ids = ["analysis_summary_present", "analysis_manifest_present", "interestingness_rubric_present",
                "required_outputs_present", "claim_grounded", "checkpoint_guardrail_respected"]
         reports = {
@@ -222,7 +223,8 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
     thread.start()
     config = tmp_path / "api-config.json"
     settings = {"model": "pinned-fixture", "base_url": f"http://127.0.0.1:{server.server_port}/v1",
-        "max_tokens": 8192, "temperature": 1.0, "timeout_seconds": 30, "max_turns": 40 if iterative else 8,
+        "max_tokens": 8192, "temperature": 1.0, "timeout_seconds": 30,
+        "max_turns": 2 if terminal_author else 40 if iterative else 8,
         "deployment_ref": {"path": str(receipt), "sha256": hashlib.sha256(receipt.read_bytes()).hexdigest()}}
     entrypoint = ROOT / "scripts/run_agentic_api.py"
     if source_enabled:
@@ -267,12 +269,25 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
         server.shutdown()
         thread.join(timeout=5)
         server.server_close()
+    if terminal_author:
+        assert run.returncode == 2, run.stdout + run.stderr
+        assert len(requests) == len(actions), run.stdout + run.stderr
+        receipt = json.loads((results.parent / ".investigation_completion.json").read_text())
+        assert receipt == {"schema_version": 1, "status": "failed", "return_code": 2}
+        assert not list(results.glob("ideas/*/program_*/evaluation_manifest.json"))
+        assert not (tmp_path / "envelope/posthoc").exists()
+        session = next(results.glob("ideas/*/.local-api/session/result.json"))
+        assert json.loads(session.read_text())["status"] == ("HANDED_OFF" if failure_kind == "author_gap" else "INCOMPLETE")
+        return
     assert run.returncode == 0, run.stdout + run.stderr
     assert len(requests) == len(actions), run.stdout + run.stderr
     idea_system = requests[0]["messages"][0]
     assert idea_system["role"] == "system"
     assert "the host owns global memory bookkeeping" in idea_system["content"]
     assert "operator's fixed acceptance contract" in idea_system["content"]
+    assert "do not author target_rubrics" in idea_system["content"]
+    assert "source_contains" not in requests[0]["messages"][1]["content"]
+    assert "Write only ./idea_bundle.json" in requests[0]["messages"][1]["content"]
     assert not requests[0]["messages"][1]["content"].startswith("Native API stage contract:")
     first = results / "ideas/01_first_attempt"
     second = first if iterative else results / "ideas/02_second_attempt"
@@ -296,6 +311,8 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
         assert "not proof" in json.loads((second_program / "scientific_review.json").read_text())["scope"]
     assert json.loads((second_program / "rubric_status.json").read_text())["overall_pass"] is True
     assert json.loads((second / "active_rubrics.json").read_text()) == fixed
+    for authored in results.glob("_idea_generation/*/idea_bundle.json"):
+        assert json.loads(authored.read_text())["target_rubrics"] == fixed
     assert any("opaque feedback 19" in str(request["messages"][-1]) for request in requests)
     assert len(list((results / "ideas").iterdir())) == (1 if iterative else 2)
     best = json.loads((results / "best_program_manifest.json").read_text())

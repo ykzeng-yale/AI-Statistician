@@ -182,15 +182,24 @@ pinned upstream version-1 program ABI. The current evaluator, its outputs,
 unrelated directories and environment variables are not author tools. Linked
 paths are rejected; this is an application file boundary, not an OS sandbox for
 arbitrary shell execution. There is no shell tool in this source-only participant.
-The idea stage writes only its idea/rubric proposals; the host keeps the frozen
-task criteria and owns global memory bookkeeping. This existing native ownership
-contract now lives in system instructions, above incompatible inherited workflow
-instructions, rather than in a user-message preamble. No file grant is widened
-and the upstream research prompt is unchanged. Both stages can read selected
+For a task with fixed criteria, the idea stage authors only `idea_bundle.json`
+(identity, hypothesis, plan and author notes). The host attaches the unchanged
+operator requirements to the existing downstream artifacts; the model neither
+copies criteria nor authors source-marker checks. The native prompt and staged
+skill render the same task contract. Unfixed optimization retains upstream
+rubric authoring. The host owns global memory bookkeeping. The ownership
+contract lives in system instructions; no file grant is widened and the research
+prompt is unchanged. Both stages can read selected
 prior source, public status and raw execution logs through `history/` file
 references. Prior evaluator source is not granted. A new stage has a new model
 conversation; file-backed history is not a claim of uninterrupted context.
 Native generated-code execution itself is not OS-isolated by these file grants.
+
+The file session states its configured turn/tool and output-token envelope in
+the system context. This does not extend its budget, compact context or certify
+completion. If an investigation child returns nonzero, the upstream pipeline
+writes a failed completion marker and does not run posthoc. A hard-killed parent
+can still leave a running marker; this artifact is not a process-liveness probe.
 
 File changes require the current hash; exact edits reuse the existing helper.
 Tool errors return to the same source-owning model, without a repair agent.

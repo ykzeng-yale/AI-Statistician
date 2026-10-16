@@ -125,11 +125,16 @@ pipeline marker still says running; it is not evidence of a live process.
 Its native 262K model uses prospectively declared 1M static YaRN; service startup
 does not establish long-context quality.
 
-Before another full research draw, inspect generic stage-goal/budget visibility,
-redundant rubric reauthoring under already fixed criteria, long-horizon context
-handling and upstream termination-marker semantics. Do not merely add rounds,
-HC0-specific fixes or operator completion. The trace establishes the cutoff,
-not the mathematical quality of the draft or a demonstrated cure.
+Before another full research draw, correct the generic handoff rather than add
+rounds or complete the draft manually. The prospective fixed-task path now asks
+ideation for its hypothesis/plan only; the host attaches unchanged criteria,
+instead of asking the model to reauthor rubric files or source markers. The
+session exposes its actual resource envelope. A nonzero investigation-child exit
+produces a failed pipeline marker and cannot trigger posthoc; hard parent death
+still requires scheduler/process observation. Verify these through the actual
+upstream paths. Long-horizon context handling remains unfinished. None of these
+mechanisms demonstrates a cure for the consumed 96-turn cutoff or establishes
+the mathematical quality of its unsubmitted draft.
 
 **Use the restored upstream retained revision loop in fresh conditions.** The
 older source-only mode evaluates after author exit; ordinary source errors
@@ -167,7 +172,8 @@ CPU-only [weight staging](../benchmarks/publication_assessment_flashnext_2026101
 29733204 completed: all 144 files match their pinned identities. The frozen
 native source-review [job 29735341](../benchmarks/publication_assessment_flashnext_20261016/submission.json)
 has [allocated four B200s and 1 TiB host memory](../benchmarks/publication_assessment_flashnext_20261016/allocation_observation.json)
-under its 48-hour envelope. Last observed stage was pre-serving preparation;
+under its 48-hour envelope. The subsequent [startup observation](../benchmarks/publication_assessment_flashnext_20261016/startup_observation.json)
+records active Blackwell kernel compilation, still without readiness receipts;
 serving fit, panel completion and argument examination remain unestablished.
 
 **Qualify scientific references and assessment in parallel with development.**

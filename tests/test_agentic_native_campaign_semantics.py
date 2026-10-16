@@ -31,6 +31,7 @@ OWNED_MODULES = {
     "src/investigation/main_entry.py", "src/investigation/harness_incumbent.py",
     "src/investigation/idea_generation.py", "src/investigation/campaign_loop.py",
     "src/investigation/harness_eval.py",
+    "src/agents/skills/create-idea/SKILL.md", "src/prompts/idea.md", "src/scripts/idea.sh",
 }
 REQUIREMENTS = [
     {"id": "target", "description": "Meet the operator target", "type": "metric",
@@ -193,6 +194,38 @@ def patched_upstream(tmp_path_factory):
     assert (destination / "LICENSE").read_bytes() == before["LICENSE"]
     assert PIN in PATCH.read_text() and "Sakana" in PATCH.read_text()
     return destination
+
+
+def test_idea_prompt_and_skill_share_the_actual_task_contract(patched_upstream, tmp_path):
+    code = r'''
+import json, sys
+from pathlib import Path
+from src.investigation.idea_generation import idea_artifact_contract
+task = Path(sys.argv[1])
+for fixed in (False, True):
+    if fixed:
+        (task / "target_rubrics.json").write_text(json.dumps([
+            {"id": "opaque", "description": "Opaque host criterion", "type": "metric",
+             "metric": "combined_score", "operator": ">=", "threshold": 3}]))
+    for harness in (False, True):
+        contract = idea_artifact_contract(task, harness_evaluated_attempt=harness)
+        for name in ("src/prompts/idea.md", "src/agents/skills/create-idea/SKILL.md"):
+            rendered = Path(name).read_text()
+            for key, value in contract.items():
+                rendered = rendered.replace("{{" + key + "}}", value)
+            assert "{{IDEA_ARTIFACT_REQUIREMENTS}}" not in rendered
+            assert "{{HARNESS_RUBRIC_REQUIREMENTS}}" not in rendered
+            if fixed:
+                assert "Write only ./idea_bundle.json" in rendered
+                assert "source_contains" not in rendered
+                assert "at least one metric" not in rendered
+            else:
+                assert "identical rubric array" in rendered
+                assert ("source_contains" in rendered) == harness
+'''
+    run = subprocess.run([str(PYTHON), "-c", code, str(tmp_path)], cwd=patched_upstream,
+                         capture_output=True, text=True, timeout=20)
+    assert run.returncode == 0, run.stdout + run.stderr
 
 
 SCENARIOS = [

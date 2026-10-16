@@ -45,12 +45,12 @@ diff --git a/src/investigation/main_entry.py b/src/investigation/main_entry.py
 +    except (OSError, ValueError) as exc:
 +        log_event_fn("config_error", reason="invalid_fixed_campaign", error=str(exc))
          return 2
- 
+
      task_setup_args: dict[str, object] = {
 @@ -971,6 +991,11 @@
          )
          return 0
- 
+
 +    if fixed_identity is not None and fixed_campaign_identity(
 +        task_dir, seed_program_dir, fixed_target_rubrics,
 +    ) != fixed_identity:
@@ -60,7 +60,7 @@ diff --git a/src/investigation/main_entry.py b/src/investigation/main_entry.py
      seed_is_validated_baseline = seed_matches_validated_baseline(
          seed_program_dir, task_seed_program_dir
 @@ -996,7 +1021,11 @@
- 
+
      outer_state = state_store.load_or_init_outer_state(results_dir, seed_program_dir, cfg.execution.resume)
      best_manifest = state_store.load_or_init_best_manifest(results_dir, seed_program_dir, cfg.execution.resume)
 -    if cfg.execution.harness_evaluated_attempts:
@@ -84,13 +84,13 @@ diff --git a/src/investigation/harness_incumbent.py b/src/investigation/harness_
 +++ b/src/investigation/harness_incumbent.py
 @@ -12,10 +12,243 @@
  from typing import Any
- 
+
  from .files import read_json, resolve_path
 +from .evaluator_tree import evaluator_tree_digest
  from .program_clone import _NONOVERRIDABLE_EXCLUDES
 -from .program_spec import entrypoint_relpath_from_spec
 +from .program_spec import entrypoint_relpath_from_spec, load_program_spec
- 
+
  _MAX_ARTIFACT_BYTES = 1024 * 1024
 +
 +
@@ -324,24 +324,32 @@ diff --git a/src/investigation/harness_incumbent.py b/src/investigation/harness_
 +        or old_state.get("task_complete", False) != bool(accepted)):
 +        raise ValueError("fixed campaign state and incumbent disagree")
 +    return identity
- 
- 
+
+
  def _finite_score(raw_score: object) -> float | None:
 diff --git a/src/investigation/idea_generation.py b/src/investigation/idea_generation.py
+index 04cd93d..228c92d 100644
 --- a/src/investigation/idea_generation.py
 +++ b/src/investigation/idea_generation.py
-@@ -4,6 +4,7 @@
- 
+@@ -4,12 +4,14 @@ from __future__ import annotations
+
  import json
  import math
 +from copy import deepcopy
  from dataclasses import dataclass
  from pathlib import Path
  from typing import Any, Callable
-@@ -34,6 +35,30 @@
+
+ from src.orchestrator.idea_bundle import (
+     IdeaBundleValidationError,
++    MAX_SOURCE_PATTERN_CHARS,
+     normalize_idea_bundle,
+     normalize_target_rubrics_payload,
+     without_target_rubric_verification,
+@@ -34,6 +36,76 @@ class IdeaArtifacts:
      target_rubrics: list[dict[str, Any]]
- 
- 
+
+
 +def load_fixed_target_rubrics(task_dir: Path) -> list[dict[str, Any]] | None:
 +    """Read operator-owned requirements; absence alone selects optimization mode."""
 +    path = task_dir / "target_rubrics.json"
@@ -366,10 +374,56 @@ diff --git a/src/investigation/idea_generation.py b/src/investigation/idea_gener
 +    return raw
 +
 +
++def idea_artifact_contract(task_dir: Path, *, harness_evaluated_attempt: bool) -> dict[str, str]:
++    """Render one producer contract for both the idea prompt and its skill."""
++    fixed = load_fixed_target_rubrics(task_dir) is not None
++    fields = (
++        "idea_id (string), title (string), hypothesis (string), "
++        "implementation_plan (nonempty array of short strings), and notes_for_agent (string)"
++    )
++    if fixed:
++        return {
++            "IDEA_ARTIFACT_REQUIREMENTS": (
++                "Write only ./idea_bundle.json, a JSON object with " + fields + ". "
++                "The host attaches the operator's fixed target_rubrics.json unchanged after handoff. "
++                "Do not author a target_rubrics field, a rubric file or source-verification snippets."
++            ),
++            "HARNESS_RUBRIC_REQUIREMENTS": (
++                "The task already fixes acceptance requirements. Read them as context, not a design "
++                "assignment: propose the scientific work, not alternative acceptance criteria. "
++                "Do not add literal implementation markers to satisfy invented checks."
++            ),
++        }
++    return {
++        "IDEA_ARTIFACT_REQUIREMENTS": (
++            "Write ./idea_bundle.json, a JSON object with " + fields + ", and target_rubrics "
++            "(nonempty array of objects with id, description and type; implementation rubrics may "
++            "also include verification). Include at least one metric and one implementation rubric. "
++            "Use stable snake_case IDs and concrete measurable descriptions. Write the identical "
++            "rubric array to ./target_rubrics.json. Reread both files before handoff."
++        ),
++        "HARNESS_RUBRIC_REQUIREMENTS": (
++            "Harness mode is enabled. The harness injects a canonical structured "
++            "`combined_score > incumbent` gate from the evaluator-validated baseline/current "
++            "best. Do not invent score thresholds or derived metric expressions; agent-authored "
++            "metric rubrics are replaced. Correctness is already mandatory. Each "
++            "implementation rubric must include `verification` as "
++            '`{"type": "source_contains", "patterns": ["distinct executable snippet", ...]}`. '
++            f"Use 1 to 8 specific literal snippets, each at most {MAX_SOURCE_PATTERN_CHARS} characters, "
++            "that the implementation agent will place in `program_1/src/**`. Patterns are matched "
++            "independent of whitespace, quote style, and numeric formatting; do not use generic "
++            "imports, comments, or docstrings as evidence."
++            if harness_evaluated_attempt else
++            "Harness mode is disabled. Omit verification from every rubric; static source "
++            "verification is not used in this mode."
++        ),
++    }
++
++
  def load_idea_artifacts(
      workspace: Path,
      cycle_index: int,
-@@ -41,6 +66,7 @@
+@@ -41,6 +113,7 @@ def load_idea_artifacts(
      *,
      require_harness_verification: bool = False,
      harness_incumbent_score: float | None = None,
@@ -377,7 +431,7 @@ diff --git a/src/investigation/idea_generation.py b/src/investigation/idea_gener
  ) -> IdeaArtifacts:
      """Load and cross-check the required idea-generation outputs."""
      bundle_path = workspace / "idea_bundle.json"
-@@ -50,6 +76,10 @@
+@@ -50,6 +123,10 @@ def load_idea_artifacts(
              "missing_or_invalid_idea_bundle",
              path=bundle_path,
          )
@@ -388,18 +442,18 @@ diff --git a/src/investigation/idea_generation.py b/src/investigation/idea_gener
      if not require_harness_verification:
          bundle_raw = without_target_rubric_verification(bundle_raw)
      try:
-@@ -60,6 +90,11 @@
-             path=bundle_path,
+@@ -61,6 +138,11 @@ def load_idea_artifacts(
              detail=str(exc),
          ) from exc
-+
+
 +    if fixed_target_rubrics is not None:
 +        # Generated rubrics have no authority to replace or weaken operator criteria.
 +        bundle["target_rubrics"] = deepcopy(fixed_target_rubrics)
 +        return IdeaArtifacts(bundle=bundle, target_rubrics=bundle["target_rubrics"])
- 
++
      rubrics_path = workspace / "target_rubrics.json"
      if not rubrics_path.exists():
+         raise IdeaArtifactsError("missing_target_rubrics", path=rubrics_path)
 diff --git a/src/investigation/campaign_loop.py b/src/investigation/campaign_loop.py
 --- a/src/investigation/campaign_loop.py
 +++ b/src/investigation/campaign_loop.py
@@ -423,7 +477,7 @@ diff --git a/src/investigation/campaign_loop.py b/src/investigation/campaign_loo
      agent_model = resolve_agent_model(cfg.agent, cfg.agent.name)
 @@ -112,6 +116,12 @@
          confirm_prune_warning()
- 
+
      for cycle_idx in range(start_cycle, cfg.execution.max_idea_cycles + 1):
 +        if fixed_target_rubrics is not None:
 +            if fixed_campaign_identity(task_dir, task_dir / "program_0", fixed_target_rubrics) != outer_state.get("fixed_requirements"):
@@ -510,7 +564,7 @@ diff --git a/src/investigation/campaign_loop.py b/src/investigation/campaign_loo
                  candidate_dir, candidate_entrypoint, candidate_score, candidate_correct = candidate
                  evaluated_score = candidate_score
 @@ -606,6 +659,9 @@
- 
+
          run_failed = attempt_result.exit_code != 0
          attempt_pass = (not run_failed) and validation.valid and validation.overall_pass
 +        if fixed_target_rubrics is not None:
@@ -531,7 +585,7 @@ diff --git a/src/investigation/campaign_loop.py b/src/investigation/campaign_loo
              metrics = status_data.get("metrics")
              if isinstance(metrics, dict):
 @@ -641,6 +701,9 @@
- 
+
          state_store.append_jsonl(state_store.attempts_history_path(results_dir), attempt_record)
          state_store.save_outer_state(results_dir, outer_state)
 +        if native_error is not None:
@@ -552,7 +606,7 @@ diff --git a/src/investigation/campaign_loop.py b/src/investigation/campaign_loo
 +    if fixed_target_rubrics is not None and outer_state.get("task_complete") is not True:
 +        log_event_fn("campaign_incomplete", reason="fixed_requirements_not_satisfied")
 +        return 2
- 
+
      if cfg.paper.enabled:
          paper_output_dir = (
 diff --git a/src/investigation/harness_eval.py b/src/investigation/harness_eval.py
@@ -560,7 +614,7 @@ diff --git a/src/investigation/harness_eval.py b/src/investigation/harness_eval.
 +++ b/src/investigation/harness_eval.py
 @@ -14,6 +14,10 @@
  from typing import Any
- 
+
  from .harness_feedback import evaluation_feedback, search_metric_feedback
 +from .harness_incumbent import (
 +    _file_digest, _json_digest, _read_harness_json,
@@ -650,7 +704,7 @@ diff --git a/src/investigation/harness_eval.py b/src/investigation/harness_eval.
              ),
 +            target_rubrics=target_rubrics,
          )
- 
+
      missing_artifacts = [
 @@ -420,11 +493,28 @@
      if not isinstance(metrics, dict):
@@ -724,3 +778,280 @@ diff --git a/src/investigation/harness_eval.py b/src/investigation/harness_eval.
          "attempt_id": attempt_id,
          "idea_id": idea_id,
          "program_id": "program_1",
+diff --git a/src/agents/skills/create-idea/SKILL.md b/src/agents/skills/create-idea/SKILL.md
+index 32fbda4..18a42c2 100644
+--- a/src/agents/skills/create-idea/SKILL.md
++++ b/src/agents/skills/create-idea/SKILL.md
+@@ -1,16 +1,18 @@
+ ---
+ name: create-idea
+-description: Create one next-step idea bundle and matching rubric bundle for iterative optimization. Use during idea generation runs (for example via scripts/idea.sh) when `idea_bundle.json` and `target_rubrics.json` must be produced.
++description: Create the next scientific idea and the handoff artifacts required by the active task contract.
+ ---
+
+ # What the skill is about
+-Produce one concrete, testable next experiment idea with machine-readable rubrics.
++Produce one concrete, testable next experiment idea against the task's acceptance requirements.
+
+
+ # Output creation
+-Write both required JSON files directly with the available file-writing tools.
+-Do not depend on command execution. When command execution is explicitly available,
+-this optional helper can create starter files:
++{{IDEA_ARTIFACT_REQUIREMENTS}}
++
++Write the required files directly with the available file-writing tools.
++Do not depend on command execution. Only when rubric authoring and command
++execution are both explicitly allowed, this optional helper can create starter files:
+ ```bash
+ # the script path is relative to the skill file
+ python ./scripts/create_idea_placeholder.py <working_dir> [--cycle-index N]
+@@ -32,37 +34,9 @@ actual content.
+ - `cycle_index={{CYCLE_INDEX}}`
+ - recent ideas and attempts from the prompt context
+ - best-known manifest from the prompt context
+-3. Write exactly these files directly (or use the optional placeholder helper when execution is allowed):
+-- `{{IDEA_BUNDLE_FILE}}`
+-- `{{TARGET_RUBRICS_FILE}}`
+-4. `{{IDEA_BUNDLE_FILE}}` must be a JSON object with keys:
+-- `idea_id` (string)
+-- `title` (string)
+-- `hypothesis` (string)
+-- `implementation_plan` (non-empty array of short strings)
+-- `target_rubrics` (non-empty array of `{id, description, type}`)
+-- `notes_for_agent` (string)
+-5. Rubric rules:
+-- include at least one `metric` rubric
+-- include at least one `implementation` rubric
+-- use stable snake_case rubric ids
+-- keep rubric descriptions concrete and measurable
+-6. Ensure `{{TARGET_RUBRICS_FILE}}` is exactly equal to `idea_bundle.json.target_rubrics`.
+-7. Apply the active harness rules exactly:
++3. Write the artifacts required by the active contract above.
++4. Apply the active harness rules:
+
+ {{HARNESS_RUBRIC_REQUIREMENTS}}
+
+-When a rubric includes `verification`, `verification` must be a JSON object, never a prose string.
+-For harness implementation rubrics, use exactly this shape:
+-
+-```json
+-{
+-  "verification": {
+-    "type": "source_contains",
+-    "patterns": ["specific executable snippet"]
+-  }
+-}
+-```
+-
+-8. Before finishing, reread both files and confirm every implementation rubric satisfies the active harness rules.
+-9. Do not modify files outside the required output files.
++5. Reread the required files before handoff. Do not modify other files.
+diff --git a/src/prompts/idea.md b/src/prompts/idea.md
+index e8670c1..f35f533 100644
+--- a/src/prompts/idea.md
++++ b/src/prompts/idea.md
+@@ -1,6 +1,6 @@
+ # Role
+ You are an idea-generation agent for iterative scientific optimization.
+-Goal: produce one high-quality next idea plus rubric bundle for the execution loop.
++Goal: produce one high-quality next idea and the required handoff artifacts.
+ Use the `create-idea` and `memory-log` skill workflows for output structure, evidence logging, and checks.
+
+ # Task Context
+@@ -42,18 +42,7 @@ The notes below are forward-looking guides synthesized by previous cycles. Use t
+ {{OWN_CONCLUSIONS}}
+ {{OTHER_WORKERS_CONCLUSIONS_SECTION}}
+ # Required Output Files
+-Write exactly these files:
+-- `{{IDEA_BUNDLE_FILE}}`
+-- `{{TARGET_RUBRICS_FILE}}`
+-
+-`idea_bundle.json` must be a JSON object with keys:
+-- `idea_id`: string
+-- `title`: string
+-- `hypothesis`: string
+-- `implementation_plan`: non-empty array of short strings
+-- `target_rubrics`: non-empty array of objects `{id, description, type}`. Implementation
+-  rubrics may also include `verification`.
+-- `notes_for_agent`: string
++{{IDEA_ARTIFACT_REQUIREMENTS}}
+
+ Rules:
+ - Design methods using the observations and controls actually available through the documented
+@@ -61,10 +50,6 @@ Rules:
+   evaluator-owned training. If a mechanism is unsupported, choose an implementable alternative
+   and state the limitation. Keep internal diagnostics out of responses unless extensions are
+   explicitly permitted. Do not inspect forbidden evaluator code to discover the interface.
+-- `target_rubrics` must include at least one `metric` rubric and one `implementation` rubric.
+-- Rubric ids should be stable snake_case.
+-- `target_rubrics.json` must be exactly the same rubric array as `idea_bundle.json.target_rubrics`.
+-- Keep rubrics concrete/measurable.
+
+ ## Harness Rubric Requirements
+ {{HARNESS_RUBRIC_REQUIREMENTS}}
+@@ -98,10 +83,10 @@ Rules:
+ {{GLOBAL_MEMORY_RECENT_SUMMARY}}
+ - After appending the cycle's regular memory event, follow the `memory-log` skill's "Update distilled conclusions" step: apply the (a)/(b)/(c)/(d) gate, and if an update is warranted, run `--write-conclusions` (single paragraph, ≤300 words, ≤3 retries on validation failure). The helper paths are `{{CONCLUSIONS_MD_FILE}}` and `{{CONCLUSIONS_HISTORY_FILE}}`; pass `--worker-index {{WORKER_INDEX}}`. Always include the gate decision (`gate=<updated|kept|skipped>; trigger=<a|b|c|d|none>; reason=...`) inside the regular memory event.
+ - Record idea discoveries: alternatives considered, selected hypothesis, and why this cycle decision is best from recent evidence.
+-- After writing `idea_bundle.json` and `target_rubrics.json`, append an entry with:
++- After writing the required artifacts, append an entry with:
+   - `idea_id`
+   - hypothesis summary
+-  - key rubric choices (`id`, `type`)
++  - relevant acceptance criteria (`id`, `type`)
+   - next execution recommendation
+ - Directory mismatch is a hard failure: do not finish the idea step until local memory uses one canonical idea directory for this cycle.
+
+diff --git a/src/scripts/idea.sh b/src/scripts/idea.sh
+index c0908b2..4283860 100755
+--- a/src/scripts/idea.sh
++++ b/src/scripts/idea.sh
+@@ -540,7 +540,7 @@ esac
+ FORMATTED_SKILLS_REL_DIR="$AGENT_CONFIG_DIR/skills"
+ (
+   cd "$OUTPUT_DIR"
+-  "$PYTHON_BIN" - "$REPO_ROOT" "$FORMATTED_SKILLS_REL_DIR" "$RESULTS_DIR" "$CYCLE_INDEX" "$GLOBAL_MEMORY_DIR" "$CONCLUSIONS_DIR" "$WORKER_INDEX" "$HARNESS_EVALUATED_ATTEMPT" <<'PY'
++  "$PYTHON_BIN" - "$REPO_ROOT" "$FORMATTED_SKILLS_REL_DIR" "$RESULTS_DIR" "$CYCLE_INDEX" "$GLOBAL_MEMORY_DIR" "$CONCLUSIONS_DIR" "$WORKER_INDEX" "$HARNESS_EVALUATED_ATTEMPT" "$TASK_DIR" <<'PY'
+ import json
+ import shutil
+ import sys
+@@ -557,7 +557,7 @@ harness_evaluated_attempt = sys.argv[8] == "1"
+
+ sys.path.insert(0, str(script_dir))
+ from src.orchestrator import state as state_store  # noqa: E402
+-from src.orchestrator.idea_bundle import MAX_SOURCE_PATTERN_CHARS  # noqa: E402
++from src.investigation.idea_generation import idea_artifact_contract  # noqa: E402
+ from src.investigation.skill_scope import (  # noqa: E402
+     skills_for_step,
+     stage_skill_tree,
+@@ -683,23 +683,7 @@ extra = {
+     "CONCLUSIONS_HISTORY_FILE": relative_display_path(conclusions_history, base_dir=base_dir),
+     "OWN_CONCLUSIONS": own_conclusions_text,
+     "OTHER_WORKERS_CONCLUSIONS_SECTION": other_workers_conclusions_section,
+-    "HARNESS_RUBRIC_REQUIREMENTS": (
+-        "Harness mode is enabled. The harness injects a canonical structured "
+-        "`combined_score > incumbent` gate from the evaluator-validated baseline/current "
+-        "best. Do not invent score thresholds or derived metric expressions; agent-authored "
+-        "metric rubrics are replaced. Correctness is already mandatory. Each "
+-        "implementation rubric must include `verification` as "
+-        "`{\"type\": \"source_contains\", \"patterns\": [\"distinct executable snippet\", ...]}`. "
+-        f"Use 1 to 8 specific literal snippets, each at most {MAX_SOURCE_PATTERN_CHARS} characters, "
+-        "that the implementation agent will place in "
+-        "`program_1/src/**`. Patterns are matched independent of whitespace, quote style, "
+-        "and numeric formatting; do not use generic imports, comments, or docstrings as evidence."
+-        if harness_evaluated_attempt
+-        else (
+-            "Harness mode is disabled. Omit `verification` from every rubric; "
+-            "static source verification is not used in this mode."
+-        )
+-    ),
++    **idea_artifact_contract(Path(sys.argv[9]), harness_evaluated_attempt=harness_evaluated_attempt),
+ }
+
+ for skill_name in selected_skills:
+@@ -716,7 +700,7 @@ PY
+
+ PROMPT="$(
+   cd "$OUTPUT_DIR"
+-  "$PYTHON_BIN" - "$REPO_ROOT" "$INSTRUCT_PATH" "$RESULTS_DIR" "$CYCLE_INDEX" "$GLOBAL_MEMORY_DIR" "$CONCLUSIONS_DIR" "$WORKER_INDEX" "$HARNESS_EVALUATED_ATTEMPT" <<'PY'
++  "$PYTHON_BIN" - "$REPO_ROOT" "$INSTRUCT_PATH" "$RESULTS_DIR" "$CYCLE_INDEX" "$GLOBAL_MEMORY_DIR" "$CONCLUSIONS_DIR" "$WORKER_INDEX" "$HARNESS_EVALUATED_ATTEMPT" "$TASK_DIR" <<'PY'
+ import json
+ import sys
+ from pathlib import Path
+@@ -733,7 +717,7 @@ sys.path.insert(0, str(script_dir))
+
+ from src.orchestrator import state as state_store
+ from src.investigation.harness_feedback import summarize_recent_attempts
+-from src.orchestrator.idea_bundle import MAX_SOURCE_PATTERN_CHARS
++from src.investigation.idea_generation import idea_artifact_contract
+ from src.investigation.files import load_instructions, relative_display_path
+
+ recent_ideas = state_store.tail_jsonl(
+@@ -847,23 +831,7 @@ extra = {
+     "CONCLUSIONS_HISTORY_FILE": relative_display_path(conclusions_history, base_dir=base_dir),
+     "OWN_CONCLUSIONS": own_conclusions_text,
+     "OTHER_WORKERS_CONCLUSIONS_SECTION": other_workers_conclusions_section,
+-    "HARNESS_RUBRIC_REQUIREMENTS": (
+-        "Harness mode is enabled. The harness injects a canonical structured "
+-        "`combined_score > incumbent` gate from the evaluator-validated baseline/current "
+-        "best. Do not invent score thresholds or derived metric expressions; agent-authored "
+-        "metric rubrics are replaced. Correctness is already mandatory. Each "
+-        "implementation rubric must include `verification` as "
+-        "`{\"type\": \"source_contains\", \"patterns\": [\"distinct executable snippet\", ...]}`. "
+-        f"Use 1 to 8 specific literal snippets, each at most {MAX_SOURCE_PATTERN_CHARS} characters, "
+-        "that the implementation agent will place in "
+-        "`program_1/src/**`. Patterns are matched independent of whitespace, quote style, "
+-        "and numeric formatting; do not use generic imports, comments, or docstrings as evidence."
+-        if harness_evaluated_attempt
+-        else (
+-            "Harness mode is disabled. Omit `verification` from every rubric; "
+-            "static source verification is not used in this mode."
+-        )
+-    ),
++    **idea_artifact_contract(Path(sys.argv[9]), harness_evaluated_attempt=harness_evaluated_attempt),
+ }
+
+ template = load_instructions(instruct_path, task_dir_display, results_dir_display, extra)
+@@ -1115,7 +1083,7 @@ fi
+ if [ "$AGENT_EXIT_CODE" -ne 0 ]; then
+   exit "$AGENT_EXIT_CODE"
+ fi
+-"$PYTHON_BIN" - "$REPO_ROOT" "$OUTPUT_DIR" "$CYCLE_INDEX" "$GLOBAL_MEMORY_JSONL_FILE" "$HARNESS_EVALUATED_ATTEMPT" <<'PY'
++"$PYTHON_BIN" - "$REPO_ROOT" "$OUTPUT_DIR" "$CYCLE_INDEX" "$GLOBAL_MEMORY_JSONL_FILE" "$HARNESS_EVALUATED_ATTEMPT" "$TASK_DIR" <<'PY'
+ import json
+ import sys
+ from datetime import datetime, timezone
+@@ -1138,10 +1106,13 @@ from src.orchestrator.idea_bundle import (  # noqa: E402
+     without_target_rubric_verification,
+ )
+ from src.orchestrator import state as state_store  # noqa: E402
++from src.investigation.idea_generation import load_fixed_target_rubrics  # noqa: E402
++
++fixed_rubrics = load_fixed_target_rubrics(Path(sys.argv[6]))
+
+ if not bundle_path.exists():
+     raise SystemExit(f"Missing required artifact: {bundle_path}")
+-if not rubrics_path.exists():
++if fixed_rubrics is None and not rubrics_path.exists():
+     raise SystemExit(f"Missing required artifact: {rubrics_path}")
+
+ try:
+@@ -1151,14 +1122,20 @@ try:
+ except json.JSONDecodeError as exc:
+     raise SystemExit(f"Invalid JSON in {bundle_path}: {exc}") from exc
+
+-try:
+-    raw_rubrics, rubrics_repaired = parse_agent_json(
+-        rubrics_path.read_text(encoding="utf-8")
+-    )
+-except json.JSONDecodeError as exc:
+-    raise SystemExit(f"Invalid JSON in {rubrics_path}: {exc}") from exc
++rubrics_repaired = False
++if fixed_rubrics is not None:
++    raw_rubrics = fixed_rubrics
++    if isinstance(raw_bundle, dict):
++        raw_bundle = {**raw_bundle, "target_rubrics": fixed_rubrics}
++else:
++    try:
++        raw_rubrics, rubrics_repaired = parse_agent_json(
++            rubrics_path.read_text(encoding="utf-8")
++        )
++    except json.JSONDecodeError as exc:
++        raise SystemExit(f"Invalid JSON in {rubrics_path}: {exc}") from exc
+
+-if not harness_evaluated_attempt:
++if fixed_rubrics is None and not harness_evaluated_attempt:
+     raw_bundle = without_target_rubric_verification(raw_bundle)
+     raw_rubrics = without_target_rubric_verification(raw_rubrics)
+
+@@ -1173,6 +1150,9 @@ if normalized_rubrics != normalized_bundle["target_rubrics"]:
+         "target_rubrics.json does not match idea_bundle.json target_rubrics"
+     )
+
++if fixed_rubrics is not None:
++    normalized_bundle["target_rubrics"] = fixed_rubrics
++
+ if bundle_repaired or rubrics_repaired:
+     repaired_names = []
+     if bundle_repaired:
