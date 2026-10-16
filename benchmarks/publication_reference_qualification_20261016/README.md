@@ -3,7 +3,9 @@
 2026-10-16. Evaluator-side preparation for Q02/Q04 of the
 [existing publication programme](../../docs/publication_programme.md#delivery-checklist).
 No model task, official roster or new checklist is activated. Qualification
-records and reference outputs are not author-context material.
+records are public operator preparation, not hidden gold. They are excluded from
+original-paper-only author capsules; future web-enabled access needs its own
+declared exposure boundary. Reference outputs are not supplied to authors.
 
 ## Candidate: HonestDiD
 
@@ -79,6 +81,9 @@ installing `lfe`: the initial preflight missed the declared `latex2exp` dependen
 No application, simulation or model ran. The
 [explicit remaining-dependency plan](environment_completion_plan.json) preserves
 that failure and does not rebuild `lfe` or automatically retry research.
+Completion job **29727741** subsequently finished `0:0` in 94 seconds, importing
+the exact package versions and recording 148 resolved dependency rows. See
+[readiness](environment_readiness.json). No author application or simulation ran.
 
 The eight original normal-simulation launchers each request twelve 1000-task
 arrays plus twelve optimal-bound tasks: 96000 single-draw tasks before bound

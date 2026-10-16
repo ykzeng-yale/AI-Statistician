@@ -133,15 +133,20 @@ startup before calls; keep mathematical assessment separate from numerical check
 Jobs **29726507** (stock) and **29726508** (statistical, afterany stock) were
 submitted pending, with separate complete-workflow budgets. No fresh scientific
 outcome or long-context quality result exists at submission.
+The [live stock prefix](../benchmarks/agentic_scientist_native_hc0_long_20261016/runtime_observation.json)
+now verifies service startup and fourteen returned native-state/tool turns in
+ideation; it is not a completed scientific workflow. Statistical still waits.
 
 **Unblocked publication work while queued:** the
 [HonestDiD reference preparation](../benchmarks/publication_reference_qualification_20261016/README.md)
 preserves the complete original archive, paper/appendix, historical package pin
-and declared full-study topology. Environment-only job **29727530** is separate
-from scientific/model runs. Resolve path portability, exact reference execution
+and declared full-study topology. Environment-only job **29727530** failed on a
+missing declared dependency; explicit completion **29727741** imported the exact
+packages successfully. Neither ran scientific/model work. Resolve path portability, exact reference execution
 and claim-level assessment without silently accepting printed mathematics or
-shrinking the study. The localized attainment counterexample remains private
-evaluator preparation, not agent output, product guidance or whole-paper rejection.
+shrinking the study. The localized attainment counterexample is public operator
+preparation, not secret gold, agent output, product guidance or whole-paper
+rejection. It cannot be treated as an undisclosed rediscovery target.
 
 **Use the actual upstream observation to qualify the full-study boundary.** The
 requested native stock-v3 run on the exposed White HC0 task is now terminal.

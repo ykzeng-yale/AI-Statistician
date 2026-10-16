@@ -45,5 +45,8 @@ The running service is loopback-only and terminates with its owning job.
 
 Submitted jobs are **29726507** (stock) and **29726508** (statistical, afterany
 stock); both were pending at submission. See [submission.json](submission.json).
+The [first live prefix](runtime_observation.json) verifies the derived-context
+service startup and fourteen returned tool/native-state turns in stock ideation.
+It is not terminal research evidence; statistical still waits for stock.
 No official H/S experiment or publication-checklist item is completed by this
 condition. Source-bound AI review remains fallible feedback, not proof.

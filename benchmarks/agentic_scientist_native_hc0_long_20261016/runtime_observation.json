@@ -1,0 +1,29 @@
+{
+  "observed_at": "2026-10-16T08:53:58+00:00",
+  "scope": "Live stock prefix and deployment startup, not terminal study or official H/S evidence",
+  "stock": {"job_id": "29726507", "state": "RUNNING", "start": "2026-10-16T04:39:26-04:00", "node": "a1116u21n01", "stage": "cycle 1 ideation", "session_status": "INCOMPLETE", "session_phase": "model_in_flight"},
+  "statistical": {"job_id": "29726508", "state": "PENDING", "reason": "afterany:29726507"},
+  "deployment": {
+    "health": "200 OK", "models": "200 OK",
+    "reported_model": "Qwen3.8-27B-yarn1m-pinned", "reported_max_model_len": 1000000,
+    "gpu": "NVIDIA B200", "gpu_memory_mib": 183359,
+    "available_kv_cache_gib": 106.6, "reported_cache_tokens": 1737129,
+    "scope": "Configured derived context and startup capacity, not an actual 1M-input test, quality benchmark or mathematical evidence"
+  },
+  "returned_prefix": {
+    "model_turns": 14, "tool_calls": 14,
+    "tool_names": {"list_files": 3, "read_file": 11},
+    "persisted_opaque_native_reasoning_blocks": 14,
+    "provider_usage": {"input_tokens": 159281, "output_tokens": 3321, "total_tokens": 162602},
+    "scope": "Returned turns only; in-flight usage is unknown. Native state content is private and not copied into this record. Persistence is transport evidence, not proof or a causal explanation for earlier failures."
+  },
+  "snapshots": {
+    "models": {"path": "runs/agentic_native_long_20261016/job-29726507-stock/models.json", "sha256": "1a162d95559e8b6b2a8994e2fda9752f77808241cadf53ebc15dde69f7478df2"},
+    "gpu": {"path": "runs/agentic_native_long_20261016/job-29726507-stock/gpu.csv", "sha256": "47cc580040c8d1ce3ba83b7d181ef886947e1734c9d5db24880e0925fbb1583b"},
+    "command": {"path": "runs/agentic_native_long_20261016/job-29726507-stock/serve_command.txt", "sha256": "1f6b16c32df1a17bf48140a986c1202f3bb694f2f4e00cbb0932ee9d7f4018e3"},
+    "startup_log_prefix": {"path": "runs/agentic_native_long_20261016/job-29726507-stock/server.log", "sha256": "9a740b8ef8dd3a5c68a877610982a4ac605c2c8718f8db55b5ad7bcc337deb1d"},
+    "session_input": {"path": "runs/agentic_native_long_20261016/ideation_input_snapshot.json", "sha256": "55ebeefc7ea6d828bd30e4229099432b539ccbb32f04d5f7e46f471850043c94"},
+    "session_prefix": {"path": "runs/agentic_native_long_20261016/ideation_result_snapshot.json", "sha256": "0b3b64160b28d8e721c7c623d944faabca731fc49656cbc0e7e5339e5d9a1621"}
+  },
+  "scientific_boundary": "No completed idea, scientific source, simulation, source review or report in this prefix. No previous condition changed, candidate rerun/rescore, operator source patch, model fallback or publication-checklist credit."
+}

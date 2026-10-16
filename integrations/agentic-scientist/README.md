@@ -193,7 +193,9 @@ continuation state and passed back under their original field names. This uses
 the existing thinking-block/session representation, not a new reasoning agent or
 markup parser. That private state is not a source proof and is not granted to
 independent reviewers or reporters. The consumed a799e03f condition predates this
-fix and remains unchanged; fresh live qualification is pending.
+fix and remains unchanged. A separately frozen long-workflow prefix now persists
+fourteen native state blocks in actual ideation turns; complete-workflow and
+long-context quality qualification remain pending.
 The current file participant does not yet attach source-discovery execution,
 Python/R exploratory tools or Lean/RAG specialist tools to the new controller.
 Those validated assets remain intact. This extension

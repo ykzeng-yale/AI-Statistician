@@ -57,7 +57,7 @@
     "normal_study": "Eight inspected top-level launchers, each twelve arrays of 1000 single-draw tasks plus twelve optimal-bound tasks; 96000 single-draw tasks before bound/bootstrap work. Source README estimates one to two weeks per group under original resources. Nothing submitted for this numerical study.",
     "applications": "Lovenheim-Willen uses supplied male/female estimation samples (1214286 bytes each); Benzarti-Carloni uses supplied coefficients/covariance because original microdata are confidential. Not raw confidential-data reproduction or an EHR claim.",
     "path_findings": "Original entrypoints/README differ from supplied names by Willein versus Willen, IDsets versus IDSets, and FirstPeriod versus FirstPostPeriod. No alias, source fix, inferred missing implementation or numerical output repair is applied.",
-    "theory_finding": "honestdid_statement_scope.md: explicit closed-convex restriction with bounded nonclosed scalar identified set. Literal endpoint/attainment generality only; practical polyhedral results not refuted. Operator finding, not completed independent calibration.",
+    "theory_finding": "honestdid_statement_scope.md: explicit closed-convex restriction with bounded nonclosed scalar identified set. Literal endpoint/attainment generality only; practical polyhedral results not refuted. Public operator finding, not secret gold, an undisclosed rediscovery target or completed independent calibration. Future author access must declare this exposure.",
     "remaining": "Prospective path-port decision, environment qualification, complete reference execution/aggregation, numerical tolerances, exact theory rubric, source/data rights, clean matched agent access and roster freeze. No acceptance credit."
   }
 }

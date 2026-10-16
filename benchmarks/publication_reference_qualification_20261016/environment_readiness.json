@@ -1,0 +1,18 @@
+{
+  "observed_at": "2026-10-16",
+  "scope": "Adapted original-reference environment installation/import only; not numerical reference, scientific outcome, historical environment recovery or model capability",
+  "initial_job": {"id": "29727530", "state": "FAILED", "exit_code": "1:0", "elapsed_seconds": 101, "reason": "Missing declared latex2exp dependency after successful lfe installation", "log_sha256": "17dfbfb1f6473cae4ac2ff13625e2c7c1bd19295671b01adf4804ea475f19ee0"},
+  "completion_job": {"id": "29727741", "submitted_at": "2026-10-16T04:48:53-04:00", "state": "COMPLETED", "exit_code": "0:0", "elapsed_seconds": 94, "batch_max_rss_kib": 462420, "account": "pi_gt353", "partition": "day", "cpus": 1, "memory_gib": 8, "wall_seconds": 1800},
+  "completion_script_sha256": "5277088c281fd8443a7f0585923506b6daafb1584875c889073c09e5e346f042",
+  "imports_observed": {"HonestDiD": "0.2.0", "lfe": "3.1.1", "latex2exp": "0.9.8"},
+  "owned_library": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-HonestDiD-reference-20261016/library",
+  "runtime": "Yale R/4.4.2-gfbf-2024a, x86_64 Linux; shared module dependencies plus owned source packages",
+  "records": {
+    "completion_log": {"path": "runs/honestdid_source_qualification_20261016/setup-completion-29727741.log", "sha256": "cec9ff79347dbe26457a19c747a6db43b69c89cbfb0d06ac455e66d517e76df3"},
+    "resolved_packages": {"path": "runs/honestdid_source_qualification_20261016/resolved_packages.csv", "rows": 148, "sha256": "ac055e61bdcfbf9519517eddd5b828d510e9d00de2e3d01420cbab654d44a1b9"},
+    "session": {"path": "runs/honestdid_source_qualification_20261016/setup_session.txt", "sha256": "45a52b04827cef5f720c8ea37d1aaa313dced0eab41274de61b04dc20c8eb260"}
+  },
+  "model_calls": 0, "author_application_runs": 0, "author_simulation_runs": 0,
+  "source_changes": 0, "path_aliases_added": 0,
+  "remaining": "Declare path-only portability, bind complete execution/aggregation and outputs, run original method scope, qualify accuracy/tolerances/argument assessment and rights before an official comparison. Installation/import does not complete Q04."
+}

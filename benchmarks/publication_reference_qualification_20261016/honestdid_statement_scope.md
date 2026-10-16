@@ -2,7 +2,10 @@
 
 2026-10-16. Evaluator-side, operator-derived mathematical finding. Not a generated
 research result, external referee endorsement, Lean proof, complete paper audit
-or a newly activated gold rubric. Keep this file outside author source capsules.
+or a newly activated gold rubric. This committed note is public, not secret gold.
+Keep it outside original-paper-only author capsules, but do not infer that an
+Internet-enabled agent cannot find it. Any future use must declare that exposure;
+this claim cannot be presented as an undisclosed rediscovery target.
 
 ## Exact Claim And Scope
 

@@ -240,6 +240,10 @@ caps in this API. Static scaling can affect shorter contexts; startup is not
 quality qualification. Both arms and all roles must keep the same settings.
 The existing full study and scientific requirements are unchanged; no automatic
 fallback, reduced task or retroactive rerun is permitted.
+The [first live prefix](../benchmarks/agentic_scientist_native_hc0_long_20261016/runtime_observation.json)
+now confirms the configured 1M endpoint started on B200 and preserves fourteen
+native assistant-state blocks across returned ideation turns. No completed idea
+or scientific study exists in that prefix; startup is not long-context quality.
 
 ## Latest Managed-Host Observation
 
