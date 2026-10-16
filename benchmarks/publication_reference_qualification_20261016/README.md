@@ -97,8 +97,13 @@ literal Linux application run: the Lovenheim-Willen entry requests
 `LovenheimWillein-compareCIvsIDsets.R`; the Benzarti-Carloni entry's `IDsets` case
 differs from the supplied `IDSets` filename. README launch examples also use
 `FirstPeriod` where supplied batch scripts use `FirstPostPeriod`. No source,
-alias, generated result or product error rule is changed. A path-only port must
-be separately declared rather than presented as an unchanged literal run.
+generated result or product error rule is changed. The
+[prospective application plan](application_execution_plan.json) now declares the
+two same-byte aliases and complete original application entries, one fresh R
+process each, with a fixed seed and two-hour CPU allocation. The byte-bound fresh
+roots contain 16 original files each plus the declared alias, with no cached
+outcomes. Preparation has not executed either application. This is a path-ported
+adapted-environment reference, not an unchanged literal historical run.
 
 The Benzarti-Carloni analysis begins from supplied coefficient/covariance data;
 the underlying microdata are confidential. The Lovenheim-Willen analysis uses

@@ -1,0 +1,20 @@
+{
+  "declared_at": "2026-10-16",
+  "role": "Public evaluator-side original-reference qualification; not model achievement or hidden gold",
+  "remote_root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-HonestDiD-reference-20261016",
+  "archive_sha256": "de336cc76ee769d5a0d5d1246566b760475f266a6f8b9c4321991b38a01a20fa",
+  "package": {"tag": "v1.0.0", "commit": "99b7e30cfd7cc7f9c3a9686eefadeba837d62e22", "description_version": "0.2.0", "license": "GPL-3"},
+  "environment": "Existing verified R/4.4.2-gfbf-2024a and owned reference library; adapted from original R 3.6.3, not historical-environment recovery",
+  "staging": "Fresh separate application roots. Extract original application R files, original UtilityFunctions R files, root Rproj marker and the two inputs required by each entry. Copy no original Temp, Outputs, Figures, R history or private IDE state. Preserve source/data bytes, record every selected member and its hash before execution.",
+  "path_only_ports": [
+    {"application": "BenzartiCarloni", "source": "BenzartiCarloni-estimateIDSets.R", "same_byte_copy": "BenzartiCarloni-estimateIDsets.R"},
+    {"application": "LovenheimWillen", "source": "LovenheimWillein-compareCIvsIDsets.R", "same_byte_copy": "LovenheimWillen-compareCIvsIDsets.R"}
+  ],
+  "staged_identity": {"manifest": "runs/honestdid_source_qualification_20261016/application_staged_inputs.json", "sha256": "5605b7e149077dca2d5b1330ad01886a5543eaebf16d038d6e74da1ca4e52610", "original_files_per_application": 16, "additional_same_byte_aliases_per_application": 1, "source_and_input_bytes": {"BenzartiCarloni": 52459, "LovenheimWillen": 2485367}, "pre_execution_outputs": "Temp/Outputs/Figures verified empty"},
+  "source_declared_figures": {"BenzartiCarloni": ["Figure4.png", "Figure5a.png", "Figure5b.png", "FigureI8a.png", "FigureI8b.png"], "LovenheimWillen": ["Figure6a.png", "Figure6b.png", "Figure7a.png", "Figure7b.png", "FigureI9a.png", "FigureI9b.png"]},
+  "execution": "One fresh Rscript --vanilla process per complete original Analysis.R, including main and appendix analyses. A predeclared set.seed(20261016) initializes each process; source(..., echo=TRUE) records the unchanged entry and finally captures sessionInfo. Each scheduled entry runs once, even if the other returns a failure. No statistical source edits, reduced grids, parameter changes, cached outcomes, retries or post-outcome tolerance selection.",
+  "resources": {"partition": "day", "qos": "normal", "cpus": 1, "memory_gib": 16, "wall_time": "02:00:00", "gpus": 0, "blas_threads": 1},
+  "routing": "Both accounts eligible. Test-only predictions: pi_fl426 2026-10-16T18:54:35; pi_gt353 2026-10-16T18:12:35. Select pi_gt353 for the identical request. Predictions do not allocate a job or guarantee a start time.",
+  "retention": "Keep preflight/package inventory, stdout/stderr, exact exits and all partial/generated files with hashes. Neither successful exit nor figure production establishes scientific agreement; compare the complete declared outputs to original sources separately. Preserve failures without modifying or rerunning a consumed application.",
+  "scientific_limits": "Benzarti-Carloni begins at supplied estimates/VCV, not confidential microdata. Lovenheim-Willen uses supplied prepared male/female estimation samples. This is neither the full paper simulation, independent theorem acceptance, agent research success nor EHR validation. Q02/Q04/Q05 remain open."
+}
