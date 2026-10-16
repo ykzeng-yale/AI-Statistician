@@ -1,10 +1,17 @@
 {
-  "schema_version": 531,
+  "schema_version": 532,
   "updated_at": "2026-10-16",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The native two-publication goal is active. Use Sakana Agentic Scientist v3 as the sole new outer backbone while preserving validated statistical workspaces and intent-selected Lean. Following the October 15 clarification, deliver complete reviewable theory, algorithm and simulation; no mandatory small-simulation stage. Default scientific execution is evaluator-owned, with additional diagnostics only when the public task permits them. Actual findings may require source-owner revision; completeness does not imply one-shot generation. Use authorized SSH/Bouchet capacity for demonstrated compute needs. H requires matched host/v3 comparisons; S still requires the actual single-local-model-API system. Keep the sole 40-item checklist and immutable outcomes.",
-  "execution_status": "Native HC0 job 29722963 ended before scientific authoring in both arms: 26 model turns, 24 successful tool calls, both last requests reached 32768 output tokens. No source/evaluation/study/report. Owned service stopped. Native reasoning-state passthrough and system-level stage ownership now pass full regression; larger coherent model resources remain prospective. All 40 checklist states and consumed outcomes unchanged.",
+  "execution_status": "Terminal 29722963 stopped in ideation: 26 turns, 24 successful tools, no scientific source/study. State/prompt fixes pass full regression. Fresh long-workflow jobs 29726507/29726508 submitted pending, with fixed 27B BF16/1M YaRN/393216 combined output/four-hour requests and separate 48h B200 allocations. No fresh science or official H/S result. All 40 checklist states unchanged.",
+  "latest_native_api_condition": {
+    "record": "benchmarks/agentic_scientist_native_hc0_long_20261016/submission.json",
+    "code_commit": "dfdb4b47c86a2173fa90f02521599545fe891b24",
+    "jobs": {"stock": "29726507", "statistical": "29726508; afterany:29726507"},
+    "state_at_submission": "PENDING; not allocation or inference",
+    "scope": "Fresh exposed complete-workflow development; same task/evaluator and pinned weights. Joint state/prompt/resource condition, not a component-effect study, native-1M quality claim or official H/S result. No source patches, old-run resumes, cloud fallback or checklist credit."
+  },
   "latest_bouchet_module_observation": {
     "record": "benchmarks/agentic_scientist_hc0_bouchet_20261015/short_tmp_analysis.md",
     "frozen_commit": "d84ade4a",

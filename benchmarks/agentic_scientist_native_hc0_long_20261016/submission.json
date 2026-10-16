@@ -1,0 +1,22 @@
+{
+  "submitted_at": "2026-10-16T04:13:43-04:00",
+  "condition_id": "native_hc0_long_20261016",
+  "condition_freeze_commit": "cd8d5ddf",
+  "jobs": {
+    "stock": {"id": "29726507", "state_at_submission": "PENDING", "reason": "None"},
+    "statistical": {"id": "29726508", "state_at_submission": "PENDING", "dependency": "afterany:29726507"}
+  },
+  "account": "pi_fl426", "qos": "normal", "partition": "gpu_b200",
+  "resources_per_job": {"nodes": 1, "gpus": 1, "gpu_type": "b200", "cpus": 8, "host_memory_gib": 128, "wall_seconds": 172800},
+  "requeue": false,
+  "condition_root": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-native-HC0-long-20261016",
+  "precall_sha256": "138cf874577e20e468168e717e7623c2f72d466c44495058ebc3670a07882c1c",
+  "deployment_receipt_sha256": "a5e90202b3e58d29e26b9bcb228d93071ee555d0a1ac475c0c4d29a8c3c96e44",
+  "api_config_sha256": "7348d5f0dab05aaa125c21d77b6ec0a1c3f03c8b2762b1032480f29451459014",
+  "frozen_files_sha256": "65563b33488019109f5dee30c113da0478b212d83b15c79be0ccc3685c3e1e4c",
+  "frozen_files_count": 2773,
+  "freeze_scope": "Product/upstream archives and extracted patched code, both task trees, API/deployment/precall/run script, worker locks and all exact model files. Job wrapper checks manifest hash, then runner checks its contents and worker/serving archives before serving.",
+  "preparation_notes": "No model calls during preparation. Initial extraction was invoked before archive transfer completed and stopped without extraction; after transfer it proceeded, then the login shell's absent python alias stopped manifest generation. Completed the remaining JSON-based manifest generation with python3 before submission; no input/content repair or scientific retry.",
+  "entrypoint": "Existing src.pipeline.cli investigation,posthoc; one fresh arm per job, same settings; second after first terminates regardless of its scientific result",
+  "status_scope": "Submission is not allocation, inference, context-quality qualification, scientific acceptance or official H/S evidence. Startup and every subsequent outcome remain to be observed. No duplicate race job or automatic retry."
+}

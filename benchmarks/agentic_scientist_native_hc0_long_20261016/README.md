@@ -43,5 +43,7 @@ task trees, API config and deployment receipt before submission. Record exact
 hashes and resource routing in `precall.json` and job IDs in `submission.json`.
 The running service is loopback-only and terminates with its owning job.
 
+Submitted jobs are **29726507** (stock) and **29726508** (statistical, afterany
+stock); both were pending at submission. See [submission.json](submission.json).
 No official H/S experiment or publication-checklist item is completed by this
 condition. Source-bound AI review remains fallible feedback, not proof.

@@ -130,6 +130,9 @@ separate 48-hour one-B200 allocation per arm. This is a joint prospective
 development condition, not a component-effect comparison or a native-1M quality
 claim. Do not narrow the science, add answers or change consumed records. Verify
 startup before calls; keep mathematical assessment separate from numerical checks.
+Jobs **29726507** (stock) and **29726508** (statistical, afterany stock) were
+submitted pending, with separate complete-workflow budgets. No fresh scientific
+outcome or long-context quality result exists at submission.
 
 **Use the actual upstream observation to qualify the full-study boundary.** The
 requested native stock-v3 run on the exposed White HC0 task is now terminal.
