@@ -558,17 +558,93 @@ diff --git a/src/investigation/campaign_loop.py b/src/investigation/campaign_loo
 diff --git a/src/investigation/harness_eval.py b/src/investigation/harness_eval.py
 --- a/src/investigation/harness_eval.py
 +++ b/src/investigation/harness_eval.py
-@@ -14,6 +14,9 @@
+@@ -14,6 +14,10 @@
  from typing import Any
  
  from .harness_feedback import evaluation_feedback, search_metric_feedback
 +from .harness_incumbent import (
-+    _file_digest, _json_digest, native_evidence_identity, native_source_identity,
++    _file_digest, _json_digest, _read_harness_json,
++    native_evidence_identity, native_source_identity,
 +)
  from .harness_sources import read_candidate_sources as _read_candidate_sources
  from .evaluator_outputs import EvaluatorOutputContractError
  from .task_failure import TASK_CONTRACT_EXIT_CODE, TASK_CONTRACT_FAILURE, write_task_failure
-@@ -405,6 +408,7 @@
+@@ -90,6 +94,74 @@
+ def _write_json(path: Path, payload: dict[str, Any]) -> None:
+     path.parent.mkdir(parents=True, exist_ok=True)
+     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
++
++
++def _run_scientific_review(
++    *, program_dir: Path, experiment_dir: Path, rubrics_path: Path,
++    target_rubrics: list[dict[str, Any]], timeout_seconds: int,
++    environment: Mapping[str, str],
++) -> tuple[dict[str, str], str]:
++    """Run one optional source-bound AI review, without retrying or inferring proof."""
++    python = environment.get("AI_STATISTICIAN_API_PYTHON")
++    entrypoint = environment.get("AI_STATISTICIAN_API_ENTRYPOINT")
++    model = environment.get("AI_STATISTICIAN_API_MODEL")
++    if not all(isinstance(value, str) and value.strip() for value in (python, entrypoint, model)):
++        return {}, "API reviewer is not configured"
++    try:
++        # Never consume author-planted or previously interrupted review artifacts.
++        for name in ("scientific_review.json", "scientific_review.md", ".scientific-review",
++                     "scientific_review_stdout.log", "scientific_review_stderr.log"):
++            path = program_dir / name
++            if path.exists() or path.is_symlink():
++                raise ValueError("scientific review artifacts already exist")
++        manifest = _read_harness_json(program_dir / "evaluation_manifest.json") or {}
++        source_records = manifest.get("source_records")
++        task_sha256 = _file_digest(experiment_dir / "task.md")
++        rubrics_sha256 = _json_digest(target_rubrics)
++        if not isinstance(source_records, dict) or manifest.get("rubrics_sha256") != rubrics_sha256:
++            raise ValueError("missing native review identity")
++        with (program_dir / "scientific_review_stdout.log").open("xb") as stdout, (
++            program_dir / "scientific_review_stderr.log"
++        ).open("xb") as stderr:
++            result = subprocess.run(
++                [python, entrypoint, "--stage", "review", "--program-dir", str(program_dir),
++                 "--task-dir", str(experiment_dir), "--rubrics-file", str(rubrics_path.resolve()),
++                 "--model", model],
++                cwd=str(experiment_dir), env=dict(environment), stdin=subprocess.DEVNULL,
++                stdout=stdout, stderr=stderr, timeout=timeout_seconds, check=False,
++            )
++        if result.returncode != 0:
++            raise ValueError(f"scientific reviewer exited {result.returncode}")
++        summary = _read_harness_json(program_dir / "scientific_review.json") or {}
++        if not (
++            type(summary.get("schema_version")) is int and summary["schema_version"] == 1
++            and summary.get("kind") == "ai_scientific_review"
++            and isinstance(summary.get("scope"), str) and summary["scope"].strip()
++            and summary.get("model") == model
++            and summary.get("task_sha256") == task_sha256 == _file_digest(experiment_dir / "task.md")
++            and summary.get("rubrics_sha256") == rubrics_sha256 == _json_digest(_target_rubrics(rubrics_path))
++            and summary.get("source_records") == source_records
++            and source_records == native_source_identity(program_dir, expected=source_records)
++        ):
++            raise ValueError("missing, malformed or stale scientific review identity")
++        for key, name in (("report", "scientific_review.md"),
++                          ("session", ".scientific-review/session/result.json")):
++            if summary.get(key) != {"path": name, "sha256": _file_digest(program_dir / name)}:
++                raise ValueError(f"stale scientific review {key}")
++        review_ids = {item["id"] for item in target_rubrics if item.get("type") == "review"}
++        verdicts = summary.get("verdicts")
++        if not isinstance(verdicts, list) or len(verdicts) != len(review_ids) or any(
++            not isinstance(row, dict) or set(row) != {"id", "status"}
++            or not isinstance(row.get("id"), str) or row.get("status") not in ("PASS", "FAIL", "UNCERTAIN")
++            for row in verdicts
++        ):
++            raise ValueError("malformed scientific review verdicts")
++        statuses = {row["id"]: row["status"] for row in verdicts}
++        if set(statuses) != review_ids:
++            raise ValueError("scientific review IDs do not match frozen review rubrics")
++        return statuses, "scientific_review.md"
++    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
++        return {}, str(exc)
+
+
+ def _metric_key_for_check(metric: str, metrics: dict[str, Any]) -> str:
+@@ -405,6 +477,7 @@
                  environment,
                  gpu_evaluation=gpu_evaluation,
              ),
@@ -576,7 +652,36 @@ diff --git a/src/investigation/harness_eval.py b/src/investigation/harness_eval.
          )
  
      missing_artifacts = [
-@@ -456,6 +460,21 @@
+@@ -420,11 +493,28 @@
+     if not isinstance(metrics, dict):
+         metrics = {}
+     correct = _correct_value(program_dir / "correct.json")
++    review_statuses: dict[str, str] = {}
++    review_evidence = "computational evaluation did not succeed"
++    if (sealed_config is None and returncode == 0
++        and (_read_harness_json(program_dir / "correct.json") or {}).get("correct") is True
++        and any(item.get("type") == "review" for item in target_rubrics)):
++        review_statuses, review_evidence = _run_scientific_review(
++            program_dir=program_dir, experiment_dir=experiment_dir, rubrics_path=rubrics_path,
++            target_rubrics=target_rubrics, timeout_seconds=timeout_seconds, environment=environment,
++        )
+     rubrics = []
+     for item in target_rubrics:
+         rubric_id = item.get("id")
+         if not isinstance(rubric_id, str) or not rubric_id.strip():
+             continue
++        if sealed_config is None and item.get("type") == "review":
++            verdict = review_statuses.get(rubric_id)
++            rubrics.append({
++                "id": rubric_id, "pass": verdict == "PASS",
++                "assessment": "passed" if verdict == "PASS" else "failed" if verdict == "FAIL" else "not_assessed",
++                "evidence": f"{review_evidence}; verdict={verdict or 'not_assessed'}; AI review, not proof",
++            })
++            continue
+         passed, evidence = _rubric_status(
+             rubric=item,
+             metrics=metrics,
+@@ -456,6 +546,21 @@
      }
      _write_json(program_dir / "rubric_status.json", status)
      _write_json(experiment_dir / "rubric_status.json", status)
@@ -598,7 +703,7 @@ diff --git a/src/investigation/harness_eval.py b/src/investigation/harness_eval.
      _append_memory(
          md_path=global_memory_md,
          jsonl_path=global_memory_jsonl,
-@@ -479,6 +498,7 @@
+@@ -479,6 +584,7 @@
      python_bin: str,
      timeout_seconds: int,
      environment: Mapping[str, str],
@@ -606,7 +711,7 @@ diff --git a/src/investigation/harness_eval.py b/src/investigation/harness_eval.
  ) -> int:
      manifest_path = program_dir / "evaluation_manifest.json"
      command = [
-@@ -491,6 +511,12 @@
+@@ -491,6 +597,12 @@
      ]
      manifest: dict[str, Any] = {
          "producer": "harness_eval",

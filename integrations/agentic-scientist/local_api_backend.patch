@@ -247,7 +247,7 @@ index c52dd47..58929a6 100644
    case "${AGENT_CHATGPT_SUBSCRIPTION:-0}" in
      1|true|TRUE|yes|YES|y|Y) return 0 ;;
 diff --git a/src/scripts/run.sh b/src/scripts/run.sh
-index 4997f78..a2c7cdd 100755
+index 4997f78..82d8579 100755
 --- a/src/scripts/run.sh
 +++ b/src/scripts/run.sh
 @@ -3,6 +3,11 @@
@@ -293,7 +293,7 @@ index 4997f78..a2c7cdd 100755
        AGENT="$1"
        shift
        ;;
-@@ -215,6 +224,13 @@ if [ -n "$AGENT_MODEL" ]; then
+@@ -215,6 +224,14 @@ if [ -n "$AGENT_MODEL" ]; then
    esac
  fi
  
@@ -302,12 +302,13 @@ index 4997f78..a2c7cdd 100755
 +if [ "$AGENT" = "local-api" ]; then
 +  validate_native_api_author "$CONTAINERIZE" "$HARNESS_EVALUATED_ATTEMPT" \
 +    "$AGENT_PROFILE_SET" "$AGENT_REASONING_EFFORT_SET" "$AGENT_MODEL" || exit 1
++  export AI_STATISTICIAN_API_MODEL="$AGENT_MODEL"
 +fi
 +
  if [ -z "$RESULTS_DIR" ]; then
    TASK_NAME="$(basename "${TASK_DIR%/}")"
    if [ -z "$TASK_NAME" ] || [ "$TASK_NAME" = "." ] || [ "$TASK_NAME" = "/" ]; then
-@@ -571,6 +587,9 @@ mkdir -p "$EXPERIMENT_DIR/program_0"
+@@ -571,6 +588,9 @@ mkdir -p "$EXPERIMENT_DIR/program_0"
  
  # Stage task artifacts into isolated experiment workspace.
  (cd "$REPO_ROOT" && "$PYTHON_BIN" -m src.investigation.program_clone --from "$SEED_PROGRAM_DIR" --to "$EXPERIMENT_DIR/program_0")
@@ -317,7 +318,7 @@ index 4997f78..a2c7cdd 100755
  SEARCH_EVALUATOR_SOURCE_DIR="$TASK_DIR"
  if [ -f "$TASK_SOURCE_DIR/task_contract.json" ]; then
    SEARCH_EVALUATOR_SOURCE_DIR="$TASK_SOURCE_DIR"
-@@ -822,6 +841,7 @@ export CONCLUSIONS_MD_FILE="$CONCLUSIONS_DIR/conclusions.md"
+@@ -822,6 +842,7 @@ export CONCLUSIONS_MD_FILE="$CONCLUSIONS_DIR/conclusions.md"
  export CONCLUSIONS_HISTORY_FILE="$CONCLUSIONS_DIR/conclusions_history.jsonl"
  export OTHER_WORKERS_CONCLUSIONS_FILE="$CONCLUSIONS_DIR/conclusions_other_workers.md"
  export WORKER_INDEX
@@ -325,7 +326,7 @@ index 4997f78..a2c7cdd 100755
  
  case "$AGENT" in
    claude) AGENT_CONFIG_DIR=".claude" ;;
-@@ -830,6 +850,7 @@ case "$AGENT" in
+@@ -830,6 +851,7 @@ case "$AGENT" in
    opencode) AGENT_CONFIG_DIR=".opencode" ;;
    gemini) AGENT_CONFIG_DIR=".gemini" ;;
    pi) AGENT_CONFIG_DIR=".pi/agent" ;;
@@ -333,7 +334,7 @@ index 4997f78..a2c7cdd 100755
    *)
      echo "Unsupported agent: $AGENT" >&2
      exit 1
-@@ -1220,9 +1241,13 @@ cleanup_run_processes() {
+@@ -1220,9 +1242,13 @@ cleanup_run_processes() {
    cleanup_contracted_container_env || true
  
    if [ "${INTERRUPTED:-0}" -eq 1 ] && [ -f "${LOG_FILE:-}" ]; then
@@ -350,7 +351,7 @@ index 4997f78..a2c7cdd 100755
    fi
  
    # Some agent tool executions may daemonize evaluate workers outside the direct
-@@ -1324,19 +1349,25 @@ TEE_PID=$!
+@@ -1324,19 +1350,25 @@ TEE_PID=$!
      exec {AGENTIC_TASK_FAILURE_FD}>&-
      unset AGENTIC_TASK_FAILURE_FD
    fi
@@ -389,7 +390,7 @@ index 4997f78..a2c7cdd 100755
  ) > "$LOG_PIPE" 2>&1 &
  AGENT_PID=$!
  
-@@ -1371,10 +1402,14 @@ if [ "$TEE_EXIT_CODE" -ne 0 ]; then
+@@ -1371,10 +1403,14 @@ if [ "$TEE_EXIT_CODE" -ne 0 ]; then
        --attempt-id "$ATTEMPT_ID" --idea-id "$IDEA_ID"
    fi
  fi

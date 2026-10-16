@@ -96,6 +96,16 @@ def author_tools() -> tuple[ClientToolDefinition, ...]:
 class FileAuthorWorkspace:
     """Explicit file grants for a source-only author; no shell or evaluator access."""
 
+    instructions = (
+        "You author this stage's research files. The supplied task defines the scientific objective. "
+        "Use the file tools to read, develop and revise Markdown/LaTeX and source, and finish with candidate "
+        "or an honest gap. No fixed derivation length is required. The host owns execution and independent "
+        "evaluation after handoff; a submitted file is not proof or scientific acceptance."
+    )
+
+    def tools(self) -> tuple[ClientToolDefinition, ...]:
+        return author_tools()
+
     def __init__(self, grants: tuple[FileGrant, ...]):
         if not grants or len({grant.name for grant in grants}) != len(grants):
             raise ValueError("File grants must have unique names.")
@@ -107,7 +117,7 @@ class FileAuthorWorkspace:
                 if grant != other and PurePosixPath(grant.name) in PurePosixPath(other.name).parents:
                     raise ValueError("File grants must not overlap in logical paths.")
         self.grants = tuple(FileGrant(g.name, g.path.resolve(), g.directory, g.writable) for g in grants)
-        self.schemas = {tool.name: tool.input_schema for tool in author_tools()}
+        self.schemas = {tool.name: tool.input_schema for tool in self.tools()}
 
     def descriptor(self) -> list[dict[str, Any]]:
         return [{"name": g.name, "directory": g.directory, "writable": g.writable} for g in self.grants]
@@ -199,7 +209,7 @@ class FileAuthorWorkspace:
             "bytes": len(data)}, state_changed=data != previous)
 
 
-def run_file_author(*, backend, workspace: FileAuthorWorkspace, prompt: str,
+def run_file_session(*, backend, workspace: FileAuthorWorkspace, prompt: str,
                     model: str, max_tokens: int, temperature: float, max_turns: int,
                     session_dir: Path, session_id: str, deployment_identity: Mapping[str, Any]):
     """One upstream-owned stage. The caller retains evaluation and scheduling."""
@@ -208,14 +218,11 @@ def run_file_author(*, backend, workspace: FileAuthorWorkspace, prompt: str,
         {**asdict(g), "path": str(g.path)} for g in workspace.grants],
         "inputs": workspace.files(), "prompt_sha256": _digest(prompt.encode("utf-8"))}
     request = ClientToolTurnRequest(
-        system_prompt=("You author this stage's research files. The supplied task defines the scientific objective. "
-            "Use the file tools to read, develop and revise Markdown/LaTeX and source, and finish with candidate "
-            "or an honest gap. No fixed derivation length is required. The host owns execution and independent "
-            "evaluation after handoff; a submitted file is not proof or scientific acceptance. "
+        system_prompt=(workspace.instructions + " "
             "Only the listed logical paths are accessible; do not use absolute paths from the upstream prompt. "
             "Use read_file offsets to continue long files and workspace history for earlier observations.\n"
             + json.dumps(workspace.descriptor())),
-        messages=({"role": "user", "content": prompt},), tools=author_tools(),
+        messages=({"role": "user", "content": prompt},), tools=workspace.tools(),
         model=model, max_tokens=max_tokens, temperature=temperature,
         disable_parallel_tool_use=True,
         metadata={CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: stable_hash(identity)},

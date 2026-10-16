@@ -152,10 +152,13 @@ The [explicit native API extension](../integrations/agentic-scientist/README.md#
 now connects the actual upstream source-authoring attempt to our local transport,
 retained observations and model-owned file edits. It also supports native
 ideation and a serial campaign with fixed operator requirements. Complete
-process tests use deterministic HTTP fixtures: an unsolved starter, a failed
-candidate, raw feedback read by the next source owner and an evaluated revision.
+process tests use deterministic HTTP fixtures: an unsolved starter, execution or
+source-review failure, raw feedback read by the next source owner and a new candidate.
 They make no model or scientific claim. The stock submodule stays pinned and
-unchanged. This is not the full S system: independent review, specialist tools,
+unchanged. A fresh, source-bound AI reviewer now uses the same API and file tools,
+with only its Markdown report writable and no author conversation or numerical
+evaluation outputs. Its dispositions cannot certify a theorem or empirical result.
+This is not the full S system: scientific qualification, specialist tools,
 interrupted-session continuation and final pipeline integration remain unfinished.
 Do not launch more isolated one-shot scientific examples to stand in for them.
 

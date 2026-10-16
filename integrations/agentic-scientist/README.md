@@ -21,10 +21,11 @@ The pinned upstream native evaluator now also executes real multi-file Python
 and R fixtures, retaining outputs and raw errors and refusing a second evaluation
 of the consumed attempt. This verifies project handoff without a new executor;
 the opaque fixtures are not statistical experiments or model-generated research.
-Upstream metric/source rubrics do not assess mathematical arguments. An unsupported
-review rubric receives `assessment=failed` with evidence saying it cannot be
-verified; this is not a finding that the mathematics is false. A separate exact-file
-scientific assessment is still needed. The native drafting/final gap below remains.
+Stock upstream metric/source rubrics do not assess mathematical arguments.
+The native extension now attaches a separate source-bound AI review for declared
+review criteria. Missing, interrupted or uncertain review is `not_assessed`, not
+a finding that the mathematics is false. Its scientific reliability is not yet
+qualified. The native drafting/final gap below remains.
 
 The subsequent Bouchet conditions and their frozen configuration changes are in
 [the module record](../../benchmarks/agentic_scientist_hc0_bouchet_20261015/README.md).
@@ -42,8 +43,9 @@ An explicit [native API extension](local_api_backend.patch) connects upstream
 ideation and source authoring to our existing local API transport and retained
 tool loop. A separate [fixed-requirement extension](native_campaign_semantics.patch)
 uses upstream campaign/state/evaluator interfaces for unsolved reconstruction.
-The complete native CLI test starts without a scored baseline, evaluates a failed
-candidate, returns its raw error to the next author and evaluates that revision.
+The complete native CLI tests start without a scored baseline, evaluate a failed
+candidate, return its raw execution or independent review feedback to the next
+author and evaluate a new candidate.
 The author cannot weaken the fixed task criteria. These deterministic HTTP
 fixtures are mechanism evidence, not live model research or a completed S system.
 
@@ -132,8 +134,8 @@ Use the patched checkout's existing `python -m src.investigation.cli` with
 `execution.harness_evaluated_attempts=true`, `container.enabled=false` and
 `paper.enabled=false`. Select cycle and wall-time budgets for the workload.
 Absence of the task rubric file selects stock optimization semantics, not an
-implicit reconstruction fallback. Unknown mathematical-review rubrics remain
-unassessed failures; a string match cannot establish a proof.
+implicit reconstruction fallback. Review criteria require the separate AI review
+below; a source string match cannot establish a mathematical argument or proof.
 
 The author uses generic list/read/search/write/exact-edit/remove/history/finish
 tools. Substantive mathematics remains in Markdown/LaTeX and programs in source
@@ -180,12 +182,42 @@ extension does not claim to have fixed that separate defect.
 Per-attempt API evidence is under `.local-api/session`: deployment/input
 references, exact source hashes, transcript, observations and actual returned
 usage. These records are not parsed as Headless cost or reported as zero usage.
-The current file participant does not yet attach the independent reviewer,
-source-discovery execution, Python/R exploratory tools or Lean/RAG specialist
-tools to the new controller. Those validated assets remain intact. This extension
+The current file participant does not yet attach source-discovery execution,
+Python/R exploratory tools or Lean/RAG specialist tools to the new controller.
+Those validated assets remain intact. This extension
 removes one CLI dependency; it is not a substitute for their integration or the
 full independently assessed research workflow. The tested source-owner revision
 cycle supplies a necessary handoff, not mathematical acceptance.
+
+### Independent Source Review
+
+For frozen `type=review` criteria, the native host invokes the same pinned API
+in a fresh reviewer context after successful computational execution and before
+finalizing the evaluation receipt. It uses the existing file/session loop, not
+the legacy reviewer controller or a new scheduler. No review criteria means no
+review call. The sealed evaluator path is unchanged.
+
+The reviewer reads the exact pre-evaluation candidate files, task, criteria and
+permitted sources. Only its Markdown report is writable. Author conversations,
+prior reviewer opinions and numerical evaluator outputs are not granted.
+Candidate-authored text can still assert outcomes; this is tool-level context
+separation, not a guarantee of no anchoring or shared-model error.
+The [review prompt](prompts/scientific-review.md) asks for source-located findings
+and decisive reasoning, without fixed equation counts or task-specific rules.
+
+`submit_review` returns PASS, FAIL or UNCERTAIN for every fixed review criterion.
+The host checks source/task/criteria/model/report/session identities; it does not
+infer mathematical correctness from their hashes. It preserves reviewer logs,
+the report, dispositions and private session under the evaluated program. A
+missing or invalid receipt remains unassessed. It never retries a consumed review.
+The next source owner can read the report and public logs through existing history;
+the reviewer cannot revise the candidate or choose the next research action.
+
+The combined HTTP test verifies that numeric success plus review failure does
+not complete the campaign. This is deterministic mechanism evidence only.
+Source review cannot certify observed simulation outcomes, a theorem, human
+endorsement or publication quality. Same-model author/reviewer errors may agree;
+scientific qualification and independent empirical assessment remain required.
 
 This migration adds a small participant alongside the retained legacy code. The
 package source ceiling increases explicitly from 150000 to 150500 lines; the

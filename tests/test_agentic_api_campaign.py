@@ -15,7 +15,8 @@ import pytest
 from test_agentic_api_backend_patch import ROOT, UPSTREAM, patched, upstream_copy
 
 
-def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path):
+@pytest.mark.parametrize("failure_kind", ["execution", "review"])
+def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path, failure_kind):
     python = Path(os.environ.get("AI_STATISTICIAN_V3_PYTHON", UPSTREAM / ".venv/bin/python"))
     bash = Path(os.environ.get("AI_STATISTICIAN_V3_BASH", shutil.which("bash") or "/bin/bash"))
     version = subprocess.check_output([str(bash), "-c", "printf '%s' \"${BASH_VERSINFO[0]}\""], text=True)
@@ -34,6 +35,8 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
     (task / "task.md").write_text("# Goal\nOpaque complete-candidate fixture.\n# Rubrics\nMeet the fixed host criterion.\n# Constraints\nNo scientific claim.\n")
     fixed = [{"id": "execution", "type": "metric", "description": "combined_score >= 1",
               "metric": "combined_score", "operator": ">=", "threshold": 1}]
+    if failure_kind == "review":
+        fixed.append({"id": "argument", "type": "review", "description": "Opaque independent review fixture."})
     (task / "target_rubrics.json").write_text(json.dumps(fixed))
     evaluator = task / "evaluate.py"
     evaluator.write_text(
@@ -46,7 +49,8 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
         "(out/'metrics.json').write_text(json.dumps({'combined_score':int(correct)}))\n"
         "(out/'correct.json').write_text(json.dumps({'correct':correct}))\n")
     requests, actions = [], []
-    failure_path = "history/ideas/01_first_attempt/program_1/harness_evaluate_stderr.log"
+    failure_file = "harness_evaluate_stderr.log" if failure_kind == "execution" else "scientific_review.md"
+    failure_path = "history/ideas/01_first_attempt/program_1/" + failure_file
     for cycle, title in ((1, "First attempt"), (2, "Second attempt")):
         proposed = [{"id": "weakened", "type": "metric", "description": "combined_score >= 0"},
                     {"id": "marker", "type": "implementation", "description": "Include a fixture marker",
@@ -63,13 +67,19 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
         ])
         if cycle == 2:
             actions.append(("read_file", {"path": failure_path}))
-        candidate = "raise RuntimeError('opaque feedback 19')\n" if cycle == 1 else "print('opaque-native-17')\n"
+        candidate = "raise RuntimeError('opaque feedback 19')\n" if cycle == 1 and failure_kind == "execution" else "print('opaque-native-17')\n"
         actions.extend([
             ("write_file", {"path": "program_1/src/program.py", "content": candidate,
                             "expected_sha256": hashlib.sha256(initial.encode()).hexdigest()}),
-            ("write_file", {"path": "program_1/src/theory.md", "content": "# Unassessed fixture only\n", "expected_sha256": None}),
+            ("write_file", {"path": "program_1/src/theory.md", "content": f"# Unassessed fixture version {cycle}\n", "expected_sha256": None}),
             ("finish", {"disposition": "candidate", "summary": "Research handoff, not accepted science."}),
         ])
+        if failure_kind == "review":
+            actions.extend([
+                ("read_file", {"path": "candidate/src/theory.md"}),
+                ("write_file", {"path": "review.md", "content": "# Opaque review\nopaque feedback 19\n", "expected_sha256": None}),
+                ("submit_review", {"verdicts": [{"id": "argument", "status": "FAIL" if cycle == 1 else "PASS"}]}),
+            ])
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
@@ -121,8 +131,17 @@ def test_native_api_campaign_revises_after_actual_host_failure(patched, tmp_path
     assert run.returncode == 0, run.stdout + run.stderr
     assert len(requests) == len(actions)
     first, second = results / "ideas/01_first_attempt", results / "ideas/02_second_attempt"
-    assert "opaque feedback 19" in (first / "program_1/harness_evaluate_stderr.log").read_text()
-    assert not (first / "program_1/metrics.json").exists()
+    assert "opaque feedback 19" in (first / "program_1" / failure_file).read_text()
+    if failure_kind == "execution":
+        assert not (first / "program_1/metrics.json").exists()
+    else:
+        assert json.loads((first / "program_1/metrics.json").read_text())["combined_score"] == 1
+        assert json.loads((first / "program_1/rubric_status.json").read_text())["overall_pass"] is False
+        assert (first / "program_1/src/theory.md").read_bytes() != (second / "program_1/src/theory.md").read_bytes()
+        review_requests = [request for request in requests if "independently review" in request["messages"][0]["content"]]
+        assert len(review_requests) == 6
+        assert all("history/" not in request["messages"][0]["content"] for request in review_requests)
+        assert "not proof" in json.loads((second / "program_1/scientific_review.json").read_text())["scope"]
     assert json.loads((second / "program_1/rubric_status.json").read_text())["overall_pass"] is True
     assert json.loads((second / "active_rubrics.json").read_text()) == fixed
     assert any("opaque feedback 19" in str(request["messages"][-1]) for request in requests)

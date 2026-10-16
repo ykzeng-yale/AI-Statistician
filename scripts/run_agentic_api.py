@@ -14,7 +14,8 @@ import tomllib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ai_statistician.agentic_api_workspace import FileAuthorWorkspace, FileGrant, run_file_author
+from ai_statistician.agentic_api_workspace import FileAuthorWorkspace, FileGrant, run_file_session
+from ai_statistician.agentic_scientific_review import run_scientific_review
 from ai_statistician.local_model_backend import LocalChatGeneratorBackend
 
 
@@ -59,7 +60,9 @@ def campaign_history_grants(results: Path | None, *, current: Path) -> tuple[Fil
                 grants.append(FileGrant(prefix + "/" + name, attempt / name))
         for program in sorted(attempt.glob("program_[0-9]*")):
             for name in ("src", "program_spec.toml", "metrics.json", "correct.json", "rubric_status.json",
-                         "evaluation_manifest.json", "harness_evaluate_stdout.log", "harness_evaluate_stderr.log"):
+                         "evaluation_manifest.json", "harness_evaluate_stdout.log", "harness_evaluate_stderr.log",
+                         "scientific_review.md", "scientific_review.json",
+                         "scientific_review_stdout.log", "scientific_review_stderr.log"):
                 path = program / name
                 if path.exists():
                     grants.append(FileGrant(prefix + "/" + program.name + "/" + name, path, directory=name == "src"))
@@ -104,20 +107,39 @@ def stage_workspace(root: Path, source: Path, *, stage="research", results: Path
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--prompt-file", type=Path, required=True)
+    parser.add_argument("--prompt-file", type=Path)
     parser.add_argument("--model", required=True)
-    parser.add_argument("--stage", choices=("idea", "research"), default="research")
+    parser.add_argument("--stage", choices=("idea", "research", "review"), default="research")
+    parser.add_argument("--program-dir", type=Path)
+    parser.add_argument("--task-dir", type=Path)
+    parser.add_argument("--rubrics-file", type=Path)
     args = parser.parse_args()
+    if args.stage == "review":
+        if not all((args.program_dir, args.task_dir, args.rubrics_file)) or args.prompt_file:
+            parser.error("Review requires program-dir, task-dir and rubrics-file; its prompt is fixed by the integration.")
+    elif not args.prompt_file or any((args.program_dir, args.task_dir, args.rubrics_file)):
+        parser.error("Idea/research stages require only prompt-file and model.")
     config, identity = load_config(Path(os.environ["AI_STATISTICIAN_API_CONFIG"]), model=args.model)
     root = Path.cwd().resolve()
-    results = Path(os.environ["AI_STATISTICIAN_CAMPAIGN_RESULTS"]) if os.environ.get("AI_STATISTICIAN_CAMPAIGN_RESULTS") else None
-    workspace = stage_workspace(root, Path(os.environ["TASK_SOURCE_DIR"]), stage=args.stage, results=results)
     backend = LocalChatGeneratorBackend(base_url=config["base_url"], timeout_s=config["timeout_seconds"])
     def interrupted(signum, frame):
         raise KeyboardInterrupt(f"Received signal {signum}")
 
     previous_handler = signal.signal(signal.SIGTERM, interrupted)
     try:
+        if args.stage == "review":
+            prompt = Path(__file__).resolve().parents[1] / "integrations/agentic-scientist/prompts/scientific-review.md"
+            review = run_scientific_review(
+                backend=backend, program=args.program_dir, task=args.task_dir,
+                rubrics_file=args.rubrics_file,
+                sources=Path(os.environ.get("TASK_SOURCE_DIR", str(args.task_dir))),
+                config=config, deployment_identity=identity, prompt=prompt.read_text(),
+            )
+            print(json.dumps({"event": "api_review_terminal", "model": review["model"],
+                              "verdicts": review["verdicts"], "proof_evidence": False}), flush=True)
+            return 0
+        results = Path(os.environ["AI_STATISTICIAN_CAMPAIGN_RESULTS"]) if os.environ.get("AI_STATISTICIAN_CAMPAIGN_RESULTS") else None
+        workspace = stage_workspace(root, Path(os.environ["TASK_SOURCE_DIR"]), stage=args.stage, results=results)
         prompt = args.prompt_file.read_text()
         if args.stage == "idea":
             prompt = ("Native API stage contract: write idea_bundle.json and target_rubrics.json. "
@@ -125,7 +147,7 @@ def main() -> int:
                       "Use only granted logical paths, including history for prior source and raw observations. "
                       "task_requirements.json, when present, is the operator's fixed acceptance contract.\n\n"
                       + prompt)
-        result = run_file_author(
+        result = run_file_session(
             backend=backend, workspace=workspace, prompt=prompt,
             model=args.model, max_tokens=config["max_tokens"], temperature=config["temperature"],
             max_turns=config["max_turns"], session_dir=root / ".local-api/session",

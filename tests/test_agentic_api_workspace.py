@@ -11,7 +11,7 @@ import time
 
 import pytest
 
-from ai_statistician.agentic_api_workspace import FileAuthorWorkspace, FileGrant, run_file_author
+from ai_statistician.agentic_api_workspace import FileAuthorWorkspace, FileGrant, run_file_session
 from ai_statistician.client_tool_loop import ClientToolExecutionContext, ClientToolLoopError
 from ai_statistician.model_backend import ClientToolCall, ClientToolTurnResponse
 from ai_statistician.fingerprint import stable_hash
@@ -144,7 +144,7 @@ class FixtureBackend:
 
 
 def run(workspace, backend, destination, *, max_turns=6):
-    return run_file_author(backend=backend, workspace=workspace, prompt="Opaque research-stage brief.",
+    return run_file_session(backend=backend, workspace=workspace, prompt="Opaque research-stage brief.",
         model="frozen-fixture-model", max_tokens=8192, temperature=1.0, max_turns=max_turns,
         session_dir=destination, session_id="opaque-attempt", deployment_identity={"revision": "exact-fixture"})
 

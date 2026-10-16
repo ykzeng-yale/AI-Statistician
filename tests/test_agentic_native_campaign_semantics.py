@@ -1,7 +1,8 @@
 """Apply the scoped patch to exact Sakana sources, then exercise their real modules.
 
-Only authors/ideation are deterministic fixtures. Native harness evaluation runs a
-small local Python evaluator; these are mechanism tests, not research E2E evidence.
+Authors, ideation and scientific reviewers are deterministic fixtures. Native
+harness evaluation runs a small local Python evaluator; these are mechanism
+tests, not research E2E evidence.
 Sakana AI retains upstream Apache-2.0 attribution. No models or remote jobs run.
 """
 
@@ -65,6 +66,113 @@ out = Path(a.results_dir)
 (out / "correct.json").write_text(json.dumps({"correct": candidate["VALID"]}))
 print("fixture evaluator completed")
 '''
+REVIEW_RUBRICS = [
+    {"id": "theory", "description": "Review the scientific argument", "type": "review",
+     "verification": {"type": "source_contains", "patterns": ["solve"]}},
+    {"id": "method", "description": "Review the method", "type": "review",
+     "metric": "combined_score", "operator": ">=", "threshold": 0},
+]
+REVIEWER = r'''import argparse, hashlib, json, os, signal, sys, time
+from pathlib import Path
+p = argparse.ArgumentParser()
+p.add_argument("--stage", choices=["review"], required=True)
+p.add_argument("--program-dir", type=Path, required=True)
+p.add_argument("--task-dir", type=Path, required=True)
+p.add_argument("--rubrics-file", type=Path, required=True)
+p.add_argument("--model", required=True)
+a = p.parse_args()
+program = a.program_dir
+read = lambda path: json.loads(path.read_text())
+digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+json_digest = lambda value: hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
+manifest = read(program / "evaluation_manifest.json")
+assert manifest["exit_code"] == 0 and not manifest.get("completed")
+assert not (program / "rubric_status.json").exists()
+assert not (a.task_dir / "rubric_status.json").exists()
+assert sys.stdin.read() == ""
+record_path = Path(os.environ["FIXTURE_REVIEW_RECORD"])
+records = read(record_path) if record_path.exists() else []
+records.append({"argv": sys.argv[1:], "cwd": str(Path.cwd())})
+record_path.write_text(json.dumps(records))
+print("raw reviewer stdout", flush=True)
+print("raw reviewer stderr", file=sys.stderr, flush=True)
+mode = os.environ["FIXTURE_REVIEW_MODE"]
+rubrics = read(a.rubrics_file)
+review_ids = [item["id"] for item in rubrics if item["type"] == "review"]
+status = mode if mode in ("PASS", "FAIL", "UNCERTAIN") else "PASS"
+if mode == "campaign_fail_then_pass" and len(records) == 1:
+    status = "FAIL"
+report = program / "scientific_review.md"
+report.write_text("# Deterministic reviewer report\nFixture finding: " + status + "\n")
+session = program / ".scientific-review/session/result.json"
+session.parent.mkdir(parents=True)
+session.write_text(json.dumps({"status": "completed", "fixture": True}))
+summary = {
+    "schema_version": 1, "kind": "ai_scientific_review", "model": a.model,
+    "task_sha256": digest(a.task_dir / "task.md"), "rubrics_sha256": json_digest(rubrics),
+    "source_records": manifest["source_records"],
+    "verdicts": [{"id": key, "status": status if key == review_ids[0] else "PASS"}
+                 for key in reversed(review_ids)],
+    "report": {"path": "scientific_review.md", "sha256": digest(report)},
+    "session": {"path": ".scientific-review/session/result.json", "sha256": digest(session)},
+    "scope": "AI source review, not proof or independent empirical confirmation.",
+}
+if mode.startswith("stale_") and mode[6:] in ("task", "rubrics", "model", "source"):
+    field = {"task": "task_sha256", "rubrics": "rubrics_sha256",
+             "model": "model", "source": "source_records"}[mode[6:]]
+    summary[field] = {} if field == "source_records" else "stale"
+elif mode == "rubrics_subset":
+    summary["rubrics_sha256"] = json_digest([r for r in rubrics if r["type"] == "review"])
+elif mode == "missing_input":
+    summary["source_records"].pop("input.bin")
+elif mode in ("stale_report", "stale_session"):
+    path = report if mode == "stale_report" else session
+    path.write_text(path.read_text() + "\n")
+elif mode in ("missing_report", "missing_session"):
+    (report if mode == "missing_report" else session).unlink()
+elif mode in ("report_path", "session_path"):
+    summary[mode.split("_")[0]]["path"] = "../wrong-file"
+elif mode == "live_task_changed":
+    (a.task_dir / "task.md").write_text("Changed staged task")
+elif mode == "live_source_changed":
+    path = program / "src/program.py"
+    path.write_text(path.read_text() + "\n")
+elif mode == "live_rubrics_changed":
+    a.rubrics_file.write_text(json.dumps(rubrics[:-1]))
+elif mode in ("wrong_schema", "wrong_kind", "empty_scope"):
+    field, value = {"wrong_schema": ("schema_version", True),
+                    "wrong_kind": ("kind", "author_report"), "empty_scope": ("scope", " ")}[mode]
+    summary[field] = value
+elif mode == "missing_verdict":
+    summary["verdicts"].pop()
+elif mode == "extra_verdict":
+    summary["verdicts"].append({"id": "target", "status": "PASS"})
+elif mode == "duplicate_verdict":
+    summary["verdicts"][1] = summary["verdicts"][0]
+elif mode == "wrong_verdict_id":
+    summary["verdicts"][0]["id"] = "target"
+elif mode == "bad_status":
+    summary["verdicts"][0]["status"] = "passed"
+elif mode == "malformed_verdict":
+    summary["verdicts"][0] = {"id": [], "status": ["PASS"]}
+elif mode == "extra_verdict_field":
+    summary["verdicts"][0]["explanation"] = "Not in the verdict contract"
+payload = json.dumps(summary)
+if mode == "malformed":
+    payload = "{"
+elif mode == "not_object":
+    payload = "[]"
+elif mode == "invalid_utf8":
+    payload = None
+if mode != "missing":
+    (program / "scientific_review.json").write_bytes(payload.encode() if payload is not None else b"\xff")
+if mode == "exit_failure":
+    sys.exit(23)
+if mode == "interrupted":
+    os.kill(os.getpid(), signal.SIGTERM)
+if mode == "timeout":
+    time.sleep(60)
+'''
 
 
 @pytest.fixture(scope="module")
@@ -98,9 +206,22 @@ SCENARIOS = [
     "evidence_tamper_before_promotion", "source_tamper_before_promotion",
     "result_artifacts", "result_artifacts_optimization", "stale_result_artifact", "stale_input",
 ]
+REVIEW_SCENARIOS = [
+    "PASS", "FAIL", "UNCERTAIN", "missing", "malformed", "not_object", "invalid_utf8",
+    "stale_source", "stale_report", "stale_session", "stale_task", "stale_rubrics", "stale_model",
+    "rubrics_subset", "missing_input", "missing_report", "missing_session", "report_path", "session_path",
+    "live_task_changed", "live_source_changed", "live_rubrics_changed",
+    "wrong_schema", "wrong_kind", "empty_scope", "missing_verdict", "extra_verdict",
+    "duplicate_verdict", "wrong_verdict_id", "bad_status", "malformed_verdict", "extra_verdict_field",
+    "exit_failure", "interrupted", "timeout", "launch_failure", "preexisting",
+    "no_python", "no_entrypoint", "no_model", "unconfigured", "no_review", "sealed",
+    "incorrect", "truthy_correct", "evaluation_failed", "nonzero_correct",
+    "tamper_summary", "tamper_report", "tamper_session", "tamper_stdout", "tamper_stderr",
+    "campaign_pass", "campaign_fail_then_pass",
+]
 
 
-@pytest.mark.parametrize("scenario", SCENARIOS)
+@pytest.mark.parametrize("scenario", SCENARIOS + ["review_" + name for name in REVIEW_SCENARIOS])
 def test_native_campaign_scenario(patched_upstream, tmp_path, scenario):
     environment = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
@@ -234,6 +355,8 @@ def _run_scenario(name, root):
     from src.investigation.idea_generation import load_fixed_target_rubrics, load_idea_artifacts
     from src.investigation.harness_incumbent import read_native_evaluation
 
+    if name.startswith("review_"):
+        return _run_review_scenario(name.removeprefix("review_"), root)
     task = _task(root)
     results = root / "results"
     if name in {"result_artifacts", "result_artifacts_optimization", "stale_result_artifact"}:
@@ -419,6 +542,177 @@ def _run_scenario(name, root):
 
 def _read_history(results):
     return [json.loads(line) for line in (results / "attempts_history.jsonl").read_text().splitlines()]
+
+
+def _run_review_scenario(name, root):
+    from src.investigation import harness_eval
+    from src.investigation.harness_incumbent import read_native_evaluation
+    from src.investigation.program_clone import clone_program_dir
+
+    requirements = REQUIREMENTS + REVIEW_RUBRICS if name != "no_review" else REQUIREMENTS
+    if name.startswith("campaign_"):
+        requirements = REQUIREMENTS + [
+            {key: row[key] for key in ("id", "description", "type")} for row in REVIEW_RUBRICS
+        ]
+    task = _task(root, requirements)
+    reviewer = root / "reviewer fixture ; literal.py"
+    reviewer.write_text(REVIEWER)
+    record_path = root / "reviewer-invocations.json"
+    environment = dict(os.environ) | {
+        "AI_STATISTICIAN_API_PYTHON": sys.executable,
+        "AI_STATISTICIAN_API_ENTRYPOINT": str(reviewer),
+        "AI_STATISTICIAN_API_MODEL": "fixture/model ; literal",
+        "FIXTURE_REVIEW_MODE": name,
+        "FIXTURE_REVIEW_RECORD": str(record_path),
+    }
+    if name.startswith("campaign_"):
+        os.environ.update(environment)
+        results = root / "results"
+        count = 2 if name == "campaign_fail_then_pass" else 1
+        code, events, attempts, _ = _campaign(task, results, [(2, True)] * count, cycles=3)
+        assert code == 0 and len(attempts) == count, (code, events)
+        assert len(_read(record_path)) == count
+        assert [row["best_updated"] for row in _read_history(results)] == [False] * (count - 1) + [True]
+        assert _read(results / "outer_state.json")["task_complete"] is True
+        for experiment, _, snapshot in attempts:
+            assert _snapshot(experiment / "program_1") == snapshot
+            assert (experiment / "evaluation_count").read_text() == "1"
+        before = {experiment: _snapshot(experiment) for experiment, _, _ in attempts}
+        code, _, more, ideas = _campaign(task, results, resume=True, cycles=4)
+        assert code == 0 and not more and not ideas
+        assert all(_snapshot(experiment) == snapshot for experiment, snapshot in before.items())
+        assert len(_read(record_path)) == count
+        return
+
+    experiment = root / "attempt with spaces"
+    experiment.mkdir()
+    program = experiment / "program_1"
+    clone_program_dir(src_dir=task / "program_0", dst_dir=program)
+    correct = False if name == "incorrect" else "yes" if name == "truthy_correct" else True
+    (program / "src/program.py").write_text(f"VALID = {correct!r}\ndef solve():\n    return 2\n")
+    shutil.copy2(task / "evaluate.py", experiment / "evaluate.py")
+    shutil.copy2(task / "task.md", experiment / "task.md")
+    if name == "evaluation_failed":
+        (experiment / "evaluate.py").write_text("raise RuntimeError('fixture evaluator failed')\n")
+    elif name == "nonzero_correct":
+        with (experiment / "evaluate.py").open("a") as output:
+            output.write("raise SystemExit(7)\n")
+    if name in ("no_python", "no_entrypoint", "no_model"):
+        environment.pop("AI_STATISTICIAN_API_" + name.removeprefix("no_").upper())
+    elif name == "unconfigured":
+        environment = {key: value for key, value in environment.items()
+                       if not key.startswith("AI_STATISTICIAN_API_")}
+    elif name == "launch_failure":
+        environment["AI_STATISTICIAN_API_PYTHON"] = str(root / "missing-python")
+    elif name == "preexisting":
+        (program / "scientific_review.md").write_text("Keep this pre-existing report unchanged\n")
+
+    sealed = None
+    if name == "sealed":
+        sealed = harness_eval.SealedHarnessConfig(task, "inert-no-container", None, environment)
+
+        def inert_sealed_evaluation(**kwargs):
+            _write_json(program / "metrics.json", {"combined_score": 2})
+            _write_json(program / "correct.json", {"correct": True})
+            harness_eval._write_sealed_evaluation_artifacts(
+                program_dir=program, attempt_id=kwargs["attempt_id"], idea_id=kwargs["idea_id"],
+                command=["inert-sealed-fixture"], returncode=0, diagnostic="sealed fixture",
+            )
+            return 0
+
+        harness_eval._run_sealed_evaluation = inert_sealed_evaluation
+    arguments = dict(
+        experiment_dir=experiment, attempt_id="review_attempt", idea_id="review_idea",
+        rubrics_path=task / "target_rubrics.json", python_bin=sys.executable,
+        global_memory_md=root / "memory.md", global_memory_jsonl=root / "memory.jsonl",
+        timeout_seconds=1 if name == "timeout" else 5, environment=environment, sealed_config=sealed,
+    )
+    if name in ("live_source_changed", "live_rubrics_changed"):
+        with pytest.raises(ValueError, match="changed during evaluation"):
+            harness_eval.run_harness_evaluation(**arguments)
+        assert (program / "metrics.json").is_file()
+        assert (program / "scientific_review_stdout.log").read_text() == "raw reviewer stdout\n"
+        assert not _read(program / "evaluation_manifest.json").get("completed")
+        return
+    code = harness_eval.run_harness_evaluation(**arguments)
+    assert code == (1 if name == "evaluation_failed" else 7 if name == "nonzero_correct" else 0)
+    status = _read(program / "rubric_status.json")
+    assert status == _read(experiment / "rubric_status.json")
+    reviews = {row["id"]: row for row in status["rubrics"] if row["id"] in {"theory", "method"}}
+    valid_review = name in ("PASS", "FAIL", "UNCERTAIN") or name.startswith("tamper_")
+    accepted = name in ("PASS", "no_review", "sealed") or name.startswith("tamper_")
+    assert status["overall_pass"] is accepted
+    if name == "sealed":
+        assert all(row["pass"] for row in reviews.values())
+        assert _read(program / "evaluation_manifest.json")["producer"] == "sandbox_host_eval"
+    else:
+        for key, row in reviews.items():
+            verdict = ("PASS" if key == "method" or name.startswith("tamper_") else name) if valid_review else None
+            assert row["pass"] is (verdict == "PASS")
+            assert row["assessment"] == (
+                "passed" if verdict == "PASS" else "failed" if verdict == "FAIL" else "not_assessed"
+            )
+            assert "AI review, not proof" in row["evidence"]
+            assert f"verdict={verdict or 'not_assessed'}" in row["evidence"]
+            assert "source_contains" not in row["evidence"]
+    no_invocation = name in {
+        "no_python", "no_entrypoint", "no_model", "unconfigured", "no_review", "sealed",
+        "incorrect", "truthy_correct", "evaluation_failed", "nonzero_correct", "launch_failure", "preexisting",
+    }
+    assert record_path.exists() is not no_invocation
+    if not no_invocation:
+        assert _read(record_path) == [{
+            "argv": ["--stage", "review", "--program-dir", str(program), "--task-dir", str(experiment),
+                     "--rubrics-file", str(task / "target_rubrics.json"),
+                     "--model", environment["AI_STATISTICIAN_API_MODEL"]],
+            "cwd": str(experiment),
+        }]
+        assert (program / "scientific_review_stdout.log").read_text() == "raw reviewer stdout\n"
+        assert (program / "scientific_review_stderr.log").read_text() == "raw reviewer stderr\n"
+    elif name != "launch_failure":
+        assert not (program / "scientific_review_stdout.log").exists()
+        assert not (program / "scientific_review_stderr.log").exists()
+        assert not (program / "scientific_review.json").exists()
+        assert not (program / ".scientific-review").exists()
+        if name == "preexisting":
+            assert (program / "scientific_review.md").read_text() == "Keep this pre-existing report unchanged\n"
+        else:
+            assert not (program / "scientific_review.md").exists()
+    if name == "missing":
+        assert not (program / "scientific_review.json").exists()
+    if name != "evaluation_failed":
+        assert _read(program / "metrics.json") == {"combined_score": 2}
+        assert _read(program / "correct.json") == {"correct": correct}
+        assert status["rubrics"][0]["pass"] is (name not in ("incorrect", "nonzero_correct"))
+    if sealed is None:
+        receipt = _read(program / "evaluation_manifest.json")
+        expected_sources = {"src/program.py", "program_spec.toml", "input.bin"}
+        if name == "preexisting":
+            expected_sources.add("scientific_review.md")
+        assert set(receipt["source_records"]) == expected_sources
+        if name != "truthy_correct":
+            evaluation = read_native_evaluation(
+                program, requirements, attempt_id="review_attempt", idea_id="review_idea",
+            )
+            assert evaluation.complete is accepted
+            if name != "evaluation_failed":
+                assert evaluation.correct is correct and evaluation.score == 2
+        for path in program.rglob("*"):
+            if path.is_file() and path.relative_to(program).as_posix() not in expected_sources | {"evaluation_manifest.json"}:
+                assert receipt["evidence_records"][path.relative_to(program).as_posix()] == hashlib.sha256(path.read_bytes()).hexdigest()
+        if name.startswith("tamper_"):
+            filename = {"summary": "scientific_review.json", "report": "scientific_review.md",
+                        "session": ".scientific-review/session/result.json",
+                        "stdout": "scientific_review_stdout.log", "stderr": "scientific_review_stderr.log"}[name[7:]]
+            path = program / filename
+            path.write_bytes(path.read_bytes() + b"\n")
+            with pytest.raises(ValueError, match="stale native evaluation"):
+                read_native_evaluation(program, requirements, attempt_id="review_attempt", idea_id="review_idea")
+    before = _snapshot(experiment)
+    with pytest.raises(SystemExit, match="agent-created evaluator artifact"):
+        harness_eval.run_harness_evaluation(**arguments)
+    assert _snapshot(experiment) == before
+    assert not record_path.exists() or len(_read(record_path)) == 1
 
 
 if __name__ == "__main__":
