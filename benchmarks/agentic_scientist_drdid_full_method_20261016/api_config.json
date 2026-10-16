@@ -1,0 +1,13 @@
+{
+  "model": "Qwen3.8-Flash-Next-BF16-yarn1m-pinned",
+  "base_url": "http://127.0.0.1:8081/v1",
+  "max_tokens": 393216,
+  "temperature": 1,
+  "max_turns": 256,
+  "timeout_seconds": 14400,
+  "public_source_horizon": "2026-10-16",
+  "deployment_ref": {
+    "path": "/nfs/roberts/project/pi_fl426/yz2324/AI-Statistician-DRDID-native-20261016/deployment_condition.json",
+    "sha256": "a05b326fc40121649efed349bcb2058a4f91a1a1edfa8dbb579234447b0e4bbf"
+  }
+}

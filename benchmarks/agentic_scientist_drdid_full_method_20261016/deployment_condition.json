@@ -1,0 +1,53 @@
+{
+  "condition_id": "drdid_full_method_flashnext_yarn1m_20261016",
+  "status_at_freeze": "PROSPECTIVE_NEW_CONFIGURATION_NOT_OBSERVED_QUALITY",
+  "model": {
+    "repository": "Qwen/Qwen3.8-Flash-Next",
+    "revision": "de4b8e4d43b917e7706784d8bb445c9af86a3540",
+    "precision": "BF16",
+    "native_context": 262144,
+    "weight_staging_receipt_sha256": "383ebbfc1af8275e945a4a44403f13c9701bb14436e12ff310ef03250acc669f",
+    "license": "Qwen Community License 1.0; no weights redistribution in this condition"
+  },
+  "runtime": {
+    "vllm": "0.31.0",
+    "torch": "2.13.0+cu130",
+    "serve_archive_sha256": "d322861877b4504d931ea7ec4a3175c1108437e85f65189783dd61712e8309a3",
+    "worker_archive_sha256": "5752b5f1e842bd89d5370a42cd4b4df123fb276c348dbdd72553c85d6342eaa6",
+    "python_module": "Python/3.12.3-GCCcore-13.3.0",
+    "cuda_module": "CUDA/12.9.1",
+    "r_module": "R/4.4.2-gfbf-2024a",
+    "drdid": "1.3.0; exact package 85807cfbddbd64cc6f3f8ba37f52d07c6c3acc65",
+    "r_environment_record": "../publication_reference_qualification_20261016/drdid/environment_observation.json"
+  },
+  "serving": {
+    "alias": "Qwen3.8-Flash-Next-BF16-yarn1m-pinned",
+    "context": 1000000,
+    "context_extension": "Exact pinned-card factor-4 static YaRN text_config override, no model-file edit",
+    "tensor_parallel_size": 4,
+    "expert_parallel": true,
+    "executor": "mp",
+    "max_num_seqs": 1,
+    "max_num_batched_tokens": 8192,
+    "language_model_only": true,
+    "gpu_memory_utilization": 0.9,
+    "embedding_cpu_offload": true,
+    "prefix_caching": true,
+    "mtp_tokens": 3,
+    "kv_cache_dtype": "auto",
+    "seed": 20261016,
+    "address": "127.0.0.1:8081 only; lifetime owned by Slurm job"
+  },
+  "sampling": {
+    "temperature": 1,
+    "top_p": 0.95,
+    "top_k": 20,
+    "template": "Exact pinned tokenizer defaults, thinking enabled, xhigh effort, native opaque continuation retained",
+    "output_limit": "393216 combined tokens; separate 262144 thinking / 131072 final limits are NOT enforced",
+    "condition": "Same configuration across idea, retained author, independent source review and artifact-only report"
+  },
+  "resources": {"gpus": 4, "gpu_type": "B200", "cpus": 32, "host_memory_gib": 1024, "wall_seconds": 172800, "qos": "normal", "requeue": false},
+  "research_limits": {"max_turns_per_session": 256, "request_timeout_seconds": 14400, "idea_seconds": 14400, "author_seconds": 129600, "official_evaluations": 4, "evaluation_and_review_seconds_each": 43200, "posthoc_seconds": 14400, "outer_idea_cycles": 1, "global_wall_seconds": 172800},
+  "scope": "New complete known-method development condition, not a capacity-effect comparison, qualified assessor, official H/S study or guaranteed 1M quality. Static YaRN can affect short-context performance. No model substitution, source-answer patch or consumed-run retry.",
+  "recipe": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next/blob/de4b8e4d43b917e7706784d8bb445c9af86a3540/README.md"
+}
