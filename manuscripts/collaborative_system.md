@@ -224,8 +224,16 @@ The complete mathematical argument still belongs in the selected source files.
 Deterministic native-request and persistence tests verify this transport; the
 first 27B development condition predates the correction and is not retroactively
 treated as reasoning-state-qualified research.
-The explicit source-only policy is the current evaluated interface, not a claim
-that all scientific work should exclude exploratory execution.
+The current live condition uses source-only handoff. A prospective native
+extension also exposes upstream's official evaluation and guarded candidate
+cloning as tools in the same retained author session. The author reads the
+actual failure, chooses a source revision and evaluates the new version without
+regenerating the research idea. Consumed source is read-only; receipt hashes link
+successive evaluations and evaluator-generated results are not cloned as inputs.
+A failed execution need not receive an invented finite score. Process fixtures
+verify these operations and stop-after-acceptance behavior, but no live model
+effect is established for this extension. Neither mode implies that all future
+research must exclude exploratory execution; actual task permissions govern it.
 
 For a declared scientific-review requirement, a fresh context on the same model
 receives exact candidate source, the task, fixed criteria and permitted references.

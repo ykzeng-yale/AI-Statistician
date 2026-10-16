@@ -68,6 +68,15 @@ def test_review_cannot_start_on_changed_evaluated_source(review_input):
     assert not backend.requests
 
 
+@pytest.mark.parametrize("name", ["program_0", "program_01", "program_x", "program_-1"])
+def test_review_requires_canonical_candidate_identity(review_input, name):
+    backend = FixtureBackend([])
+    review_input["program"] = review_input["task"] / name
+    with pytest.raises(ValueError, match="candidate"):
+        run_scientific_review(backend=backend, **review_input)
+    assert not backend.requests
+
+
 def test_review_submission_does_not_infer_report_or_missing_judgments(tmp_path):
     source = tmp_path / "theory.md"
     source.write_text("Opaque source")

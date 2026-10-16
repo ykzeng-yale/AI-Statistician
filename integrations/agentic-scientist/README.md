@@ -203,6 +203,38 @@ removes one CLI dependency; it is not a substitute for their integration or the
 full independently assessed research workflow. The tested source-owner revision
 cycle supplies a necessary handoff, not mathematical acceptance.
 
+### Retained Official-Evaluation Iteration
+
+For a **fresh native condition**, apply `native_iteration.patch` after the three
+patches above, including `native_posthoc.patch`. Set the existing
+`execution.harness_evaluated_attempts=false` (or its `investigation.` pipeline
+prefix). This selects the upstream iterative investigation prompt instead of
+the earlier source-only handoff. It does not modify frozen running conditions.
+The ordinary upstream evaluation-count and stage-time budgets still apply.
+
+The same retained model session now has `evaluate_program` and `clone_program`
+alongside the existing file tools. Evaluation invokes upstream
+`run_harness_evaluation` with its selected task interpreter, fixed criteria and
+fresh source-bound reviewer. Observations are paged read-only files, not copied
+entirely into the tool response. A model can inspect the raw failure, clone a
+new version through upstream's guarded command, edit it and evaluate it without
+re-ideation. Even a completed nonzero evaluator exit can remain unscored: no
+finite score or accepted baseline is invented to permit a source revision.
+
+Consumed source is read-only, old evaluator results are excluded from clones,
+each new receipt binds its parent's receipt, and accepted candidates stop
+cloning. Source/receipt tampering, repeat evaluation, budget exhaustion and
+private result access fail explicitly. The model owns every edit and decides
+whether to continue or report a gap; there is no repair agent, source patcher,
+new scheduler or problem-family rule. Independent review remains an assessment,
+not mathematical proof. Native execution is still not an OS sandbox; sealed
+multi-candidate evaluation and session restart are not claimed.
+
+Actual upstream HTTP-fixture tests cover process failure without metrics,
+structured public error with empty stderr, independent-review rejection,
+same-session revision, posthoc handoff and immutable receipt-chain resume.
+These are mechanism tests, not model research or official H/S efficacy.
+
 ### Independent Source Review
 
 For frozen `type=review` criteria, the native host invokes the same pinned API

@@ -84,7 +84,7 @@ our benchmark nor evidence of this system's scientific benefit.
   or interleaved; concurrent speedup has not been shown. The new upstream backbone
   is pinned with statistical task/prompt integration and real dry-run conformance;
   that does not transfer the legacy system's capabilities or prove live research.
-- The latest complete-scope development conditions produced no final submissions
+- The earlier legacy complete-scope development conditions produced no final submissions
   or computational research. The [bizicount record](../benchmarks/publication_development/bizicount_integrated_20261015/observed_results.json)
   ended in a 900-second request timeout, not mathematical rejection. That timeout
   could precede the allowed local output; no unreturned response is inferred.
@@ -106,233 +106,88 @@ our benchmark nor evidence of this system's scientific benefit.
 
 ## Immediate Execution
 
-**Latest actual run:** the
-[native HC0 workflow condition](../benchmarks/agentic_scientist_native_hc0_20261016/README.md)
-prepares the exposed problem for one pinned API across the real upstream
-investigation and posthoc phases. Complete process fixtures now cover review
-failure, model-owned source revision, evaluation and report publication within
-the same outer controller. The pinned 27B deployment has passed actual native
-API/retained-tool checks, and its separate locked worker environment is installed.
-Freeze the exact code, two task trees and API settings before scientific
-activation. Job **29722963** is now terminal: both arms stopped in ideation at
-the declared output limit, with no scientific source or numerical execution.
-The [terminal analysis](../benchmarks/agentic_scientist_native_hc0_20261016/analysis.md)
-separates that outcome from the demonstrated prompt-ownership and dropped native
-reasoning-state defects. No arm is resumed, repaired or rescored. Keep the
-original full-study evaluator and all prior failures. This development scope
-does not include autonomous simulation-design/code generation or an application.
+**Finish the current fixed native condition without changing it.** Jobs
+29726507 (stock) and 29726508 (statistical, dependent on stock) use the same
+pinned 27B BF16 API and separately declared complete-workflow resources. Stock
+is in cycle 3; its first two candidates completed 60,000 numerical calls each
+with zero compliant candidate outputs. Theory remains unassessed. This exposed
+development family is not an official H/S comparison or 120,000 agent draws.
+Preserve all outcomes, source and private state without patching, rerunning or
+rescoring them. See the [long-workflow condition](../benchmarks/agentic_scientist_native_hc0_long_20261016/README.md)
+and [first-candidate observation](../benchmarks/agentic_scientist_native_hc0_long_20261016/cycle01_observation.json).
+Its native 262K model uses prospectively declared 1M static YaRN; service startup
+does not establish long-context quality.
 
-**Next complete-workflow condition:** the native state/prompt corrections pass
-full regression. The [fresh long-workflow preparation](../benchmarks/agentic_scientist_native_hc0_long_20261016/README.md)
-keeps the same 27B BF16 weights, complete question and evaluator, with documented
-1M static-YaRN context, a 393216 combined-output cap, four-hour requests and a
-separate 48-hour one-B200 allocation per arm. This is a joint prospective
-development condition, not a component-effect comparison or a native-1M quality
-claim. Do not narrow the science, add answers or change consumed records. Verify
-startup before calls; keep mathematical assessment separate from numerical checks.
-Jobs **29726507** (stock) and **29726508** (statistical, afterany stock) were
-submitted pending, with separate complete-workflow budgets. No fresh scientific
-outcome or long-context quality result exists at submission.
-The [live stock prefix](../benchmarks/agentic_scientist_native_hc0_long_20261016/runtime_observation.json)
-now verifies service startup and fourteen returned native-state/tool turns in
-ideation; it is not a completed scientific workflow. Statistical still waits.
-The [later observation](../benchmarks/agentic_scientist_native_hc0_long_20261016/authoring_observation.json)
-records completed ideation and in-flight source authoring under the unchanged
-deployment. Larger Qwen conditions remain authorized, not automatic mid-run
-fallbacks; finish this matched condition without narrowing its scientific scope.
-The October 16 resource clarification removes any implicit 4B/27B capacity
-ceiling: prefer a capable fixed Bouchet deployment when needed, with task-owned
-Flash-Next as the next capacity candidate. The
-[model/resource decision](local_qwen_testing.md#larger-consistent-deployment)
-records the source revision, memory estimate and actual allocation limits.
-Yale's managed coding interface is useful for development but is not a pinned
-single-API publication condition. Keep the current jobs unchanged; do not
-confound a model upgrade with a feedback-loop change or claim that extra model
-capacity establishes mathematical correctness.
-The [first stock candidate](../benchmarks/agentic_scientist_native_hc0_long_20261016/cycle01_observation.json)
-completed all numerical calls but none produced compliant candidate inference.
-Its raw source exception was stored outside the frozen history grants. Preserve
-that outcome and the ongoing cycle; the prospective fix exposes only declared,
-hash-bound public artifacts, not private reference data or source corrections.
+**Restore the upstream retained revision loop for fresh conditions.** The
+current source-only mode evaluates after author exit; ordinary source errors
+therefore require a new idea/author session. Its history also omitted declared
+public artifacts, and this task stores raw exceptions outside its declared public
+outputs. A stored error is not necessarily delivered feedback. The shared
+corrections expose only declared hash-bound results and reuse upstream
+`program_clone` and official evaluation in the same native model session.
+The model selects each edit and whether to continue; evaluated versions remain
+immutable. No source patcher, error taxonomy, second graph or arbitrary
+execution service is introduced. The [integration](../integrations/agentic-scientist/README.md#retained-official-evaluation-iteration)
+states the exact mechanism and remaining boundaries. Deterministic process tests
+do not establish live efficacy, mathematical acceptance or completed Paper S.
+The running frozen condition does not receive these prospective changes.
 
-**Unblocked publication work while queued:** the
-[HonestDiD reference preparation](../benchmarks/publication_reference_qualification_20261016/README.md)
-preserves the complete original archive, paper/appendix, historical package pin
-and declared full-study topology. Environment-only job **29727530** failed on a
-missing declared dependency; explicit completion **29727741** imported the exact
-packages successfully. Neither ran scientific/model work. Resolve path portability, exact reference execution
-and claim-level assessment without silently accepting printed mathematics or
-shrinking the study. The localized attainment counterexample is public operator
-preparation, not secret gold, agent output, product guidance or whole-paper
-rejection. It cannot be treated as an undisclosed rediscovery target.
-Complete original application job **29728552** is submitted pending with two
-declared same-byte filename aliases, unchanged statistical source and fresh
-outputs. This advances reference execution, not agent or theorem acceptance.
-That condition ended with Benzarti-Carloni complete and Lovenheim-Willen failing
-at an output directory omitted by operator staging. Its source/results remain
-unchanged. Fresh job **29729363** restores original empty directories and runs
-only the complete Lovenheim-Willen entry; no statistical source is modified.
+**Keep one capable model condition across roles and arms.** Neither 4B nor 27B
+is a ceiling. A task-owned fixed Flash-Next is the next capacity candidate;
+[verified resources and source metadata](local_qwen_testing.md#larger-consistent-deployment)
+separate that proposal from the actual 27B allocation. Larger models and standard
+Bouchet long runs are authorized, without repeatedly seeking permission or
+shrinking the science. Do not confound a capacity upgrade with a harness change.
+Managed Yale coding hosts remain useful development routes, not assumed fixed
+weights or the single-API publication system.
 
-**Use the actual upstream observation to qualify the full-study boundary.** The
-requested native stock-v3 run on the exposed White HC0 task is now terminal.
-[Its record](../benchmarks/agentic_scientist_hc0_20261015/observed_results.json)
-separates the pre-inference Bash dependency failure, stock prompt-file handoff
-failure, and a fresh transport-adapted condition that produced an idea and code
-but skipped evaluation and claimed unsupported completion. No candidate was
-evaluated or accepted. This is not an official H/S comparison or complete v3 E2E.
-No generated output was repaired or rerun. Our six-case implementation scorer
-also cannot judge the full study; it is not a sufficient scientific comparator.
-The existing native evaluator now has real multi-file Python/R execution checks,
-including raw failure preservation and consumed-attempt refusal. These opaque
-fixtures establish the handoff, not a full statistical study or theory review.
-Next qualify the scientific evaluator and separate mathematical assessment, then
-run a prospectively matched statistical-profile condition with captured effective
-model requests. Reuse upstream's existing harness-owned evaluation. Do not add
-diagnostic gates or another controller to force a successful example.
+**Qualify scientific references and assessment in parallel with development.**
+The [HonestDiD source preparation](../benchmarks/publication_reference_qualification_20261016/README.md)
+retains the original paper, supplement, archive, historical package and complete
+study topology. First application condition 29728552 completed Benzarti-Carloni
+but failed Lovenheim-Willen on an operator-omitted directory. Its outcome is
+unchanged. Fresh original-layout condition 29729363 completed Lovenheim-Willen
+with unchanged statistical source; all 16 result-file hashes verify. The
+predeclared RDS comparison finds covariance/interval discrepancies, so execution
+is not accepted numerical reproduction. The [separate terminal observation](../benchmarks/publication_reference_qualification_20261016/original_layout_observation.json)
+retains those differences. Full simulations, mathematical assessment and release
+rights remain separate obligations. The localized attainment finding is public
+operator preparation, not secret gold, agent output or whole-paper rejection.
 
-The original [Bouchet module condition](../benchmarks/agentic_scientist_hc0_bouchet_20261015/observed_results.json)
-failed before the Pi client because of the operator's long NFS temporary path.
-Those failures remain unchanged. A separately frozen
-[short-temp condition](../benchmarks/agentic_scientist_hc0_bouchet_20261015/short_tmp_precall.json)
-now reaches actual managed Qwen3.8-Flash-Next/Pi authoring and host evaluation.
-Stock job 29684591 completed all 60,000 numerical replicates but its candidate
-passed zero reference-compliance checks; the generated covariance has an extra
-sample-size division. No generated source was corrected or rerun. Its theoretical
-argument remains unassessed. Statistical job 29684597 also completed, passing
-60,000 numerical checks but reading the exposed evaluator and running prohibited
-extra diagnostics. Both host rubrics failed because our preparer used unsupported
-nested metric fields. The future input format now matches the actual upstream
-consumer; no consumed outcome is rescored. See the
-[terminal analysis](../benchmarks/agentic_scientist_hc0_bouchet_20261015/short_tmp_analysis.md).
-This is not a clean efficacy comparison or mathematical acceptance.
-The single-attempt module evaluates after author exit, so it does not establish
-the full source-owner feedback/revision workflow. The larger-model
-route is documented in [local Qwen testing](local_qwen_testing.md#larger-consistent-deployment).
-Do not keep defaulting to the old 4B deployment or introduce a new host framework.
-Exact Qwen3.8-27B BF16 weights are verified; pinned vLLM installation 29685758
-completed. Single-B200 deployment probe 29687651 failed during vLLM startup
-after CUDA succeeded; no owned-model inference occurred. Preserve this failure.
-An unchanged-runtime node-local staging condition addresses observed shared-file
-import latency; it is not a smaller model, a changed scientific result or a service
-claim. Its exact state is recorded in local Qwen testing.
-Node-local job 29720252 subsequently loaded all weights but lacked `nvcc`;
-29721459 supplied the compiler and exposed a missing environment `PATH` for
-`ninja`. Both stopped before inference. Corrected activation probe 29722100
-completed successfully in 3m08s, including a real schema response and two retained
-tool turns. Preserve every failed deployment. Worker installation 29722329 also
-completed. These checks are transport/environment evidence, not scientific
-acceptance or model-capacity measurements.
-The probe reuses our actual API transport/retained loop, not a coding CLI or new
-controller. It tests native schema and raw tool feedback, not research capability.
-Use the same pinned deployment across future matched scientific arms.
+The [source-bound AI-assessor preparation](../benchmarks/publication_assessment_qualification_20261015/README.md)
+is terminal and unqualified: seven model requests, two completed reports, then a
+truncated scratch-tool argument; later cases were not run. Its report examination
+also found overstated numerical corroboration. Do not repair or resume it. A
+separate future condition must qualify the actual fixed model's claim-level
+assessment. The endpoint is explicitly AI-assessed, not human endorsement or
+error-free truth; the user need not appoint fictitious reviewers. Independent
+contexts do not remove shared-model bias.
 
-The [explicit native API extension](../integrations/agentic-scientist/README.md#native-api-research-attempt)
-now connects the actual upstream source-authoring attempt to our local transport,
-retained observations and model-owned file edits. It also supports native
-ideation and a serial campaign with fixed operator requirements. Complete
-process tests use deterministic HTTP fixtures: an unsolved starter, execution or
-source-review failure, raw feedback read by the next source owner and a new candidate.
-They make no model or scientific claim. The stock submodule stays pinned and
-unchanged. A fresh, source-bound AI reviewer now uses the same API and file tools,
-with only its Markdown report writable and no author conversation or numerical
-evaluation outputs. Its dispositions cannot certify a theorem or empirical result.
-This is not the full S system: scientific qualification, specialist tools,
-interrupted-session continuation and final pipeline integration remain unfinished.
-Do not launch more isolated one-shot scientific examples to stand in for them.
+**Complete the statistical migration, not another framework.** Use pinned
+Agentic Scientist as the sole new controller. Preserve validated file-backed
+theory, Python/R, source review, simulation and optional Statlib/RAG/Lean assets.
+Native investigation and artifact-only reporting are connected; specialist tools,
+source acquisition, final assessment and manuscript production are not fully
+migrated. Drafting/final native preview was rejected by upstream's container
+requirements; do not claim those phases work or remove their checks. Use actual
+component/evaluator boundaries rather than nesting the old graph or starting a
+VM/network workstream. The [reuse map](../integrations/agentic-scientist/README.md#preserve-the-statistical-subsystems)
+and [upstream source audit](ai_scientist_v3_evidence_review_20261015.md) distinguish
+preserved assets from verified new-boundary capability.
 
-The next boundary now connects prospectively declared public result tables to
-upstream's artifact-only posthoc stages through the same API. Its HTTP fixtures
-exercise actual source/result reads, report writes and upstream publication,
-with zero repeat evaluations. Report content is model-authored; upstream file
-checks and self-rubrics do not assess scientific interpretation. Full manuscript
-and independent empirical/report assessment remain unfinished. Do not treat this
-as an accomplished methods study or new publication evidence.
+Known-method qualification must connect one question to its argument, algorithm,
+complete simulation, application and report. A success is not a reason to select
+a family. TSCI's absent original comparator/aggregation remains a scoped case
+dependency, not a substitute implementation or a global stop. Earlier StepMix,
+ebnm, bizicount and HC0 conditions remain consumed development, outside official
+held-out claims; their immutable records are linked from the publication programme.
 
-The explicit fixed-requirement extension resolves the reconstruction cold start
-without a reference answer or fabricated baseline. It keeps original criteria
-instead of replacing them with incumbent-score improvement. Native receipts bind
-source and evaluation evidence; new cycles never rerun consumed candidates.
-The original optimization behavior remains separate. Computational completion
-still cannot certify a mathematical argument or replace independent assessment.
-
-**Adopt v3 as the main backbone, without stacking controllers.** The latest user
-request replaces the prior implementation direction. Use the pinned upstream
-task/phase controller, candidate lineage, memory, ablation, final-evaluation and
-writing interfaces. The [integration record](../integrations/agentic-scientist/README.md)
-and [paper/code audit](ai_scientist_v3_evidence_review_20261015.md) distinguish
-actual reuse from unfinished work. Do not continue legacy micro-fixes as the
-main workstream or claim generic upstream orchestration as our novelty.
-Replace only that coordinator: retain the validated statistical workspaces,
-source/reviewer authority, Python/R execution, simulation design, local Qwen and
-Statlib/RAG/Lean foundation. The integration's reuse map distinguishes retained
-assets from verified new-boundary use; generic co-scientist behavior is not a
-substitute for our statistical specialization.
-
-The integration reuses the portable skill and supplies a statistical investigation
-prompt. Following the latest clarification, default execution is evaluator-owned;
-the author prepares the complete scientific candidate. Additional diagnostic
-execution must be explicitly permitted by the public task contract. This revised
-prompt has no new live efficacy evidence. The full upstream CLI preview is
-verified without agent, evaluator or network execution.
-The native-full preview was rejected: upstream drafting/final verification
-require its container backend. Do not disable those checks. Next, integrate our
-existing local execution/verifier components at that boundary and implement the
-actual single-API specialist path without invoking the old outer graph. R/Lean
-use, exact scientific evidence joins and journal-format writing need integrated
-verification, not another generic agent framework or VM/network campaign.
-
-For H, compare the same native host with/without the released package, and add
-a separate v3 with/without-identical-package contrast. Do not attribute the
-combined change of workflow and guidance to the package alone. For S, rebuild
-actual same-model controls around the new implementation.
-Freeze these changes before official calls; no consumed study is reassessed.
-
-**Complete one coherent methods-research workflow qualification.** The research
-agents, not operator-written answers, must connect one inferential question to
-its argument, implementation, method comparisons, simulation, application and
-report. Use the actual workspaces and observe real source access and tool use.
-A failed draw remains failed; no intermediate is salvaged or rerun for credit.
-Success is not a family-selection criterion.
-
-The [source-bound AI-assessor qualification](../benchmarks/publication_assessment_qualification_20261015/README.md)
-has stopped without scientific qualification; it was not a product research draw.
-The first preparation stopped before inference:
-the server's float32 representation of top-p differed from decimal 0.8, with
-zero model requests and no mathematical verdict. Its original plan/result remain
-immutable. The [pre-call amendment](../benchmarks/publication_assessment_qualification_20261015/precall_amendment.json)
-only allows finite roundoff tolerance for three decoding values. Mathematical
-materials, criteria, model settings and the owned deployment are unchanged.
-The [single model observation](../benchmarks/publication_assessment_qualification_20261015/observed_results.json)
-made seven requests. Two reports completed; the third case hit 16384 output
-tokens inside scratch-tool arguments, then JSONDecodeError before execution.
-All later cases were NOT_RUN. The declared report examination also found
-overstated scratch corroboration in one completed report, distinct from its
-correct central analytic argument. No verdict, script or outcome was repaired;
-the pending session is not resumed and the owned server is closed.
-
-One recorded shared-mechanism defect is loss of actual stop/usage
-metadata when tool-argument decoding fails: the raw wire reports truncation,
-while the generic incomplete-session row loses it. Preserve the original
-observation. Fix it if that transport is reused during migration; it is not a
-reason to postpone the new backbone. Do not repair JSON, execute partial code,
-add a scientific rule or
-increase limits to recover this consumed result. This is observability, not a
-solution to mathematical reasoning or research completion.
-
-This worker organizes AI assessment; the user need not appoint real people.
-The proposed endpoint is explicitly **AI-assessed**, never human-expert
-endorsement, kernel proof or error-free mathematical truth. Source-grounded
-reference arguments and executable checks remain necessary. Separate contexts
-do not remove shared-model bias. One argument family cannot close Q05 for a
-multi-family study or qualify estimator/inference claims it did not test.
-
-Before further product calls, reconcile the actual task, local model resources and
-assessment in one prospective complete-workflow condition. Do not substitute
-another family simply to obtain a pass. Paper/source,
-code/data/environment, central argument, simulation/comparators and application
-must support that condition before execution. The existing LMTP/JointAI and GRF
-screens are deferrals, not qualified replacements. Do not turn unchanged-source
-searches, toy tasks, optional Lean or infrastructure work into the next milestone.
+For H, compare package/no-package within the same native host and separately
+within the same v3 workflow. For S, requalify actual same-API controls on the
+new implementation. Freeze source access, tools, resources, criteria and
+independent final assessment before official calls. The sole 40-item checklist
+remains unchanged; neither mechanism tests nor reference execution complete a
+scientific item.
 
 ## Remaining Roadmap
 
@@ -391,10 +246,11 @@ module offers a managed local Qwen coding-host route according to
 its model; a shared alias alone is not an official experiment pin. Verify effective
 weights/configuration or use a pinned task-owned deployment for publication runs.
 The subsequent managed-host development condition has made real Qwen calls.
-Qwen3.8-27B BF16 at the recorded exact revision has been staged and hash-verified
-for a task-owned direct API; runtime installation is pending. Downloaded weights
-are not a deployed inference service.
-No owned GPU service or 27B scientific evaluation has been established.
+The task-owned pinned Qwen3.8-27B BF16 API passed transport checks and is running
+the separately frozen native development condition. Weights, runtime and
+configured context have recorded identities; this does not establish scientific
+correctness or long-context quality. Earlier deployment failures remain recorded
+in local Qwen testing rather than repeated as the current state here.
 Keep one model condition across each comparison. The managed service remains a
 useful development option but cannot establish Paper S's single-API requirement.
 Use only permitted low-risk/public or synthetic data

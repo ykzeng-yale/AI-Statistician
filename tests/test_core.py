@@ -127,9 +127,9 @@ def test_canonical_control_plane_has_a_regression_budget() -> None:
     assert runtime_lines < 25_000
     assert cli_lines < 8_000
     assert len(package_sources) < 150
-    # Temporary overlap with the direct-API migration participant; legacy graph
-    # and CLI budgets above are unchanged. Do not hide new code in subpackages.
-    assert package_lines < 150_500
+    # Bounded direct-API migration, including the retained upstream evaluation
+    # tools. Legacy graph/CLI budgets are unchanged; do not hide code elsewhere.
+    assert package_lines < 150_600
     assert production_design_lines < 400
     assert harness_adoption_lines < 250
     assert len(status_text.encode("utf-8")) < 50_000

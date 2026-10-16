@@ -59,8 +59,10 @@ class ScientificReviewWorkspace(FileAuthorWorkspace):
 def run_scientific_review(*, backend, program: Path, task: Path, rubrics_file: Path,
                           sources: Path, config: dict, deployment_identity: dict, prompt: str) -> dict:
     program, task = program.resolve(), task.resolve()
-    if program.parent != task or program.name != "program_1":
-        raise ValueError("Review must address the current upstream program_1 in its experiment.")
+    if (program.parent != task or not program.name.startswith("program_")
+        or not program.name[8:].isdigit() or int(program.name[8:]) < 1
+        or program.name != f"program_{int(program.name[8:])}"):
+        raise ValueError("Review must address an upstream candidate in its experiment.")
     if any((program / name).exists() or (program / name).is_symlink() for name in
            ("scientific_review.json", "scientific_review.md", ".scientific-review")):
         raise FileExistsError("Scientific review already exists; do not reassess a consumed candidate.")

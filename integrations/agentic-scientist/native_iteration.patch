@@ -1,0 +1,470 @@
+Native API retained source iteration on Sakana AI Agentic Scientist.
+Base: 2b8aa39285c35aaca3b0e06dd121061ef8a2d854, then local_api_backend.patch,
+native_campaign_semantics.patch and native_posthoc.patch, in that order.
+Sakana AI's upstream Apache-2.0 attribution and LICENSE are retained.
+This extension reuses the upstream controller, evaluation and program_clone;
+it does not modify the canonical stock submodule or add a second scheduler.
+
+diff --git a/src/investigation/campaign_loop.py b/src/investigation/campaign_loop.py
+index 7bf6938..68894b3 100644
+--- a/src/investigation/campaign_loop.py
++++ b/src/investigation/campaign_loop.py
+@@ -16,7 +16,7 @@ from .agent_selection import resolve_agent_model, resolve_cycle_agent
+ from .config import InvestigationConfig
+ from .files import confirm_prune_warning
+ from .harness_incumbent import (
+-    _file_digest, fixed_campaign_identity, read_native_evaluation,
++    _file_digest, fixed_campaign_identity, read_native_evaluation, latest_native_program,
+ )
+ from .idea_generation import IdeaArtifactsError, load_idea_artifacts
+ from .idea_retry_feedback import sanitize_validation_feedback, validation_feedback_from_output
+@@ -301,7 +301,7 @@ def run_cycles_and_finalize(
+                         idea_workspace,
+                         cycle_idx,
+                         read_json_fn,
+-                        require_harness_verification=cfg.execution.harness_evaluated_attempts,
++                        require_harness_verification=cfg.execution.harness_evaluated_attempts or cfg.agent.name == "local-api",
+                         harness_incumbent_score=harness_incumbent_score,
+                         fixed_target_rubrics=fixed_target_rubrics,
+                     )
+@@ -580,7 +580,7 @@ def run_cycles_and_finalize(
+                 if _file_digest(experiment / "evaluate.py") != _file_digest(task_dir / "evaluate.py"):
+                     raise ValueError("native attempt evaluator differs from frozen task")
+                 native_evaluation = read_native_evaluation(
+-                    experiment / "program_1", fixed_target_rubrics,
++                    latest_native_program(experiment), fixed_target_rubrics,
+                     attempt_id=attempt_id, idea_id=idea_id,
+                 )
+                 status_data = native_evaluation.status
+@@ -619,9 +619,8 @@ def run_cycles_and_finalize(
+         evaluated_correct: bool | None = None
+         if attempt_result.experiment_dir is not None:
+             if fixed_target_rubrics is not None:
+-                candidate_dir = attempt_result.experiment_dir / "program_1"
+                 candidate = (
+-                    (candidate_dir, "src/program.py", native_evaluation.score, True)
++                    (latest_native_program(attempt_result.experiment_dir), "src/program.py", native_evaluation.score, True)
+                     if native_evaluation is not None and native_evaluation.complete
+                     and attempt_result.exit_code == 0 else None
+                 )
+diff --git a/src/investigation/config.py b/src/investigation/config.py
+index 5fbb83f..b9315f4 100644
+--- a/src/investigation/config.py
++++ b/src/investigation/config.py
+@@ -426,12 +426,11 @@ def validate(cfg: InvestigationConfig) -> None:
+         if (cfg.agent.name != "local-api" or cfg.agent.pool or cfg.agent.models
+             or not cfg.agent.model or cfg.agent.profile is not None
+             or cfg.agent.reasoning_effort is not None or cfg.container.enabled
+-            or not cfg.execution.harness_evaluated_attempts
+             or cfg.execution.draft_task_if_missing or cfg.paper.enabled
+             or cfg.execution.workers != 1 or cfg.execution.prune_every_n_cycles):
+             raise ConfigValidationError(
+                 "local-api supports a native, single-model, single-worker investigation "
+-                "with harness_evaluated_attempts=true and an explicit model; host pools, "
++                "with an explicit model; host pools, "
+                 "profiles, reasoning overrides, drafting, paper generation and pruning "
+                 "are not integrated"
+             )
+diff --git a/src/investigation/harness_eval.py b/src/investigation/harness_eval.py
+index 4f6abd6..b46f68c 100644
+--- a/src/investigation/harness_eval.py
++++ b/src/investigation/harness_eval.py
+@@ -16,7 +16,7 @@ from typing import Any
+ from .harness_feedback import evaluation_feedback, search_metric_feedback
+ from .harness_incumbent import (
+     _file_digest, _json_digest, _read_harness_json,
+-    native_evidence_identity, native_source_identity, native_public_outputs,
++    native_evidence_identity, native_source_identity, native_public_outputs, read_native_evaluation,
+ )
+ from .harness_sources import read_candidate_sources as _read_candidate_sources
+ from .evaluator_outputs import EvaluatorOutputContractError
+@@ -242,6 +242,7 @@ def _append_memory(
+     metrics: dict[str, Any],
+     correct: bool,
+     feedback: str,
++    program_id: str,
+ ) -> None:
+     timestamp = _utc_now()
+     score = metrics.get("combined_score")
+@@ -249,12 +250,12 @@ def _append_memory(
+     with md_path.open("a", encoding="utf-8") as handle:
+         handle.write(
+             f"### {timestamp} | step=evaluate | scope=attempt\n"
+-            "- summary: harness evaluated program_1 exactly once\n"
++            f"- summary: harness evaluated {program_id} exactly once\n"
+             f"- evidence: combined_score={score}, correct={correct}; {feedback}\n"
+-            "- next_action: generate next idea\n"
++            "- next_action: inspect observations and choose the next research action\n"
+             f"- idea_id: {idea_id}\n"
+             f"- attempt_id: {attempt_id}\n"
+-            "- program_id: program_1\n\n"
++            f"- program_id: {program_id}\n\n"
+         )
+
+     jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+@@ -262,43 +263,45 @@ def _append_memory(
+         "timestamp": timestamp,
+         "step": "evaluate",
+         "scope": "attempt",
+-        "summary": "harness evaluated program_1 exactly once",
++        "summary": f"harness evaluated {program_id} exactly once",
+         "evidence": f"combined_score={score}, correct={correct}; {feedback}",
+-        "next_action": "generate next idea",
++        "next_action": "inspect observations and choose the next research action",
+         "idea_id": idea_id,
+         "attempt_id": attempt_id,
+-        "program_id": "program_1",
++        "program_id": program_id,
+         "metrics": metrics,
+     }
+     with jsonl_path.open("a", encoding="utf-8") as handle:
+         handle.write(json.dumps(entry, sort_keys=True) + "\n")
+
+
+-def _ensure_agent_only_created_program_1(experiment_dir: Path) -> Path:
+-    program_1 = experiment_dir / "program_1"
+-    if program_1.is_symlink() or not program_1.is_dir():
+-        raise SystemExit("Harness-evaluated attempt requires agent-created program_1")
++def _ensure_agent_only_created_program_1(experiment_dir: Path, program_index: int = 1) -> Path:
++    if type(program_index) is not int or program_index < 1:
++        raise ValueError("Candidate index must be a positive integer")
++    program = experiment_dir / f"program_{program_index}"
++    if program.is_symlink() or not program.is_dir():
++        raise SystemExit(f"Evaluation requires agent-created {program.name}")
+
+     for child in experiment_dir.iterdir():
+         if not child.is_dir() or not child.name.startswith("program_"):
+             continue
+-        if child.name not in {"program_0", "program_1"}:
++        if child.name not in {f"program_{index}" for index in range(program_index + 1)}:
+             raise SystemExit(
+                 "Harness-evaluated attempt forbids extra candidate directories: "
+                 f"{child.name}"
+             )
+
+     for artifact in EVALUATOR_ARTIFACTS:
+-        path = program_1 / artifact
++        path = program / artifact
+         if path.exists() or path.is_symlink():
+             raise SystemExit(f"agent-created evaluator artifact is forbidden: {path}")
+
+-    entrypoint_rel = entrypoint_relpath_from_spec(program_1)
++    entrypoint_rel = entrypoint_relpath_from_spec(program)
+     if entrypoint_rel is None:
+-        raise SystemExit("program_1 must contain a valid program_spec.toml entrypoint")
+-    entrypoint = program_1 / entrypoint_rel
++        raise SystemExit(f"{program.name} must contain a valid program_spec.toml entrypoint")
++    entrypoint = program / entrypoint_rel
+     if entrypoint.is_symlink() or not entrypoint.is_file():
+-        raise SystemExit(f"program_1 entrypoint does not exist: {entrypoint}")
++        raise SystemExit(f"{program.name} entrypoint does not exist: {entrypoint}")
+     return entrypoint
+
+
+@@ -437,14 +440,17 @@ def run_harness_evaluation(
+     environment: Mapping[str, str] = os.environ,
+     gpu_evaluation: bool = False,
+     task_failure_fd: int | None = None,
++    program_index: int = 1,
+ ) -> int:
+     experiment_dir = experiment_dir.resolve()
+     evaluate_py = experiment_dir / "evaluate.py"
+     if not evaluate_py.is_file():
+         raise SystemExit(f"Missing evaluator: {evaluate_py}")
+
+-    entrypoint = _ensure_agent_only_created_program_1(experiment_dir)
+-    program_dir = experiment_dir / "program_1"
++    if sealed_config is not None and program_index != 1:
++        raise ValueError("Sealed source-only evaluation does not support an iterative candidate")
++    entrypoint = _ensure_agent_only_created_program_1(experiment_dir, program_index)
++    program_dir = experiment_dir / f"program_{program_index}"
+     target_rubrics = _target_rubrics(rubrics_path)
+     candidate_tokens = candidate_source_tokens(_read_candidate_sources(program_dir))
+     source_patterns = [
+@@ -542,7 +548,7 @@ def run_harness_evaluation(
+         "overall_pass": bool(rubrics) and all(item["pass"] for item in rubrics),
+         "rubrics": rubrics,
+         "metrics": memory_metrics,
+-        "next_recommendation": "generate a new idea",
++        "next_recommendation": "inspect observations and choose the next research action",
+     }
+     _write_json(program_dir / "rubric_status.json", status)
+     _write_json(experiment_dir / "rubric_status.json", status)
+@@ -571,6 +577,7 @@ def run_harness_evaluation(
+         metrics=memory_metrics,
+         correct=correct,
+         feedback=evaluation_feedback(memory_metrics, returncode),
++        program_id=program_dir.name,
+     )
+     return returncode
+
+@@ -607,10 +614,17 @@ def _run_direct_evaluation(
+         "rubrics_sha256": _json_digest(target_rubrics),
+         "attempt_id": attempt_id,
+         "idea_id": idea_id,
+-        "program_id": "program_1",
++        "program_id": program_dir.name,
+         "command": command,
+         "started_at": _utc_now(),
+     }
++    index = int(program_dir.name.removeprefix("program_"))
++    if index > 1:
++        parent = program_dir.parent / f"program_{index - 1}"
++        prior = read_native_evaluation(parent, target_rubrics, attempt_id=attempt_id, idea_id=idea_id)
++        if prior.complete:
++            raise ValueError("Native attempt cannot continue after acceptance")
++        manifest["parent_evaluation_manifest_sha256"] = prior.manifest_sha256
+     outputs = native_public_outputs(experiment_dir)
+     for item in outputs:
+         path = program_dir / item["path"]
+@@ -648,6 +662,8 @@ def _run_direct_evaluation(
+     _write_json(manifest_path, manifest)
+     for item in outputs:
+         path = program_dir / item["path"]
++        if result.returncode != 0 and not path.exists() and not path.is_symlink():
++            continue
+         if path.resolve() != path or path.stat().st_nlink != 1:
+             raise ValueError("public output must be a regular unlinked result")
+         digest = _file_digest(path)
+@@ -671,6 +687,7 @@ def main(argv: list[str] | None = None) -> int:
+     parser.add_argument("--sandbox-gpus")
+     parser.add_argument("--gpu-evaluation", action="store_true")
+     parser.add_argument("--task-failure-fd", type=int)
++    parser.add_argument("--program-index", type=int, default=1)
+     args = parser.parse_args(argv)
+
+     if args.task_failure_fd is not None and (
+@@ -709,6 +726,7 @@ def main(argv: list[str] | None = None) -> int:
+         environment=os.environ,
+         gpu_evaluation=args.gpu_evaluation,
+         task_failure_fd=args.task_failure_fd,
++        program_index=args.program_index,
+     )
+
+
+diff --git a/src/investigation/harness_incumbent.py b/src/investigation/harness_incumbent.py
+index af68038..4fd272b 100644
+--- a/src/investigation/harness_incumbent.py
++++ b/src/investigation/harness_incumbent.py
+@@ -122,6 +122,7 @@ def read_native_evaluation(
+     *,
+     attempt_id: str,
+     idea_id: str,
++    require_mirror: bool = True,
+ ) -> NativeEvaluation:
+     """Read a completed native receipt, never infer acceptance from loose JSON."""
+     from src.orchestrator.rubrics import validate_rubric_status
+@@ -135,7 +136,9 @@ def read_native_evaluation(
+         and manifest.get("native_receipt_version") == 1
+         and manifest.get("execution_boundary") == "native"
+         and manifest.get("program_dir") == str(program_dir.resolve())
+-        and manifest.get("program_id") == program_dir.name == "program_1"
++        and manifest.get("program_id") == program_dir.name
++        and program_dir.name.startswith("program_") and program_dir.name[8:].isdigit()
++        and int(program_dir.name[8:]) > 0
+         and manifest.get("attempt_id") == attempt_id
+         and manifest.get("idea_id") == idea_id
+         and manifest.get("completed") is True
+@@ -152,6 +155,11 @@ def read_native_evaluation(
+         and manifest.get("evidence_records") == native_evidence_identity(program_dir, source_records=manifest["source_records"])
+     ):
+         raise ValueError(f"missing, malformed or stale native evaluation: {program_dir}")
++    index = int(program_dir.name.removeprefix("program_"))
++    if index > 1 and manifest.get("parent_evaluation_manifest_sha256") != _file_digest(
++        program_dir.parent / f"program_{index - 1}" / "evaluation_manifest.json"
++    ):
++        raise ValueError("Consumed parent evaluation changed")
+     declared = native_public_outputs(program_dir.parent)
+     if manifest.get("public_outputs", []) != declared:
+         raise ValueError("native public output declaration changed")
+@@ -159,11 +167,13 @@ def read_native_evaluation(
+         raise ValueError("native public task changed")
+     for item in declared:
+         name = item["path"]
++        if manifest["exit_code"] != 0 and name not in manifest["evidence_records"]:
++            continue
+         if (name in manifest["source_records"] or name not in manifest["evidence_records"]
+             or (item.get("sha256") and item["sha256"] != manifest["evidence_records"][name])):
+             raise ValueError("declared public output is missing, stale or a source input")
+     status = _read_harness_json(program_dir / "rubric_status.json")
+-    if status != _read_harness_json(program_dir.parent / "rubric_status.json"):
++    if require_mirror and status != _read_harness_json(program_dir.parent / "rubric_status.json"):
+         raise ValueError("native root and candidate rubric status disagree")
+     validation = validate_rubric_status(
+         status, {item["id"] for item in target_rubrics},
+@@ -186,6 +196,14 @@ def read_native_evaluation(
+     )
+
+
++def latest_native_program(experiment_dir: Path) -> Path:
++    from .files import discover_program_indices
++    indices = [index for index in discover_program_indices(experiment_dir) if index > 0]
++    if not indices:
++        raise ValueError("Native attempt has no candidate program")
++    return experiment_dir / f"program_{indices[-1]}"
++
++
+ def fixed_campaign_identity(
+     task_dir: Path, seed_program_dir: Path, target_rubrics: list[dict[str, Any]],
+ ) -> dict[str, Any]:
+@@ -248,10 +266,22 @@ def validate_fixed_campaign_resume(
+         if type(cycle) is not int or not previous_cycle < cycle <= old_state["current_cycle"]:
+             raise ValueError("fixed attempt history and cycle state disagree")
+         previous_cycle = cycle
+-        program = Path(row["experiment_dir"]) / "program_1"
++        experiment = Path(row["experiment_dir"])
++        program = latest_native_program(experiment)
+         if not program.resolve().is_relative_to(results_dir.resolve()) or program in consumed:
+             raise ValueError("fixed candidate is outside campaign or consumed twice")
+-        consumed.add(program)
++        from .files import discover_program_indices
++        for index in discover_program_indices(experiment):
++            if index == 0:
++                continue
++            previous = experiment / f"program_{index}"
++            if previous in consumed:
++                raise ValueError("fixed candidate was consumed twice")
++            prior = read_native_evaluation(previous, target_rubrics,
++                attempt_id=row["attempt_id"], idea_id=row["idea_id"], require_mirror=previous == program)
++            if previous != program and prior.complete:
++                raise ValueError("native attempt continued after acceptance")
++            consumed.add(previous)
+         evaluation = read_native_evaluation(
+             program, target_rubrics, attempt_id=row["attempt_id"], idea_id=row["idea_id"],
+         )
+@@ -266,7 +296,8 @@ def validate_fixed_campaign_resume(
+             accepted[program.resolve()] = evaluation
+     observed = {
+         path.parent for path in (results_dir / "ideas").rglob("evaluation_manifest.json")
+-        if path.parent.name == "program_1"
++        if path.parent.name.startswith("program_") and path.parent.name[8:].isdigit()
++        and int(path.parent.name[8:]) > 0
+     }
+     if observed != consumed:
+         raise ValueError("fixed campaign contains unrecorded or missing consumed evidence")
+diff --git a/src/investigation/main_entry.py b/src/investigation/main_entry.py
+index f163732..72f7301 100644
+--- a/src/investigation/main_entry.py
++++ b/src/investigation/main_entry.py
+@@ -447,7 +447,7 @@ def run_main_flow(
+     try:
+         fixed_target_rubrics = load_fixed_target_rubrics(task_dir)
+         if fixed_target_rubrics is not None and (
+-            not cfg.execution.harness_evaluated_attempts or containerize
++            (not cfg.execution.harness_evaluated_attempts and cfg.agent.name != "local-api") or containerize
+             or cfg.execution.workers != 1 or cfg.execution.prune_every_n_cycles
+             or cfg.execution.draft_task_if_missing or cfg.paths.seed_program
+         ):
+diff --git a/src/investigation/program_clone.py b/src/investigation/program_clone.py
+index 4a56dea..41c3fb2 100644
+--- a/src/investigation/program_clone.py
++++ b/src/investigation/program_clone.py
+@@ -38,6 +38,11 @@ _NONOVERRIDABLE_EXCLUDES: set[str] = {
+     "evaluation_manifest.json",
+     "harness_evaluate_stdout.log",
+     "harness_evaluate_stderr.log",
++    ".scientific-review",
++    "scientific_review.json",
++    "scientific_review.md",
++    "scientific_review_stdout.log",
++    "scientific_review_stderr.log",
+ }
+ _PROGRAM_DIR_PATTERN = re.compile(r"program_(\d+)")
+ _MAX_ARTIFACT_BYTES = 16 * 1024 * 1024
+@@ -107,6 +112,17 @@ def _require_candidate_source_ready(*, src_dir: Path, dst_dir: Path) -> None:
+     if src_index == 0:
+         return
+
++    manifest_path = src_dir / "evaluation_manifest.json"
++    manifest = _read_regular_json(manifest_path) if manifest_path.exists() else {}
++    if manifest.get("execution_boundary") == "native":
++        from .harness_incumbent import read_native_evaluation
++        criteria = json.loads((src_dir.parent / "active_rubrics.json").read_text())
++        evaluation = read_native_evaluation(src_dir, criteria,
++            attempt_id=manifest.get("attempt_id"), idea_id=manifest.get("idea_id"))
++        if evaluation.complete:
++            raise ValueError("Candidate source already passes all rubrics; do not create another candidate")
++        return
++
+     artifacts = {
+         filename: _read_regular_json(src_dir / filename)
+         for filename in _REQUIRED_SOURCE_ARTIFACTS
+@@ -243,6 +259,8 @@ def clone_program_dir(*, src_dir: Path, dst_dir: Path) -> None:
+
+     exclude = spec.copy.exclude
+     include = spec.copy.include
++    manifest_path = src_dir / "evaluation_manifest.json"
++    result_paths = set(_read_regular_json(manifest_path).get("evidence_records", {})) if manifest_path.exists() else set()
+
+     # Walk and copy deterministically. Prune common huge excluded dirs when includes are empty.
+     followlinks = False
+@@ -286,7 +304,7 @@ def clone_program_dir(*, src_dir: Path, dst_dir: Path) -> None:
+             src_path = root_path / filename
+             relpath = f"{rel_root}/{filename}".lstrip("/")
+
+-            if not _should_copy(relpath=relpath, include=include, exclude=exclude):
++            if relpath in result_paths or not _should_copy(relpath=relpath, include=include, exclude=exclude):
+                 continue
+
+             dst_path = dst_dir / relpath
+diff --git a/src/investigation/script_runners.py b/src/investigation/script_runners.py
+index 607adbb..2456a96 100644
+--- a/src/investigation/script_runners.py
++++ b/src/investigation/script_runners.py
+@@ -683,6 +683,7 @@ def run_single_attempt(
+     ]
+     if harness_evaluated_attempts:
+         cmd.extend(["--harness-evaluated-attempt", "--agent-timeout-seconds", str(timeout_seconds)])
++    if harness_evaluated_attempts or agent == "local-api":
+         cmd.extend(["--harness-evaluation-timeout-seconds", str(harness_evaluation_timeout_seconds)])
+     if gpu_evaluation:
+         cmd.append("--gpu-evaluation")
+diff --git a/src/pipeline/config.py b/src/pipeline/config.py
+index 2f60b2e..f6f8b2b 100644
+--- a/src/pipeline/config.py
++++ b/src/pipeline/config.py
+@@ -847,9 +847,8 @@ def validate_pipeline_config(cfg: PipelineConfig) -> list[str]:
+         return errors
+     if cfg.agent.name == "local-api" and (
+         not selected <= {"investigation", "posthoc"} or cfg.container.enabled
+-        or ("investigation" in selected and not cfg.investigation.harness_evaluated_attempts)
+     ):
+-        return ["local-api requires native harness-owned investigation/posthoc phases; full-pipeline orchestration is not supported"]
++        return ["local-api supports native investigation/posthoc phases only; full-pipeline orchestration is not supported"]
+
+     for phase_name, phases_using_it in _PHASE_SECTION_USERS.items():
+         if not selected.intersection(phases_using_it):
+diff --git a/src/scripts/lib/container_agent.sh b/src/scripts/lib/container_agent.sh
+index 58929a6..f2a92dd 100644
+--- a/src/scripts/lib/container_agent.sh
++++ b/src/scripts/lib/container_agent.sh
+@@ -145,10 +145,6 @@ validate_native_api_author() {
+     echo "local-api does not support --containerize; use native execution" >&2
+     return 1
+   fi
+-  if [ "$harness" -ne 1 ]; then
+-    echo "local-api requires --harness-evaluated-attempt (source authoring only)" >&2
+-    return 1
+-  fi
+   if [ "$profile_set" -eq 1 ]; then
+     echo "local-api does not support --agent-profile/--profile" >&2
+     return 1
+diff --git a/src/scripts/run.sh b/src/scripts/run.sh
+index 449bbe0..93991d8 100755
+--- a/src/scripts/run.sh
++++ b/src/scripts/run.sh
+@@ -1354,8 +1354,13 @@ TEE_PID=$!
+   fi
+   if [ "$AGENT" = "local-api" ]; then
+     cd "$EXPERIMENT_DIR"
++    export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
++    export EVALUATION_TIMEOUT_SECONDS="$HARNESS_EVAL_TIMEOUT_SECONDS"
++    export HARNESS_PYTHON_BIN
++    API_STAGE=research
++    if [ "$HARNESS_EVALUATED_ATTEMPT" -eq 0 ]; then API_STAGE=iterate; fi
+     exec "$AI_STATISTICIAN_API_PYTHON" "$AI_STATISTICIAN_API_ENTRYPOINT" \
+-      --prompt-file prompt.md --model "$AGENT_MODEL"
++      --stage "$API_STAGE" --prompt-file prompt.md --model "$AGENT_MODEL"
+   else
+     AGENT_PROMPT_FILE="prompt.md" \
+     run_agent_prompt \

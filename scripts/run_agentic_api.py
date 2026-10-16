@@ -1,4 +1,4 @@
-"""Native source-only investigation participant for the pinned upstream patch."""
+"""Native file/tool participant for the pinned upstream controller."""
 
 from __future__ import annotations
 
@@ -143,7 +143,7 @@ def stage_workspace(root: Path, source: Path, *, stage="research", results: Path
             "Upstream workflow instructions apply only where compatible with this stage contract."
         )
         return workspace
-    if stage != "research":
+    if stage not in {"research", "iterate"}:
         raise ValueError("Unknown native API stage.")
     grants = [
         FileGrant(name, root / name) for name in
@@ -160,6 +160,15 @@ def stage_workspace(root: Path, source: Path, *, stage="research", results: Path
     specification = tomllib.loads(workspace._path("program_0/program_spec.toml").read_text())
     if specification.get("schema_version") != 1 or specification["code_root"] != "src":
         raise ValueError("The pinned upstream schema_version=1 requires code_root='src'.")
+    if stage == "iterate":
+        from ai_statistician.agentic_program_workspace import ProgramWorkspace
+        return ProgramWorkspace(tuple(grants), experiment=root,
+            max_evaluations=int(os.environ["MAX_PROGRAM_EVALS_PER_ATTEMPT"]),
+            timeout_seconds=int(os.environ["EVALUATION_TIMEOUT_SECONDS"]),
+            attempt_id=os.environ["ATTEMPT_ID"], idea_id=os.environ["IDEA_ID"],
+            memory_md=Path(os.environ["GLOBAL_MEMORY_MD_FILE"]),
+            memory_jsonl=Path(os.environ["GLOBAL_MEMORY_JSONL_FILE"]),
+            python_executable=os.environ["HARNESS_PYTHON_BIN"])
     return workspace
 
 
@@ -167,7 +176,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prompt-file", type=Path)
     parser.add_argument("--model", required=True)
-    parser.add_argument("--stage", choices=("idea", "research", "review", "posthoc"), default="research")
+    parser.add_argument("--stage", choices=("idea", "research", "iterate", "review", "posthoc"), default="research")
     parser.add_argument("--program-dir", type=Path)
     parser.add_argument("--task-dir", type=Path)
     parser.add_argument("--rubrics-file", type=Path)
